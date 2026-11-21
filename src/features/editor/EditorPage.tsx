@@ -110,6 +110,8 @@ export default function EditorPage() {
           <ArrowLeft size={18} />
         </Link>
         <Logo size={26} className="editor-logo" />
+        <input className="bar-title-input" value={session.meta.title} placeholder="Article title" aria-label="Article title"
+          maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })} />
         <span className={`badge ${session.status === 'published' ? 'badge-good' : 'badge-pending'}`}>{session.status}</span>
         <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} />
         <span className="editor-bar-spacer" />
@@ -166,8 +168,6 @@ export default function EditorPage() {
       <SplitPane ratio={ratio} onRatioChange={setRatio} leftLabel="Text" rightLabel="Canvas"
         left={(
           <div className="editor-text" key={`t${sessionKey}`}>
-            <input className="title-input" value={session.meta.title} placeholder="Article title" aria-label="Title" maxLength={160}
-              onChange={e => session.setMeta({ title: e.target.value })} />
             <TextEditor initialDoc={draft.doc} frames={frames} onReady={setEditor} onChange={session.setDoc}
               onActiveSection={onActiveSection} onLinkFrame={linkFrame} onCreateFrame={newFrame} />
           </div>

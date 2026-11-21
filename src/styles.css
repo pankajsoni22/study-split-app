@@ -456,7 +456,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
   background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap;
 }
 .editor-logo { border-radius: 8px; flex: none; }
-.editor-bar-spacer { flex: 1; }
+.editor-bar-spacer { flex: 1 1 0; }
 .save-indicator { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); font-weight: 500; }
 .save-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
 .save-indicator.is-dirty .dot { background: var(--marker); }
@@ -471,10 +471,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .banner-good { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
 
 .editor-text { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
-.title-input {
-  border: none; border-radius: 0; box-shadow: none !important; background: transparent; min-height: 0;
-  padding: 22px 28px 6px; font-size: clamp(22px, 2.4vw, 30px); font-weight: 750; letter-spacing: -0.02em;
+/* Article title lives in the top bar to save vertical space */
+.bar-title-input {
+  flex: 1 1 220px; min-width: 140px; max-width: 520px; min-height: 36px; padding: 5px 10px;
+  border: 1px solid transparent; border-radius: 9px; background: transparent; box-shadow: none !important;
+  font-size: 16px; font-weight: 700; letter-spacing: -0.01em; text-overflow: ellipsis;
 }
+.bar-title-input:hover { border-color: var(--border); }
+.bar-title-input:focus { border-color: var(--accent); background: var(--surface); }
 .text-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 20px;
