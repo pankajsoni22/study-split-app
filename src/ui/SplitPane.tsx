@@ -7,7 +7,7 @@ import { layoutById } from '../domain/layouts.ts';
  * While dragging, the split jumps between layouts; the choice is committed on release.
  * Keyboard: ←/→ move one layout, Home = the default. Double-click = the default.
  */
-export default function SplitPane({ left, right, layout, defaultLayout, onLayoutChange, leftLabel, rightLabel }: {
+export default function SplitPane({ left, right, layout, defaultLayout, onLayoutChange, leftLabel, rightLabel, notice }: {
   left: ReactNode;
   right: ReactNode;
   layout: LayoutId;
@@ -15,6 +15,8 @@ export default function SplitPane({ left, right, layout, defaultLayout, onLayout
   onLayoutChange: (layout: LayoutId) => void;
   leftLabel: string;
   rightLabel: string;
+  /** Short message shown on the divider (e.g. "Drawing · 40 : 60" after an automatic switch). */
+  notice?: string | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<LayoutId | null>(null);
@@ -50,7 +52,9 @@ export default function SplitPane({ left, right, layout, defaultLayout, onLayout
         onDoubleClick={() => { if (layout !== defaultLayout) onLayoutChange(defaultLayout); }} onKeyDown={onKeyDown}
         title="Drag to change the layout · double-click for the article's default">
         <span className="split-grip" aria-hidden="true" />
-        {preview && <span className="split-badge" aria-hidden="true">{shown.id.replace('-', ' : ')}</span>}
+        {preview
+          ? <span className="split-badge" aria-hidden="true">{shown.id.replace('-', ' : ')}</span>
+          : notice && <span className="split-badge is-notice" role="status">{notice}</span>}
       </div>
       <section className="split-pane split-right" aria-label={rightLabel}>{right}</section>
     </div>

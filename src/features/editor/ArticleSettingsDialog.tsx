@@ -1,9 +1,11 @@
 import { Globe, Link2, Lock, Trash2, Undo2 } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
+import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import { slugify, tagSlug } from '../../domain/slug.ts';
 import type { ArticleVisibility } from '../../domain/types.ts';
 import { errorMessage } from '../../data/errors.ts';
 import Dialog from '../../ui/Dialog.tsx';
+import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import type { DraftSession } from './useDraftSession.ts';
 
 const VISIBILITY: { value: ArticleVisibility; label: string; hint: string; Icon: typeof Globe }[] = [
@@ -13,9 +15,11 @@ const VISIBILITY: { value: ArticleVisibility; label: string; hint: string; Icon:
 ];
 
 /** Address, summary, tags, visibility + unpublish/delete. Changes are saved with the article. */
-export default function ArticleSettingsDialog({ session, username, onClose, onDeleted }: {
+export default function ArticleSettingsDialog({ session, username, articleLayout, onArticleLayout, onClose, onDeleted }: {
   session: DraftSession;
   username: string;
+  articleLayout: LayoutId;
+  onArticleLayout: (id: LayoutId) => void;
   onClose: () => void;
   onDeleted: () => void;
 }) {
@@ -83,6 +87,17 @@ export default function ArticleSettingsDialog({ session, username, onClose, onDe
           ))}
         </div>
       </fieldset>
+
+      <div className="field">
+        <span className="field-label">Layout &amp; slide shape</span>
+        <div className="layout-setting">
+          <LayoutPicker value={articleLayout} onChange={onArticleLayout} label="Article layout (text : drawing)" />
+          <span className="field-hint">
+            {layoutById(articleLayout).label}: slides are {layoutById(articleLayout).slide.width}×{layoutById(articleLayout).slide.height}.
+            Readers start with this layout. Your editor layout (top bar, Auto) is separate.
+          </span>
+        </div>
+      </div>
 
       <p className="field-hint">These settings are saved together with the article (Save or Ctrl+S).</p>
       {error && <p className="field-error" role="alert">{error}</p>}

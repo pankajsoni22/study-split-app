@@ -119,9 +119,16 @@ All modes render from the same article data. The mode switcher sits in the top b
 - A **Layout** picker in the top bar (editor and reader) shows each proportion as a small icon.
 - Dragging the divider **snaps** between layouts (a badge shows the current one) and commits on release;
   ←/→ step one layout; double-click returns to the article's default.
-- The **writer's layout is part of the article** (stored with the canvas, so it is versioned with each published
-  version). Templates pick a sensible default (System Design 40:60, Interview 60:40, others 50:50).
-  Readers may switch layout for themselves (remembered per article); slides are scaled to fit with margins.
+- **Two separate things** (revised 2026-11-22):
+  - The **article layout** sets the slide shape and the readers' default. It's part of the article (stored with the canvas,
+    so it is versioned with each published version) and is changed in **Settings → Layout & slide shape**. Templates pick
+    a sensible default (System Design 40:60, Interview 60:40, others 50:50).
+  - The **editor layout** is just the writer's screen: the top-bar picker and the divider.
+- **Auto layout (editor, on by default):** writing (focus in the text or the title) switches to **60:40**; drawing (using
+  the canvas or format bar) switches to **40:60**. Each switch is announced on the divider ("Drawing · 40 : 60").
+  Picking a layout by hand turns Auto off, and the Auto button turns it back on. The canvas re-fits after a switch
+  unless the writer has zoomed or panned.
+- Readers may switch layout for themselves (remembered per article); slides are scaled to fit with margins.
 
 **Slides, not an infinite canvas.** Every H2 section has exactly **one slide**: a fixed-size drawing board whose
 shape follows the article layout:
@@ -134,8 +141,11 @@ shape follows the article layout:
   - The canvas shows the current section's slide on a "paper" sheet, fitted to the pane whenever the section changes.
     Zoom and pan work normally while drawing; **Fit slide** (or Shift+1) shows the whole slide again.
     (Revised 2026-11-22: the first version locked zoom/pan, which was uncomfortable to draw in.)
-  - A **slide strip** (thumbnails) sits under the canvas. Clicking a slide jumps to its section; **+ Add slide**
+  - **Slides panel:** a slim, full-width strip of thumbnails. Clicking a slide jumps to its section; **+ Add slide**
     inserts a new section with its slide after the current one.
+    - **Unpinned (default):** hidden behind a floating **Slides n / N** button at the bottom of the drawing side. Hover,
+      focus or click opens it; it hides after ~3 s, 1.2 s after the pointer leaves, on a click outside, or with Esc.
+    - **Pinned (📌, remembered):** docked at the bottom of the editor and always visible.
   - Slides are created, named and kept in order automatically. Each H2 shows a "Slide n" label, and the old
     "link a frame" control is gone.
   - Changing the layout reshapes all slides (with a confirmation if any slide has drawings). Drawings keep their size

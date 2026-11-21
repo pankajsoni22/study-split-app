@@ -26,6 +26,9 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const lastSig = useRef<number | null>(null);
   const paperFrame = useRef(0);
+  /** True once the user zoomed/panned since the last fit; pane resizes then keep their view. */
+  const userMoved = useRef(false);
+  const fitting = useRef(false);
   const [paper, setPaper] = useState<Rect | null>(null);
 
   const initialData = useMemo(() => ({
@@ -50,20 +53,24 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   /** Show the whole current slide. */
   const fit = useCallback(() => {
     const a = apiRef.current;
-    if (a && slideId) fitSlide(a, slideId);
+    if (a && slideId) {
+      fitting.current = true;
+      fitSlide(a, slideId);
+      requestAnimationFrame(() => { fitting.current = false; userMoved.current = false; });
+    }
     placePaper();
   }, [placePaper, slideId]);
 
   useEffect(() => { if (api) fit(); }, [api, fit]);
 
-  // Refit when the pane changes size (layout switch, window resize).
+  // Pane resized (auto layout, window): refit, unless the user has zoomed/panned to work on a detail.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const ro = new ResizeObserver(() => fit());
+    const ro = new ResizeObserver(() => { if (userMoved.current) placePaper(); else fit(); });
     ro.observe(host);
     return () => ro.disconnect();
-  }, [fit]);
+  }, [fit, placePaper]);
 
   // Shift+1 normally zooms to ALL content (every slide); here it fits the current slide instead.
   useEffect(() => {
@@ -96,7 +103,7 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
           canvasActions: { loadScene: false, saveToActiveFile: false, export: false, toggleTheme: null, clearCanvas: false, changeViewBackgroundColor: false },
           tools: { image: true }
         }}
-        onScrollChange={placePaper}
+        onScrollChange={() => { if (!fitting.current) userMoved.current = true; placePaper(); }}
         onChange={(elements, appState, files) => {
           // Excalidraw hands out its API before initialData is applied; announce it after loading.
           if (appState.isLoading) return;

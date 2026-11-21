@@ -642,19 +642,44 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .canvas-host.is-slide .HintViewer { display: none !important; }
 .fit-slide { position: absolute; top: 12px; right: 12px; z-index: 4; min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
 
-.slide-strip { flex: none; border-top: 1px solid var(--border); background: var(--surface); }
-.slide-strip ol { display: flex; gap: 10px; list-style: none; margin: 0; padding: 10px 12px; overflow-x: auto; scrollbar-width: thin; }
+/* Slides panel: slim, full width; floating (auto-hides) or docked when pinned */
+.slide-pane { position: relative; }
+.canvas-zone { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.slide-strip { display: flex; align-items: center; gap: 4px; background: var(--surface); }
+.slide-strip ol { flex: 1; display: flex; gap: 8px; list-style: none; margin: 0; padding: 8px 10px; overflow-x: auto; scrollbar-width: thin; }
+.slide-strip.is-docked { flex: none; border-top: 1px solid var(--border); }
+.strip-pin { flex: none; margin-right: 8px; }
+.strip-pin[aria-pressed="true"] { color: var(--accent-strong); }
 .slide-thumb, .slide-add {
-  display: flex; flex-direction: column; gap: 5px; width: 118px; padding: 5px; border-radius: 10px;
+  display: flex; flex-direction: column; gap: 4px; width: 96px; padding: 4px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font: inherit; cursor: pointer; text-align: left;
 }
 .slide-thumb:hover { border-color: var(--border-strong); }
 .slide-thumb.is-on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
-.slide-thumb-box { display: grid; place-items: center; height: 66px; border-radius: 6px; background: var(--canvas); overflow: hidden; }
-.slide-thumb-label { font-size: 11.5px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slide-thumb-box { display: grid; place-items: center; height: 50px; border-radius: 5px; background: var(--canvas); overflow: hidden; }
+.slide-thumb-label { font-size: 11px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slide-thumb-label b { color: var(--accent-strong); margin-right: 2px; }
-.slide-add { align-items: center; justify-content: center; min-height: 96px; border-style: dashed; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.slide-add { align-items: center; justify-content: center; min-height: 74px; border-style: dashed; color: var(--muted); font-size: 12px; font-weight: 600; }
 .slide-add:hover { color: var(--accent-strong); border-color: var(--accent); }
+
+.slides-fab {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-md);
+}
+.slides-fab:hover, .slides-fab.is-open { color: var(--accent-strong); border-color: var(--accent); }
+.slides-fab-count { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
+.slides-float {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 40;
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-lg);
+  animation: strip-up 0.16s ease-out;
+}
+@keyframes strip-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.auto-toggle.is-on { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.split-badge.is-notice { background: var(--marker); color: #3b2a07; transform: translate(-50%, -50%); animation: strip-up 0.16s ease-out; }
+.layout-setting { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
 .slide-image { position: relative; background: var(--surface); border-radius: 6px; overflow: hidden; }
 .slide-image-svg, .slide-image-svg svg { width: 100%; height: 100%; display: block; }

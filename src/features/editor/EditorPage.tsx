@@ -1,10 +1,11 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
 import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
+import { readJson, writeJson } from '../../lib/storage.ts';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
@@ -17,6 +18,7 @@ import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
 import type { CurrentSection } from './selection.ts';
 import { useDraftSession, type SaveState } from './useDraftSession.ts';
+import { useEditorView } from './useEditorView.ts';
 
 const Canvas = lazy(() => import('../canvas/Canvas.tsx'));
 
@@ -35,17 +37,23 @@ export default function EditorPage() {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   /** Scene snapshot for thumbnails: refreshed 0.7 s after drawing stops (not on every stroke). */
   const [thumbScene, setThumbScene] = useState<{ key: number; scene: CanvasScene } | null>(null);
+  const [stripPinned, setStripPinned] = useState<boolean>(() => readJson('ss.editor.stripPinned', false));
+  const pinStrip = useCallback((pinned: boolean) => { setStripPinned(pinned); writeJson('ss.editor.stripPinned', pinned); }, []);
+  const editorView = useEditorView();
   const syncTimer = useRef<number | undefined>(undefined);
   const thumbTimer = useRef<number | undefined>(undefined);
 
   const { draft, sessionKey, setCanvas, setDoc, canvasRef } = session;
 
-  // ---- layout (stored with the canvas, so it is versioned with each published version) ----
-  const articleLayout: LayoutId = draft?.canvas.layout ?? templateByKey(draft?.templateKey)?.layout ?? DEFAULT_LAYOUT;
-  const [layoutPick, setLayoutPick] = useState<{ key: number; id: LayoutId } | null>(null);
-  const layoutId = layoutPick?.key === sessionKey ? layoutPick.id : articleLayout;
-  const layoutRef = useRef(layoutId);
-  useEffect(() => { layoutRef.current = layoutId; }, [layoutId]);
+  // ---- Article layout: slide shape + readers' default. Stored with the canvas (versioned on publish).
+  //      Changed in Settings. Separate from the editor's on-screen split (editorView, incl. Auto). ----
+  const [articlePick, setArticlePick] = useState<{ key: number; id: LayoutId } | null>(null);
+  const articleLayout: LayoutId = articlePick?.key === sessionKey
+    ? articlePick.id
+    : draft?.canvas.layout ?? templateByKey(draft?.templateKey)?.layout ?? DEFAULT_LAYOUT;
+  const layoutRef = useRef(articleLayout);
+  useEffect(() => { layoutRef.current = articleLayout; }, [articleLayout]);
+  const viewLayout: LayoutId = editorView.view ?? articleLayout;
 
   const onCanvasChange = useCallback((scene: CanvasScene) => {
     const withLayout = { ...scene, layout: layoutRef.current };
@@ -119,7 +127,8 @@ export default function EditorPage() {
     const h = headingPos(sectionId);
     if (!editor || !h) return;
     setActiveSectionId(sectionId);
-    editor.chain().focus().setTextSelection(h.pos + h.size - 1).scrollIntoView().run();
+    // No focus(): browsing slides shouldn't count as "writing" for Auto layout.
+    editor.chain().setTextSelection(h.pos + h.size - 1).scrollIntoView().run();
   }, [editor, headingPos]);
 
   /** New section + slide right after the current section (or at the end). */
@@ -139,7 +148,7 @@ export default function EditorPage() {
   }, [activeSlide, editor, headingPos]);
 
   /** Author changes the article layout: slides take the new shape (drawings keep their size and place). */
-  const changeLayout = useCallback((id: LayoutId) => {
+  const changeArticleLayout = useCallback((id: LayoutId) => {
     const target = layoutById(id);
     if (api) {
       const elements = api.getSceneElements();
@@ -149,11 +158,11 @@ export default function EditorPage() {
         `Switch to ${target.label}? Slides change shape to ${target.slide.width}×${target.slide.height}. ` +
         'Drawings keep their size and position, so some may need moving.')) return;
       layoutRef.current = id;
-      setLayoutPick({ key: sessionKey, id });
+      setArticlePick({ key: sessionKey, id });
       updateFrames(api, new Map(frames.map(f => [f.id, { width: target.slide.width, height: target.slide.height }])));
     } else {
       layoutRef.current = id;
-      setLayoutPick({ key: sessionKey, id });
+      setArticlePick({ key: sessionKey, id });
     }
     const scene = canvasRef.current ?? draft?.canvas;
     if (scene) setCanvas({ ...scene, layout: id });
@@ -169,6 +178,12 @@ export default function EditorPage() {
   if (session.loadError) return <div className="editor-page"><main className="narrow" style={{ margin: '40px auto' }}><ErrorState error={session.loadError} /><Link to={backTo}>← Back to my articles</Link></main></div>;
   if (!draft || !session.meta) return <div className="editor-page"><Loading label="Opening article" /></div>;
 
+  const strip = (
+    <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
+      scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide}
+      pinned={stripPinned} onPinnedChange={pinStrip} />
+  );
+
   async function publish() {
     setNotice('');
     if (await session.publish()) setNotice('published');
@@ -182,11 +197,18 @@ export default function EditorPage() {
         </Link>
         <Logo size={26} className="editor-logo" />
         <input className="bar-title-input" value={session.meta.title} placeholder="Article title" aria-label="Article title"
-          maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })} />
+          maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })}
+          onFocus={() => editorView.activity('write')} />
         <span className={`badge ${session.status === 'published' ? 'badge-good' : 'badge-pending'}`}>{session.status}</span>
         <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} />
         <span className="editor-bar-spacer" />
-        <LayoutPicker value={layoutId} onChange={changeLayout} label="Article layout (text : drawing)" />
+        <button type="button" className={`btn btn-ghost btn-sm auto-toggle${editorView.auto ? ' is-on' : ''}`} aria-pressed={editorView.auto}
+          onClick={editorView.toggleAuto}
+          title={'Auto layout: more room for text while you write (60:40), more room for the canvas while you draw (40:60).\n'
+            + 'Picking a layout yourself turns it off.'}>
+          <Sparkles size={14} aria-hidden="true" /> Auto
+        </button>
+        <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
         {session.status === 'published' && (
           <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
             <ExternalLink size={15} aria-hidden="true" /> View
@@ -237,27 +259,31 @@ export default function EditorPage() {
         </div>
       )}
 
-      <SplitPane layout={layoutId} defaultLayout={articleLayout} onLayoutChange={changeLayout} leftLabel="Text" rightLabel="Slides"
+      <SplitPane layout={viewLayout} defaultLayout={articleLayout} onLayoutChange={editorView.pick} notice={editorView.notice}
+        leftLabel="Text" rightLabel="Slides"
         left={(
-          <div className="editor-text" key={`t${sessionKey}`}>
+          <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
             <TextEditor initialDoc={draft.doc} onReady={setEditor} onChange={onTextChange} onActiveSection={onActiveSection} />
           </div>
         )}
         right={(
           <div className="slide-pane">
-            <FormatBar api={api} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
-            <Suspense fallback={<Loading label="Loading canvas" />}>
-              <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
-                onApi={setApi} onSceneChange={onCanvasChange} />
-            </Suspense>
-            <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
-              scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide} />
+            <div className="canvas-zone" onPointerUpCapture={() => editorView.activity('draw')}>
+              <FormatBar api={api} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
+              <Suspense fallback={<Loading label="Loading canvas" />}>
+                <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
+                  onApi={setApi} onSceneChange={onCanvasChange} />
+              </Suspense>
+            </div>
+            {!stripPinned && strip}
           </div>
         )}
       />
+      {stripPinned && strip}
 
       {settingsOpen && (
         <ArticleSettingsDialog session={session} username={draft.ownerUsername || profile?.username || ''}
+          articleLayout={articleLayout} onArticleLayout={changeArticleLayout}
           onClose={() => setSettingsOpen(false)} onDeleted={() => void navigate(backTo, { replace: true })} />
       )}
     </div>
