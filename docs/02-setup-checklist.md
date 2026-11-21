@@ -1,7 +1,24 @@
 # Study Split: setup checklist (before Phase 1)
 
-Do these in order. Steps 1–6 take about 30 minutes. Step 7 can wait until before you write real content.
-Tick each box as you go.
+Study Split reuses what already exists for **soni-siblings-app**: the same GitHub account and the same Google Cloud project and sign-in client.
+That leaves about **20 minutes** for steps 1–6. Step 7 can wait until before you write real content.
+
+---
+
+## ✅ Already done (reused from soni-siblings-app)
+
+| Item | Value | Where it's used |
+|---|---|---|
+| GitHub account / Pages origin | `pankajsoni22` → `https://pankajsoni22.github.io` | Site URL: `https://pankajsoni22.github.io/study-split-app/` |
+| Google Cloud project | Same project as soni-siblings-app | No new project needed |
+| Google Auth Platform audience | Already **In production** | Anyone with a Google account can reach sign-in |
+| Authorized JavaScript origin `https://pankajsoni22.github.io` | Already registered (same origin as soni-siblings-app) | Live-site sign-in |
+| Google **Client ID** (public value) | `1039316720394-gjd5fqrjf9oe9ip4vg67r64sq0hq6ers.apps.googleusercontent.com` | Already in your local `.env.local`; also needed in steps 3 and 6 |
+| Local `.env.local` | Created (git-ignored), Google Client ID filled in | Only the two Supabase values are missing |
+
+> **Branding note:** Google's sign-in popup shows the Cloud project's app name, which is probably *Soni Siblings*.
+> Either rename it in **Google Auth Platform → Branding** to something neutral like *Pankaj Soni Apps*, or later give Study Split its own Cloud project.
+> Switching later only changes the Client ID in three places (`.env.local`, the GitHub variable and Supabase).
 
 ---
 
@@ -13,39 +30,35 @@ Tick each box as you go.
   This file has never been run against a real database, so report any error you see.
 - [ ] Open **Project Settings → API** and copy the **Project URL** and the **anon / publishable key**.
 
-## 2. Create the Google sign-in client (about 10 min)
+## 2. Allow local sign-in in Google (about 1 min)
 
-- [ ] Go to <https://console.cloud.google.com>. You can reuse the soni-siblings Google Cloud project or create a new one.
-- [ ] Go to **Google Auth Platform → Clients → Create client → Web application** and name it `Study Split`.
-- [ ] Under **Authorized JavaScript origins**, add:
-  - `http://localhost:5173`
-  - `https://pankajsoni22.github.io`
+The live origin is already registered. Only local development needs adding.
 
-  You don't need any redirect URIs.
-- [ ] Copy the **Client ID** and **Client secret**.
-- [ ] Under **Audience**, click **Publish app** so the status is *In production*. Otherwise only listed test users can sign in.
-  The basic email and profile scopes don't need Google verification.
+- [ ] Go to <https://console.cloud.google.com> and select the soni-siblings project.
+- [ ] Go to **Google Auth Platform → Clients** and open the web client whose ID starts with `1039316720394-gjd5…`.
+- [ ] Under **Authorized JavaScript origins**, add `http://localhost:5173` and save.
+  Keep the existing origins (`https://pankajsoni22.github.io`, `http://localhost:8000`) unchanged.
+- [ ] *(Optional)* Under **Branding**, rename the app as described in the branding note above.
 
 ## 3. Connect Google to Supabase (about 2 min)
 
 - [ ] In Supabase, go to **Authentication → Sign In / Providers → Google** and turn it on.
-- [ ] Paste the **Client ID** into the client IDs field and the **Client secret** into the secret field.
+- [ ] In **Client IDs**, paste `1039316720394-gjd5fqrjf9oe9ip4vg67r64sq0hq6ers.apps.googleusercontent.com`.
+- [ ] **Client secret:** Study Split never uses it, because it signs in with ID tokens. Leave it empty if the form allows that.
+  If the form insists, go to the Google client page, click **Add secret**, and paste the new one. Never commit it.
 - [ ] Leave **Skip nonce check** turned **off**, then save.
 
 ## 4. Run the app locally (about 3 min)
 
-```bash
-cd ~/projects/study-split-app
-cp .env.example .env.local
-```
-
-- [ ] Edit `.env.local` and fill in `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `VITE_GOOGLE_CLIENT_ID`.
+- [ ] Open `.env.local`, which already exists, and fill in the two empty values from step 1:
+  - `VITE_SUPABASE_URL=https://<your-ref>.supabase.co`
+  - `VITE_SUPABASE_ANON_KEY=<anon / publishable key>`
 - [ ] Run `npm run dev` and open <http://localhost:5173/study-split-app/>.
 - [ ] Sign in with Google, then accept or change your username.
 
 ## 5. Make yourself admin (1 min)
 
-- [ ] In the Supabase SQL Editor, run this with your Gmail address:
+- [ ] In the Supabase SQL Editor, run this with the Gmail address you signed in with:
 
 ```sql
 update public.profiles set role = 'admin'
@@ -56,12 +69,13 @@ where id = (select id from auth.users where email = 'YOUR_GMAIL@gmail.com');
 
 ## 6. Deploy to GitHub Pages (about 5 min)
 
-- [ ] In the GitHub repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+- [ ] In the `study-split-app` repo on GitHub, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
 - [ ] Go to **Settings → Secrets and variables → Actions → Variables** and add these. They are *Variables*, not secrets, because they're public anyway:
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
-  - `VITE_GOOGLE_CLIENT_ID`
-- [ ] Merge the `phase-0-foundation` branch into `main`, through a pull request. That triggers the deploy.
+  - `VITE_SUPABASE_URL`: the same value as in `.env.local`
+  - `VITE_SUPABASE_ANON_KEY`: the same value as in `.env.local`
+  - `VITE_GOOGLE_CLIENT_ID`: `1039316720394-gjd5fqrjf9oe9ip4vg67r64sq0hq6ers.apps.googleusercontent.com`
+- [ ] Merge the `phase-0-foundation` branch into `main` through a pull request. That triggers the deploy:
+  <https://github.com/pankajsoni22/study-split-app/pull/new/phase-0-foundation>
 - [ ] Open <https://pankajsoni22.github.io/study-split-app/> and sign in on the live site.
 
 ## 7. Keep-alive and backups (before you write real content)
@@ -83,6 +97,17 @@ where id = (select id from auth.users where email = 'YOUR_GMAIL@gmail.com');
 - [ ] To restore a backup: `age -d -i ~/study-split-backup.key study-split-db-DATE.tar.gz.age | tar -xz`
 
 ---
+
+## What only you can provide
+
+| Needed | Why I can't fill it |
+|---|---|
+| Supabase Project URL + anon key | The project doesn't exist yet. Create it in step 1. |
+| Supabase database password | Created by you in step 1, and it should never be in the repo |
+| Your sign-in Gmail (for the admin SQL) | Personal data. It stays in the SQL Editor only, never in the repo. |
+| Google console access | Needs your Google login (step 2) |
+| GitHub repo settings | Needs your GitHub login (step 6) |
+| age backup key | Must be generated and kept only by you (step 7) |
 
 ## Done?
 
