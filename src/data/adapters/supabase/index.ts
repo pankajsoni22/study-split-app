@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AppSettings, Role, Tag } from '../../../domain/types.ts';
+import type { Doc } from '../../../domain/content.ts';
+import type { AppSettings, ArticleDraft, CanvasScene, PublishedArticle, Role, Tag } from '../../../domain/types.ts';
 import { AppError } from '../../errors.ts';
 import type { AuthSession, Services } from '../../ports.ts';
 import { createSupabase } from './client.ts';
@@ -8,6 +9,14 @@ import {
   ARTICLE_SUMMARY_COLUMNS, toAdminUser, toArticleSummary, toProfile, toPublicProfile,
   type AdminUserRow, type ArticleSummaryRow, type ProfileRow
 } from './mappers.ts';
+
+interface DraftRow {
+  id: string; title: string; slug: string; summary: string | null; tags: string[];
+  visibility: ArticleDraft['meta']['visibility']; status: ArticleDraft['status'];
+  template_key: string | null; published_version: number | null;
+  owner: { username: string } | { username: string }[] | null;
+  draft: { doc: Doc; canvas: CanvasScene; version: number; updated_at: string } | { doc: Doc; canvas: CanvasScene; version: number; updated_at: string }[] | null;
+}
 
 /** Supabase implementation of every port. The only module that knows Supabase exists. */
 export function createSupabaseServices(url: string, anonKey: string): Services {
@@ -92,6 +101,53 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       },
       async recordView(articleId) {
         return Number(unwrap(await sb.rpc('record_view', { target: articleId })));
+      },
+
+      async create({ title, templateKey, doc }) {
+        return unwrap(await sb.rpc('create_article', { p_title: title, p_template_key: templateKey, p_doc: doc })) as string;
+      },
+      async getDraft(articleId) {
+        // One query: metadata + owner + draft body (docs §11.3 "Open editor: 1 call").
+        const row = unwrap(await sb.from('articles')
+          .select('id, title, slug, summary, tags, visibility, status, template_key, published_version,' +
+            ' owner:profiles!inner(username), draft:article_drafts(doc, canvas, version, updated_at)')
+          .eq('id', articleId).maybeSingle<DraftRow>());
+        if (!row) return null;
+        const draft = Array.isArray(row.draft) ? row.draft[0] : row.draft;
+        const owner = Array.isArray(row.owner) ? row.owner[0] : row.owner;
+        if (!draft) return null;
+        const result: ArticleDraft = {
+          id: row.id,
+          meta: { title: row.title, slug: row.slug, summary: row.summary ?? '', tags: row.tags, visibility: row.visibility },
+          status: row.status,
+          templateKey: row.template_key,
+          publishedVersion: row.published_version,
+          ownerUsername: owner?.username ?? '',
+          doc: draft.doc,
+          canvas: draft.canvas,
+          version: draft.version,
+          updatedAt: draft.updated_at
+        };
+        return result;
+      },
+      async saveDraft(articleId, expectedVersion, { doc, canvas, meta, hasBrief, readingMinutes }) {
+        return unwrap(await sb.rpc('save_draft', {
+          p_article_id: articleId, p_expected_version: expectedVersion, p_doc: doc, p_canvas: canvas,
+          p_meta: { ...meta, hasBrief, readingMinutes }
+        })) as number;
+      },
+      async publish(articleId) {
+        return unwrap(await sb.rpc('publish_article', { p_article_id: articleId })) as number;
+      },
+      async unpublish(articleId) {
+        unwrap(await sb.rpc('unpublish_article', { p_article_id: articleId }));
+      },
+      async remove(articleId) {
+        unwrap(await sb.from('articles').delete().eq('id', articleId));
+      },
+      async getPublished(username, slug) {
+        const data = unwrap(await sb.rpc('get_published_article', { p_username: username, p_slug: slug })) as PublishedArticle | null;
+        return data ?? null;
       }
     },
 

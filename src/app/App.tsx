@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef } from 'react';
+import { lazy, Suspense, useRef, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import RequireAuth from '../features/auth/RequireAuth.tsx';
 import SignInPage from '../features/auth/SignInPage.tsx';
@@ -16,7 +16,10 @@ import { useFocusOnNavigate } from './useFocusOnNavigate.ts';
 const SettingsPage = lazy(() => import('../features/account/SettingsPage.tsx'));
 const MyArticlesPage = lazy(() => import('../features/articles/MyArticlesPage.tsx'));
 const ProfilePage = lazy(() => import('../features/articles/ProfilePage.tsx'));
-const WritePage = lazy(() => import('../features/editor/WritePage.tsx'));
+const NewArticlePage = lazy(() => import('../features/editor/NewArticlePage.tsx'));
+// Full-screen pages (no sidebar): the split editor and the reader.
+const EditorRoute = lazy(() => import('../features/editor/EditorRoute.tsx'));
+const ReaderPage = lazy(() => import('../features/reader/ReaderPage.tsx'));
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage.tsx'));
 const AdminSettingsPage = lazy(() => import('../features/admin/AdminSettingsPage.tsx'));
 
@@ -28,24 +31,32 @@ export default function App() {
         <Routes>
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/onboarding/username" element={<RequireAuth><UsernameOnboardingPage /></RequireAuth>} />
-          <Route path="*" element={<Shell />} />
+          <Route path="/write/new" element={<UsernameGate><Shell /></UsernameGate>} />
+          <Route path="/write/:articleId" element={
+            <UsernameGate><RequireAuth need="write"><Suspense fallback={<Loading />}><EditorRoute /></Suspense></RequireAuth></UsernameGate>
+          } />
+          <Route path="/:username/:slug" element={<UsernameGate><Suspense fallback={<Loading />}><ReaderPage /></Suspense></UsernameGate>} />
+          <Route path="*" element={<UsernameGate><Shell /></UsernameGate>} />
         </Routes>
       </ErrorBoundary>
     </>
   );
 }
 
-function Shell() {
-  const mainRef = useRef<HTMLElement>(null);
+/** New users must accept or change their suggested username before anything else (idea #10). */
+function UsernameGate({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const location = useLocation();
-  useFocusOnNavigate(mainRef);
-
-  // New users must accept or change their suggested username before anything else (idea #10).
   if (profile && !profile.usernameConfirmed) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/onboarding/username?next=${next}`} replace />;
   }
+  return <>{children}</>;
+}
+
+function Shell() {
+  const mainRef = useRef<HTMLElement>(null);
+  useFocusOnNavigate(mainRef);
 
   return (
     <div className="app">
@@ -59,7 +70,7 @@ function Shell() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
                 <Route path="/me/articles" element={<RequireAuth need="write"><MyArticlesPage /></RequireAuth>} />
-                <Route path="/write/:articleId" element={<RequireAuth need="write"><WritePage /></RequireAuth>} />
+                <Route path="/write/new" element={<RequireAuth need="write"><NewArticlePage /></RequireAuth>} />
                 <Route path="/admin/users" element={<RequireAuth need="admin"><AdminUsersPage /></RequireAuth>} />
                 <Route path="/admin/settings" element={<RequireAuth need="admin"><AdminSettingsPage /></RequireAuth>} />
                 <Route path="/admin" element={<Navigate to="/admin/users" replace />} />

@@ -1,6 +1,7 @@
 // Backend-agnostic interfaces (docs §11.4). Components and hooks depend on these only.
 // Migrating to AWS/GCP = writing another implementation of `Services`.
-import type { AdminUser, AppSettings, ArticleSummary, Profile, PublicProfile, Role, Tag } from '../domain/types.ts';
+import type { Doc } from '../domain/content.ts';
+import type { AdminUser, AppSettings, ArticleDraft, ArticleMeta, ArticleSummary, CanvasScene, Profile, PublicArticleOrNull, PublicProfile, Role, Tag } from '../domain/types.ts';
 
 export interface AuthSession {
   userId: string;
@@ -31,6 +32,19 @@ export interface ArticleRepo {
   listMine(): Promise<ArticleSummary[]>;
   /** Fire-and-forget view counter; returns the new total. */
   recordView(articleId: string): Promise<number>;
+
+  // ---- Editor (writers) ----
+  create(input: { title: string; templateKey: string | null; doc: Doc }): Promise<string>;
+  getDraft(articleId: string): Promise<ArticleDraft | null>;
+  /** Optimistic lock: throws AppError CONFLICT when `expectedVersion` is stale. Returns the new version. */
+  saveDraft(articleId: string, expectedVersion: number, input: { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; hasBrief: boolean; readingMinutes: number }): Promise<number>;
+  publish(articleId: string): Promise<number>;
+  unpublish(articleId: string): Promise<void>;
+  remove(articleId: string): Promise<void>;
+
+  // ---- Reader ----
+  /** Everything the reader page needs, in one call. Null when missing or not visible to the caller. */
+  getPublished(username: string, slug: string): Promise<PublicArticleOrNull>;
 }
 
 export interface TagRepo {

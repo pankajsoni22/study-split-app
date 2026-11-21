@@ -353,6 +353,10 @@ flowchart LR
 
 ### 11.2 The key performance idea: publish-time rendering
 
+> **Status (Phase 1b):** not built yet. Readers load the published version with one RPC (`get_published_article`)
+> and render the canvas with Excalidraw in view mode, which is a large download (~0.75 MB gzipped, cached afterwards).
+> Pre-rendered snapshots on Storage are planned for 1c; the home page is unaffected (~150 KB gzipped).
+
 When a writer clicks **Publish**, *the writer's browser* (which already has Excalidraw and Shiki loaded) produces:
 
 1. `snapshot.json` — metadata + document JSON with **pre-highlighted code tokens**, computed reading time, section→frame map, `has_brief`.
@@ -509,29 +513,29 @@ Notes:
 - `article_versions` keeps the last 20 versions per article (trimmed by trigger) — basis for revision history.
 - RPCs (`SECURITY INVOKER`, RLS still applies): `save_draft(article_id, expected_version, doc, canvas, meta)`, `publish_article(article_id, snapshot_path)`, `unpublish_article`, `is_username_available`, `claim_username`, `ping`.
 
-### 12.1 Document JSON (sketch)
+### 12.1 Document JSON (as built in Phase 1)
+
+Sections are **not wrapper nodes**: every level-2 heading starts a section, and the heading carries the
+section's id and its canvas link. That keeps editing natural (Enter, Backspace and paste work as usual),
+and a ProseMirror plugin keeps `sectionId`s unique when a heading is split or duplicated.
+Rules live in `src/domain/content.ts`; editor attributes are in `src/features/editor/extensions.ts`.
 
 ```jsonc
 {
   "type": "doc",
   "content": [
-    {
-      "type": "section",
-      "attrs": { "id": "s_hld", "frameId": "f_8x2k", "visibility": "always" },
-      "content": [
-        { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "High-level design" }] },
-        { "type": "tldr", "attrs": { "visibility": "brief" }, "content": [ /* … */ ] },
-        { "type": "paragraph", "attrs": { "visibility": "detail" }, "content": [ /* … */ ] },
-        { "type": "codeTabs", "attrs": { "visibility": "always" },
-          "content": [
-            { "type": "codeBlock", "attrs": { "language": "python", "filename": "lb.py" } },
-            { "type": "codeBlock", "attrs": { "language": "java",   "filename": "LB.java" } }
-          ] }
-      ]
-    }
+    { "type": "paragraph", "content": [ /* intro: content before the first H2 */ ] },
+    { "type": "heading", "attrs": { "level": 2, "sectionId": "s_k3j9x2", "frameId": "<excalidraw frame id>" },
+      "content": [{ "type": "text", "text": "High-level design" }] },
+    { "type": "paragraph", "attrs": { "visibility": "brief" },  "content": [ /* TL;DR, Brief mode only */ ] },
+    { "type": "paragraph", "attrs": { "visibility": "detail" }, "content": [ /* Detailed mode only */ ] },
+    { "type": "codeBlock", "attrs": { "language": "python" },   "content": [ /* … */ ] }
   ]
 }
 ```
+
+The canvas is a plain Excalidraw scene, `{ "elements": [...], "files": {...} }`; frames are Excalidraw `frame` elements.
+Code tabs (one snippet in several languages) are planned for 1c.
 
 ---
 
@@ -627,7 +631,8 @@ Theme: **System / Light / Dark** switch (sidebar and Settings), saved in localSt
 | Phase | Scope | Outcome |
 |---|---|---|
 | **0 — Foundation** ✅ built 2026-11-21 | Repo, Vite/React/TS, design tokens (plain CSS), CI, GitHub Pages deploy, Supabase project, migrations, RLS, keep-alive + backup workflows, auth + username onboarding | Sign in, claim username, empty shell deployed |
-| **1 — MVP** (≈3–4 wks) | FR-01 → FR-26 | Write, draw, publish, read in 3 modes on all screens |
+| **1a/1b — Editor & reader** ✅ built 2026-11-22 | Template gallery, split editor (TipTap + Excalidraw), section↔frame links, Brief/Detail flags, code blocks, Save/Ctrl+S with conflict check, local autosave, article settings, publish/unpublish/delete, reader in Split/Present/Article modes, Brief toggle, view counts, remembered position | Write, draw, publish, read |
+| **1c — Polish** | Link-preview popup (FR-18/19), PDF export (FR-20), publish-time pre-rendering so readers skip Excalidraw (§11.2), image uploads to Storage, code tabs, tags pages | Remaining MVP items |
 | **2 — Revise & discover** | Revise/flashcards, search, revision history, bookmarks, series, PWA offline, Markdown import/export, admin templates, preference sync | Personal knowledge base |
 | **3 — Grow / migrate** | Custom domain + SSR/OG images, comments, server-side PDF, analytics, cloud migration (AWS/GCP) | Public platform |
 

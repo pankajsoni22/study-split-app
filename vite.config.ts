@@ -13,12 +13,14 @@ function contentSecurityPolicy(supabaseUrl: string): Plugin {
   const supabaseWs = supabase.replace(/^https:/, 'wss:');
   const csp = [
     "default-src 'self'",
-    "script-src 'self' https://accounts.google.com/gsi/client",
+    // 'wasm-unsafe-eval': Excalidraw compiles its font-subsetting WebAssembly (no JS eval is allowed).
+    "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client",
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     `connect-src 'self' ${supabase} ${supabaseWs} https://accounts.google.com/gsi/`,
     'frame-src https://accounts.google.com/gsi/',
     `img-src 'self' data: blob: ${supabase} https://*.googleusercontent.com https://*.gstatic.com`,
-    "font-src 'self'",
+    "font-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'"

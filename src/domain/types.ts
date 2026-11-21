@@ -1,3 +1,5 @@
+import type { Doc } from './content.ts';
+
 // Pure domain types. No vendor (Supabase) shapes leak past src/data/adapters.
 
 export type Role = 'reader' | 'writer' | 'admin';
@@ -59,3 +61,53 @@ export interface Tag {
   label: string;
   featured: boolean;
 }
+
+// ---------- Phase 1: editor & reader ----------
+
+/** Excalidraw scene as stored: elements + image files (kept opaque outside the canvas feature). */
+export interface CanvasScene {
+  elements: unknown[];
+  files: Record<string, unknown>;
+}
+
+export interface ArticleMeta {
+  title: string;
+  slug: string;
+  summary: string;
+  tags: string[];
+  visibility: ArticleVisibility;
+}
+
+export interface ArticleDraft {
+  id: string;
+  meta: ArticleMeta;
+  status: ArticleStatus;
+  templateKey: string | null;
+  publishedVersion: number | null;
+  ownerUsername: string;
+  doc: Doc;
+  canvas: CanvasScene;
+  version: number;
+  updatedAt: string;
+}
+
+export interface PublishedArticle {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  tags: string[];
+  visibility: ArticleVisibility;
+  hasBrief: boolean;
+  readingMinutes: number;
+  publishedAt: string;
+  updatedAt: string;
+  version: number;
+  views: number;
+  isOwner: boolean;
+  author: PublicProfile;
+  doc: Doc;
+  canvas: CanvasScene;
+}
+
+export type PublicArticleOrNull = PublishedArticle | null;
