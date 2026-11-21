@@ -4,7 +4,10 @@
 -- and the storage schema (see docs/01-product-and-architecture.md §11.4).
 -- =====================================================================================
 
-create extension if not exists citext;
+-- Supabase keeps extensions in the "extensions" schema. Types are schema-qualified everywhere because
+-- the SECURITY DEFINER functions below run with an empty search_path (prevents search-path hijacking).
+create schema if not exists extensions;
+create extension if not exists citext with schema extensions;
 
 -- ---------- Types -------------------------------------------------------------------
 create type public.user_role          as enum ('reader', 'writer', 'admin');
@@ -30,7 +33,7 @@ create table public.app_settings (
 insert into public.app_settings default values;
 
 -- ---------- Usernames ---------------------------------------------------------------
-create table public.reserved_usernames (name citext primary key);
+create table public.reserved_usernames (name extensions.citext primary key);
 insert into public.reserved_usernames (name) values
   ('about'),('account'),('admin'),('api'),('app'),('articles'),('assets'),('auth'),('blog'),
   ('dashboard'),('docs'),('edit'),('explore'),('help'),('home'),('login'),('logout'),('me'),
@@ -47,7 +50,7 @@ $$;
 -- ---------- Profiles ------------------------------------------------------------------
 create table public.profiles (
   id                  uuid primary key references auth.users (id) on delete cascade,
-  username            citext not null unique check (public.username_is_valid(username::text)),
+  username            extensions.citext not null unique check (public.username_is_valid(username::text)),
   username_confirmed  boolean not null default false,       -- false until the user accepts/changes it
   username_changed_at timestamptz,
   display_name        text check (char_length(display_name) <= 80),
@@ -86,8 +89,8 @@ begin
   base := regexp_replace(left(base, 24), '-+$', '');
   candidate := base;
   while not public.username_is_valid(candidate)
-     or exists (select 1 from public.profiles p where p.username = candidate::citext)
-     or exists (select 1 from public.reserved_usernames r where r.name = candidate::citext)
+     or exists (select 1 from public.profiles p where p.username = candidate::extensions.citext)
+     or exists (select 1 from public.reserved_usernames r where r.name = candidate::extensions.citext)
   loop
     n := n + 1;
     candidate := base || '-' || n;
@@ -122,7 +125,7 @@ create trigger on_auth_user_created
 create table public.articles (
   id                uuid primary key default gen_random_uuid(),
   owner_id          uuid not null references public.profiles (id) on delete cascade,
-  slug              citext not null check (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(slug) <= 80),
+  slug              extensions.citext not null check (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(slug) <= 80),
   title             text not null default 'Untitled' check (char_length(title) <= 160),
   summary           text check (char_length(summary) <= 400),
   tags              text[] not null default '{}' check (cardinality(tags) <= 10),
@@ -183,7 +186,7 @@ create trigger on_article_created after insert on public.articles
 
 -- ---------- Tags catalogue (suggestions + featured) ------------------------------------
 create table public.tags (
-  slug        citext primary key check (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  slug        extensions.citext primary key check (slug::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   label       text not null,
   featured    boolean not null default false,
   usage_count int not null default 0
@@ -282,26 +285,27 @@ create or replace function public.ping()
 returns text language sql stable as $$ select 'ok:' || (select count(*) from public.app_settings)::text $$;
 grant execute on function public.ping() to anon, authenticated;
 
-create or replace function public.is_username_available(name text)
+-- Parameter is p_username (not "name"): reserved_usernames has a column called name, which would shadow it.
+create or replace function public.is_username_available(p_username text)
 returns boolean language sql stable security definer set search_path = '' as $$
-  select public.username_is_valid(lower(name))
-     and not exists (select 1 from public.reserved_usernames r where r.name = lower(name)::citext)
-     and not exists (select 1 from public.profiles p where p.username = lower(name)::citext and p.id <> auth.uid())
+  select public.username_is_valid(lower(p_username))
+     and not exists (select 1 from public.reserved_usernames r where r.name = lower(p_username)::extensions.citext)
+     and not exists (select 1 from public.profiles p where p.username = lower(p_username)::extensions.citext and p.id is distinct from auth.uid())
 $$;
 grant execute on function public.is_username_available(text) to authenticated;
 
 -- Accept the suggested username or pick another. Changing a confirmed username: once per 30 days.
-create or replace function public.claim_username(name text)
+create or replace function public.claim_username(p_username text)
 returns public.profiles language plpgsql security definer set search_path = '' as $$
 declare
   me public.profiles;
-  wanted text := lower(trim(name));
+  wanted text := lower(trim(p_username));
 begin
   if auth.uid() is null then raise exception 'Not signed in' using errcode = '28000'; end if;
   select * into me from public.profiles where id = auth.uid() for update;
   if not found then raise exception 'Profile not found' using errcode = 'P0002'; end if;
 
-  if me.username_confirmed and me.username = wanted::citext then return me; end if;
+  if me.username_confirmed and me.username = wanted::extensions.citext then return me; end if;
   if me.username_confirmed and me.username_changed_at > now() - interval '30 days' then
     raise exception 'You can change your username once every 30 days' using errcode = 'P0001', hint = 'RATE_LIMIT';
   end if;
@@ -310,7 +314,7 @@ begin
   end if;
 
   update public.profiles
-     set username = wanted::citext,
+     set username = wanted::extensions.citext,
          username_changed_at = case when me.username_confirmed then now() else me.username_changed_at end,
          username_confirmed = true
    where id = auth.uid()
@@ -321,7 +325,7 @@ grant execute on function public.claim_username(text) to authenticated;
 
 -- Admin: list users with emails (auth.users is not exposed to the client otherwise).
 create or replace function public.admin_list_users()
-returns table (id uuid, email text, username citext, display_name text, avatar_url text,
+returns table (id uuid, email text, username extensions.citext, display_name text, avatar_url text,
                role public.user_role, username_confirmed boolean, created_at timestamptz,
                last_sign_in_at timestamptz)
 language plpgsql stable security definer set search_path = '' as $$

@@ -55,10 +55,10 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
         return row ? toPublicProfile(row) : null;
       },
       async isUsernameAvailable(username) {
-        return unwrap(await sb.rpc('is_username_available', { name: username })) === true;
+        return unwrap(await sb.rpc('is_username_available', { p_username: username })) === true;
       },
       async claimUsername(username) {
-        return toProfile(unwrap(await sb.rpc('claim_username', { name: username }).single<ProfileRow>()));
+        return toProfile(unwrap(await sb.rpc('claim_username', { p_username: username }).single<ProfileRow>()));
       },
       async updateMine(patch) {
         const id = await myId();

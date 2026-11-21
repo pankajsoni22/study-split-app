@@ -33,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npm run test:db        # migrations + row-level security checks
       - run: npm run build          # tsc -b && vite build: type errors fail the deploy
       - if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
