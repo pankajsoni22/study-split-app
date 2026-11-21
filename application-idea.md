@@ -36,6 +36,9 @@ Let us define 3 Roles
 3. Can I use google's free available stack (initially I'll only be the user), later I can migrate to cloud like AWS or GCP.
 4. Any other tech stack you want to highlight please go and do.
 
+# Application theme
+- I am thinking to design the application theme similar to hellointerview but I don't want to copy their theme I need something that becomes identity of my application and easy on my user's eye, looks attractive. Work extra-ordinarily to decide on theme.
+
 # Important
 - This application is the trial version so make it with best user experience.
 - Application should be optimized and well structured.
