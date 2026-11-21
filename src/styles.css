@@ -673,3 +673,40 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .slide-figure figcaption { margin-top: 6px; text-align: right; }
 .present-canvas { display: flex; }
 .present-canvas .slide-stage { padding: 12px; }
+
+/* =============================================================================
+   Drawing format bar (replaces Excalidraw's floating properties panel)
+   ========================================================================== */
+.canvas-host.is-locked:not(.show-native-props) .App-menu__left { display: none !important; }
+.format-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-height: 47px; padding: 6px 12px;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.format-bar.is-empty { min-height: 47px; }
+.fb-scope { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 74px; }
+.fb-group { display: inline-flex; gap: 2px; }
+.fb-spacer { flex: 1; }
+.fb-seg.is-icons button { padding-inline: 5px; }
+.tb-btn.is-danger:hover { color: var(--danger); background: var(--danger-soft); }
+.fb-color { position: relative; }
+.fb-color-btn { width: 34px; }
+.fb-dot { display: block; width: 18px; height: 18px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); }
+.fb-dot.is-fill { border-radius: 5px; }
+.fb-dot.is-none { border-radius: 5px; background: linear-gradient(135deg, transparent 45%, var(--danger) 45%, var(--danger) 55%, transparent 55%), var(--surface); }
+.fb-dot.is-mixed { display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--surface); }
+.fb-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; padding: 10px; min-width: 196px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-md);
+}
+.fb-swatches { display: grid; grid-template-columns: repeat(5, 30px); gap: 6px; }
+.fb-swatch { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: none; cursor: pointer; }
+.fb-swatch:hover { background: var(--surface-2); }
+.fb-swatch.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.fb-custom { position: relative; overflow: hidden; background: conic-gradient(#e9a23b, #c2410c, #7c3aed, #2557d6, #0e7c6b, #e9a23b); }
+.fb-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; padding: 0; border: none; }
+.fb-popover-extra { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+/* Excalidraw shows colours inverted in dark mode; show swatches the same way so they match the drawing. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fb-dot:not(.is-none):not(.is-mixed) { filter: invert(93%) hue-rotate(180deg); }
+}
+:root[data-theme="dark"] .fb-dot:not(.is-none):not(.is-mixed) { filter: invert(93%) hue-rotate(180deg); }

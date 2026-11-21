@@ -14,9 +14,11 @@ const isTyping = (t: EventTarget | null) => t instanceof HTMLTextAreaElement || 
  * disabled (input blocked, and any drift snaps back). Drawing tools work as usual inside the slide.
  * `onSceneChange` fires only when elements really change, not on pointer moves or selection.
  */
-export default function Canvas({ initialScene, slideId, onApi, onSceneChange }: {
+export default function Canvas({ initialScene, slideId, showNativeProps = false, onApi, onSceneChange }: {
   initialScene: CanvasScene;
   slideId: string | null;
+  /** Show Excalidraw's own properties panel (normally replaced by the Study Split format bar). */
+  showNativeProps?: boolean;
   onApi?: (api: ExcalidrawImperativeAPI) => void;
   onSceneChange?: (scene: CanvasScene) => void;
 }) {
@@ -80,7 +82,7 @@ export default function Canvas({ initialScene, slideId, onApi, onSceneChange }: 
   }, []);
 
   return (
-    <div ref={hostRef} className="canvas-host dot-grid is-locked">
+    <div ref={hostRef} className={`canvas-host dot-grid is-locked${showNativeProps ? ' show-native-props' : ''}`}>
       {paper && <div className="slide-paper" style={paper} aria-hidden="true" />}
       <Excalidraw
         initialData={initialData}

@@ -3,8 +3,9 @@
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import {
-  CaptureUpdateAction, convertToExcalidrawElements, exportToSvg, hashElementsVersion, restoreElements
+  CaptureUpdateAction, convertToExcalidrawElements, exportToSvg, hashElementsVersion, newElementWith, restoreElements
 } from '@excalidraw/excalidraw';
+import { CURRENT_ITEM_KEY, reorder, restyle, selectionWithLabels, type El, type StyleKey, type StyleValue } from './format.ts';
 import { SLIDE_GAP, type Layout } from '../../domain/layouts.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 
@@ -97,5 +98,45 @@ export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean): 
     appState: { exportBackground: false, exportWithDarkMode: dark },
     exportingFrame: frame,
     exportPadding: 0
+  });
+}
+
+// ---------------------------------------------------------------- Format bar (see format.ts)
+
+const selectedIds = (api: ExcalidrawImperativeAPI) => api.getAppState().selectedElementIds as Record<string, boolean>;
+
+/** Apply one style to the selection (and make it the default for new shapes). One undo step. */
+export function applyStyle(api: ExcalidrawImperativeAPI, key: StyleKey, value: StyleValue) {
+  const all = api.getSceneElementsIncludingDeleted();
+  const patches = restyle(all, selectedIds(api), key, value);
+  const texts: Element[] = [];
+  const elements = all.map(e => {
+    const patch = patches.get(e.id);
+    if (!patch) return e;
+    const next = newElementWith(e, patch as never);
+    if (next.type === 'text' && (key === 'fontFamily' || key === 'fontSize')) texts.push(next);
+    return next;
+  });
+  // Font changes change the text's size: let Excalidraw re-measure those elements.
+  const remeasured = new Map(restoreElements(texts as never, null, { refreshDimensions: true }).map(e => [e.id, e]));
+  api.updateScene({
+    elements: remeasured.size ? elements.map(e => remeasured.get(e.id) ?? e) : elements,
+    appState: { [CURRENT_ITEM_KEY[key]]: value } as never,
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY
+  });
+}
+
+export function moveSelection(api: ExcalidrawImperativeAPI, to: 'front' | 'back') {
+  const all = api.getSceneElementsIncludingDeleted();
+  api.updateScene({ elements: reorder(all as unknown as El[], selectedIds(api), to) as never, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+}
+
+export function deleteSelection(api: ExcalidrawImperativeAPI) {
+  const all = api.getSceneElementsIncludingDeleted();
+  const doomed = new Set(selectionWithLabels(all as unknown as El[], selectedIds(api)).map(e => e.id));
+  api.updateScene({
+    elements: all.map(e => (doomed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
+    appState: { selectedElementIds: {} },
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY
   });
 }

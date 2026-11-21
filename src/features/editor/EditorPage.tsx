@@ -11,6 +11,7 @@ import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { useAuth } from '../auth/useAuth.ts';
 import { createSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import FormatBar from '../canvas/FormatBar.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
 import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
@@ -28,6 +29,7 @@ export default function EditorPage() {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nativeProps, setNativeProps] = useState(false);
   const [notice, setNotice] = useState('');
   const [slides, setSlides] = useState<SlideRef[]>([]);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -243,8 +245,9 @@ export default function EditorPage() {
         )}
         right={(
           <div className="slide-pane">
+            <FormatBar api={api} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
             <Suspense fallback={<Loading label="Loading canvas" />}>
-              <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null}
+              <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
                 onApi={setApi} onSceneChange={onCanvasChange} />
             </Suspense>
             <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
