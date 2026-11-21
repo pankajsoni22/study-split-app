@@ -1,0 +1,43 @@
+# Weekly database backup (Supabase Free has no automatic backups).
+# The dump is ENCRYPTED with age before upload: artifacts of a public repo can be downloaded by anyone
+# signed in to GitHub. Only the holder of the age private key can read it. Kept for 90 days.
+name: Backup database
+
+on:
+  schedule:
+    - cron: '41 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+      - name: Dump and encrypt
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}          # Session pooler connection string (secret)
+          AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}           # age public key, e.g. age1…
+        run: |
+          test -n "$SUPABASE_DB_URL" || { echo "::error::Set the SUPABASE_DB_URL secret"; exit 1; }
+          test -n "$AGE_RECIPIENT"   || { echo "::error::Set the BACKUP_AGE_RECIPIENT variable"; exit 1; }
+          umask 077
+          mkdir -p backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          stamp=$(date -u +%Y-%m-%d)
+          tar -czf - backup | age -r "$AGE_RECIPIENT" -o "study-split-db-$stamp.tar.gz.age"
+          rm -rf backup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: db-backup
+          path: study-split-db-*.tar.gz.age
+          retention-days: 90
+          if-no-files-found: error
