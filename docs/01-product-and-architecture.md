@@ -21,7 +21,7 @@
 | D9 | Mobile | Read-only below 768 px |
 | D10 | Analytics | Per-article view counts |
 | D11 | Split divider | **Fixed layouts** 70:30 · 60:40 · 50:50 · 40:60 · 30:70; the divider snaps, plus a layout picker |
-| D12 | Drawing area | **Fixed slides**: no zoom/pan; one slide fills the drawing side |
+| D12 | Drawing area | **Slides**: one slide fills the drawing side. Writers can zoom and pan while drawing (revised: a locked canvas was uncomfortable); switching slides re-fits; readers see fixed pictures |
 | D13 | Slide shape | **Follows the article layout** (3:5 … 16:10); readers' other layouts letterbox |
 | D14 | Slides per section | **Exactly one** (each H2 = one slide) |
 
@@ -131,8 +131,9 @@ shape follows the article layout:
 | Slide | 3:5 (900×1500) | 3:4 (1200×1600) | 1:1 (1400×1400) | 4:3 (1600×1200) | 16:10 (1600×1000) |
 
 - **Editor:**
-  - The canvas shows the current section's slide on a "paper" sheet. **Zoom and pan are disabled**: wheel, pinch,
-    zoom shortcuts and the hand tool are blocked, and any drift snaps back. Excalidraw's drawing tools work as usual.
+  - The canvas shows the current section's slide on a "paper" sheet, fitted to the pane whenever the section changes.
+    Zoom and pan work normally while drawing; **Fit slide** (or Shift+1) shows the whole slide again.
+    (Revised 2026-11-22: the first version locked zoom/pan, which was uncomfortable to draw in.)
   - A **slide strip** (thumbnails) sits under the canvas. Clicking a slide jumps to its section; **+ Add slide**
     inserts a new section with its slide after the current one.
   - Slides are created, named and kept in order automatically. Each H2 shows a "Slide n" label, and the old
