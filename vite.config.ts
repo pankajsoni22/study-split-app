@@ -1,5 +1,6 @@
 import { copyFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -47,7 +48,8 @@ function spaFallback(): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  // Read .env files next to this config (not process.cwd()), so automatic dev-server restarts keep the base path.
+  const env = loadEnv(mode, dirname(fileURLToPath(import.meta.url)), 'VITE_');
   return {
     base: env.VITE_BASE_PATH || '/study-split-app/',
     plugins: [react(), contentSecurityPolicy(env.VITE_SUPABASE_URL ?? ''), spaFallback()],
@@ -65,6 +67,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    test: { include: ['src/**/*.test.ts'], environment: 'node' }
+    test: { include: ['src/**/*.test.{ts,tsx}'], environment: 'node' }
   };
 });
