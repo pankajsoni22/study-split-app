@@ -1,7 +1,8 @@
 import { newSectionId, type Doc, type DocNode, type Visibility } from './content.ts';
+import type { LayoutId } from './layouts.ts';
 
-// Starter templates (docs §6.5). Shipped in the bundle → zero DB calls. Each section with
-// `frame: true` gets a named canvas frame created automatically the first time the editor opens.
+// Starter templates (docs §6.5). Shipped in the bundle → zero DB calls. Every section gets its
+// own slide automatically when the editor opens (one slide per section).
 
 interface TemplateSection {
   title: string;
@@ -15,12 +16,14 @@ export interface Template {
   key: string;
   name: string;
   description: string;
+  /** Default text:drawing layout (diagram-heavy templates give the drawing more room). */
+  layout: LayoutId;
   sections: TemplateSection[];
 }
 
 export const TEMPLATES: Template[] = [
   {
-    key: 'system-design', name: 'System Design', description: 'Requirements to deep dives, with a diagram for each step.',
+    key: 'system-design', layout: '40-60', name: 'System Design', description: 'Requirements to deep dives, with a diagram for each step.',
     sections: [
       { title: 'Requirements', hint: 'Functional and non-functional requirements. What is in and out of scope?', extra: { text: 'TL;DR: the 3 requirements that drive the design.', visibility: 'brief' } },
       { title: 'Capacity estimates', hint: 'Users, requests per second, storage per year. Show the maths.' },
@@ -33,7 +36,7 @@ export const TEMPLATES: Template[] = [
     ]
   },
   {
-    key: 'interview-experience', name: 'Interview Experience', description: 'Company, rounds, questions and what you learned.',
+    key: 'interview-experience', layout: '60-40', name: 'Interview Experience', description: 'Company, rounds, questions and what you learned.',
     sections: [
       { title: 'Overview', hint: 'Company, role, level, date, location/remote, final verdict.' },
       { title: 'Process', hint: 'How the rounds were laid out, from first call to offer.', frame: true },
@@ -44,7 +47,7 @@ export const TEMPLATES: Template[] = [
     ]
   },
   {
-    key: 'software-project', name: 'Software Project', description: 'Problem, architecture, code and lessons learned.',
+    key: 'software-project', layout: '50-50', name: 'Software Project', description: 'Problem, architecture, code and lessons learned.',
     sections: [
       { title: 'Problem', hint: 'Who has the problem and why it matters.' },
       { title: 'Architecture', hint: 'The building blocks and how data flows between them.', frame: true },
@@ -56,7 +59,7 @@ export const TEMPLATES: Template[] = [
     ]
   },
   {
-    key: 'dsa', name: 'DSA Problem', description: 'Intuition, approach, code and complexity.',
+    key: 'dsa', layout: '50-50', name: 'DSA Problem', description: 'Intuition, approach, code and complexity.',
     sections: [
       { title: 'Problem', hint: 'Statement, constraints and an example.' },
       { title: 'Intuition', hint: 'How to think about it. Draw the example.', frame: true },
@@ -67,7 +70,7 @@ export const TEMPLATES: Template[] = [
     ]
   },
   {
-    key: 'concept', name: 'Concept Explainer', description: 'Explain one idea clearly, with a picture.',
+    key: 'concept', layout: '50-50', name: 'Concept Explainer', description: 'Explain one idea clearly, with a picture.',
     sections: [
       { title: 'TL;DR', hint: 'The idea in two sentences.' },
       { title: 'Why it matters', hint: 'The problem it solves.' },
@@ -76,7 +79,7 @@ export const TEMPLATES: Template[] = [
       { title: 'Trade-offs', hint: 'When to use it and when not to.' }
     ]
   },
-  { key: 'blank', name: 'Blank', description: 'Start from an empty page.', sections: [] }
+  { key: 'blank', layout: '50-50', name: 'Blank', description: 'Start from an empty page.', sections: [] }
 ];
 
 const paragraph = (text: string, visibility: Visibility = 'always'): DocNode => ({

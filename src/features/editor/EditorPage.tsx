@@ -2,16 +2,17 @@ import type { Editor } from '@tiptap/core';
 import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { isSectionHeading } from '../../domain/content.ts';
+import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
 import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
-import { useStoredRatio } from '../../lib/useStoredRatio.ts';
+import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { useAuth } from '../auth/useAuth.ts';
-import { createFrame, listFrames, scrollToFrame, type ExcalidrawImperativeAPI, type FrameInfo } from '../canvas/excalidraw.ts';
+import { createSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
+import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
 import type { CurrentSection } from './selection.ts';
 import { useDraftSession, type SaveState } from './useDraftSession.ts';
@@ -24,69 +25,137 @@ export default function EditorPage() {
   const session = useDraftSession(articleId);
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [ratio, setRatio] = useStoredRatio('edit');
   const [editor, setEditor] = useState<Editor | null>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
-  // Frames come from the loaded scene until the canvas reports a change (per session, so a restore resets them).
-  const [liveFrames, setLiveFrames] = useState<{ key: number; frames: FrameInfo[] } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notice, setNotice] = useState('');
-  const templateFramesDone = useRef(false);
+  const [slides, setSlides] = useState<SlideRef[]>([]);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  /** Scene snapshot for thumbnails: refreshed 0.7 s after drawing stops (not on every stroke). */
+  const [thumbScene, setThumbScene] = useState<{ key: number; scene: CanvasScene } | null>(null);
+  const syncTimer = useRef<number | undefined>(undefined);
+  const thumbTimer = useRef<number | undefined>(undefined);
 
-  const { draft, sessionKey, setCanvas } = session;
-  const loadedFrames = useMemo(() => (draft ? listFrames(draft.canvas.elements) : []), [draft]);
-  const frames = liveFrames?.key === sessionKey ? liveFrames.frames : loadedFrames;
+  const { draft, sessionKey, setCanvas, setDoc, canvasRef } = session;
+
+  // ---- layout (stored with the canvas, so it is versioned with each published version) ----
+  const articleLayout: LayoutId = draft?.canvas.layout ?? templateByKey(draft?.templateKey)?.layout ?? DEFAULT_LAYOUT;
+  const [layoutPick, setLayoutPick] = useState<{ key: number; id: LayoutId } | null>(null);
+  const layoutId = layoutPick?.key === sessionKey ? layoutPick.id : articleLayout;
+  const layoutRef = useRef(layoutId);
+  useEffect(() => { layoutRef.current = layoutId; }, [layoutId]);
 
   const onCanvasChange = useCallback((scene: CanvasScene) => {
-    setCanvas(scene);
-    setLiveFrames(prev => {
-      const next = listFrames(scene.elements);
-      return prev?.key === sessionKey && JSON.stringify(next) === JSON.stringify(prev.frames) ? prev : { key: sessionKey, frames: next };
-    });
+    const withLayout = { ...scene, layout: layoutRef.current };
+    setCanvas(withLayout);
+    window.clearTimeout(thumbTimer.current);
+    thumbTimer.current = window.setTimeout(() => setThumbScene({ key: sessionKey, scene: withLayout }), 700);
   }, [sessionKey, setCanvas]);
 
-  const linkFrame = useCallback((section: CurrentSection, frameId: string | null) => {
-    if (!editor) return;
-    editor.chain().focus().command(({ tr }) => {
-      const node = tr.doc.nodeAt(section.pos);
-      if (!node) return false;
-      tr.setNodeMarkup(section.pos, undefined, { ...node.attrs, frameId });
-      return true;
-    }).run();
-    if (frameId && api) scrollToFrame(api, frameId);
+  /**
+   * One slide per section: every H2 gets a slide (created on the canvas and linked through the heading's
+   * frameId), slide names follow section titles, and the strip lists slides in text order.
+   */
+  const syncSlides = useCallback(() => {
+    if (!editor || !api) return;
+    const layout = layoutById(layoutRef.current);
+    const frames = new Map(listFrames(api.getSceneElements()).map(f => [f.id, f]));
+    const links: { pos: number; frameId: string }[] = [];
+    const renames = new Map<string, { name: string }>();
+    const next: SlideRef[] = [];
+    editor.state.doc.forEach((node, pos) => {
+      if (node.type.name !== 'heading' || node.attrs.level !== 2 || !node.attrs.sectionId) return;
+      const title = node.textContent.trim() || 'Untitled section';
+      let frameId = node.attrs.frameId as string | null;
+      if (!frameId || !frames.has(frameId)) {
+        frameId = createSlide(api, title, layout);
+        frames.set(frameId, { id: frameId, name: title });
+        links.push({ pos, frameId });
+      } else if (frames.get(frameId)?.name !== title) {
+        renames.set(frameId, { name: title });
+      }
+      next.push({ sectionId: node.attrs.sectionId as string, title, frameId });
+    });
+    updateFrames(api, renames);
+    if (links.length) {
+      editor.chain().command(({ tr }) => {
+        for (const { pos, frameId } of links) {
+          const node = tr.doc.nodeAt(pos);
+          if (node) tr.setNodeMarkup(pos, undefined, { ...node.attrs, frameId });
+        }
+        tr.setMeta('addToHistory', false);      // linking is bookkeeping, not something to undo
+        return true;
+      }).run();
+    }
+    setSlides(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
   }, [api, editor]);
 
-  const newFrame = useCallback((section: CurrentSection) => {
-    if (!api) return;
-    linkFrame(section, createFrame(api, section.title || 'Frame'));
-  }, [api, linkFrame]);
+  useEffect(() => { syncSlides(); }, [syncSlides, sessionKey]);
+
+  const onTextChange = useCallback((doc: Parameters<typeof setDoc>[0]) => {
+    setDoc(doc);
+    window.clearTimeout(syncTimer.current);
+    syncTimer.current = window.setTimeout(syncSlides, 300);
+  }, [setDoc, syncSlides]);
 
   const onActiveSection = useCallback((section: CurrentSection | null) => {
-    if (section?.frameId && api) scrollToFrame(api, section.frameId);
-  }, [api]);
+    setActiveSectionId(section?.sectionId ?? null);
+  }, []);
 
-  // New article from a template: create its named frames once, when both panes are ready.
-  useEffect(() => {
-    if (!editor || !api || !draft || templateFramesDone.current) return;
-    templateFramesDone.current = true;
-    const wanted = new Set(templateByKey(draft.templateKey)?.sections.filter(s => s.frame).map(s => s.title));
-    const hasLinks = draft.doc.content.some(n => isSectionHeading(n) && n.attrs?.frameId);
-    if (wanted.size === 0 || hasLinks || draft.canvas.elements.length > 0) return;
-    const links: { pos: number; frameId: string }[] = [];
-    editor.state.doc.forEach((node, pos) => {
-      if (node.type.name === 'heading' && node.attrs.level === 2 && wanted.has(node.textContent)) {
-        links.push({ pos, frameId: createFrame(api, node.textContent) });
-      }
+  /** Text before the first section shows the first slide. */
+  const activeSlide = slides.find(sl => sl.sectionId === activeSectionId) ?? slides[0] ?? null;
+
+  const headingPos = useCallback((sectionId: string) => {
+    const hits: { pos: number; size: number }[] = [];
+    editor?.state.doc.forEach((node, pos) => {
+      if (node.type.name === 'heading' && node.attrs.sectionId === sectionId) hits.push({ pos, size: node.nodeSize });
     });
-    editor.chain().command(({ tr }) => {
-      for (const { pos, frameId } of links) {
-        const node = tr.doc.nodeAt(pos);
-        if (node) tr.setNodeMarkup(pos, undefined, { ...node.attrs, frameId });
-      }
-      return true;
-    }).run();
-    if (links[0]) window.setTimeout(() => scrollToFrame(api, links[0]!.frameId, false), 50);
-  }, [api, draft, editor]);
+    return hits[0] ?? null;
+  }, [editor]);
+
+  const selectSlide = useCallback((sectionId: string) => {
+    const h = headingPos(sectionId);
+    if (!editor || !h) return;
+    setActiveSectionId(sectionId);
+    editor.chain().focus().setTextSelection(h.pos + h.size - 1).scrollIntoView().run();
+  }, [editor, headingPos]);
+
+  /** New section + slide right after the current section (or at the end). */
+  const addSlide = useCallback(() => {
+    if (!editor) return;
+    const current = activeSlide ? headingPos(activeSlide.sectionId) : null;
+    let insertAt = editor.state.doc.content.size;
+    editor.state.doc.forEach((node, pos) => {
+      if (current && pos > current.pos && insertAt === editor.state.doc.content.size && node.type.name === 'heading' && node.attrs.level === 2) insertAt = pos;
+    });
+    const title = 'New section';
+    editor.chain().focus()
+      .insertContentAt(insertAt, [{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: title }] }, { type: 'paragraph' }])
+      .setTextSelection({ from: insertAt + 1, to: insertAt + 1 + title.length })
+      .scrollIntoView()
+      .run();
+  }, [activeSlide, editor, headingPos]);
+
+  /** Author changes the article layout: slides take the new shape (drawings keep their size and place). */
+  const changeLayout = useCallback((id: LayoutId) => {
+    const target = layoutById(id);
+    if (api) {
+      const elements = api.getSceneElements();
+      const frames = listFrames(elements);
+      const drawn = frames.some(f => slideHasContent(elements, f.id));
+      if (drawn && !window.confirm(
+        `Switch to ${target.label}? Slides change shape to ${target.slide.width}×${target.slide.height}. ` +
+        'Drawings keep their size and position, so some may need moving.')) return;
+      layoutRef.current = id;
+      setLayoutPick({ key: sessionKey, id });
+      updateFrames(api, new Map(frames.map(f => [f.id, { width: target.slide.width, height: target.slide.height }])));
+    } else {
+      layoutRef.current = id;
+      setLayoutPick({ key: sessionKey, id });
+    }
+    const scene = canvasRef.current ?? draft?.canvas;
+    if (scene) setCanvas({ ...scene, layout: id });
+  }, [api, canvasRef, draft, sessionKey, setCanvas]);
 
   const backTo = '/me/articles';
   const leave = (e: React.MouseEvent) => {
@@ -115,6 +184,7 @@ export default function EditorPage() {
         <span className={`badge ${session.status === 'published' ? 'badge-good' : 'badge-pending'}`}>{session.status}</span>
         <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} />
         <span className="editor-bar-spacer" />
+        <LayoutPicker value={layoutId} onChange={changeLayout} label="Article layout (text : drawing)" />
         {session.status === 'published' && (
           <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
             <ExternalLink size={15} aria-hidden="true" /> View
@@ -165,17 +235,21 @@ export default function EditorPage() {
         </div>
       )}
 
-      <SplitPane ratio={ratio} onRatioChange={setRatio} leftLabel="Text" rightLabel="Canvas"
+      <SplitPane layout={layoutId} defaultLayout={articleLayout} onLayoutChange={changeLayout} leftLabel="Text" rightLabel="Slides"
         left={(
           <div className="editor-text" key={`t${sessionKey}`}>
-            <TextEditor initialDoc={draft.doc} frames={frames} onReady={setEditor} onChange={session.setDoc}
-              onActiveSection={onActiveSection} onLinkFrame={linkFrame} onCreateFrame={newFrame} />
+            <TextEditor initialDoc={draft.doc} onReady={setEditor} onChange={onTextChange} onActiveSection={onActiveSection} />
           </div>
         )}
         right={(
-          <Suspense fallback={<Loading label="Loading canvas" />}>
-            <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} onApi={setApi} onSceneChange={onCanvasChange} />
-          </Suspense>
+          <div className="slide-pane">
+            <Suspense fallback={<Loading label="Loading canvas" />}>
+              <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null}
+                onApi={setApi} onSceneChange={onCanvasChange} />
+            </Suspense>
+            <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
+              scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide} />
+          </div>
         )}
       />
 

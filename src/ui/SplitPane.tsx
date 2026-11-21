@@ -1,54 +1,56 @@
-import { useCallback, useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-
-const MIN = 0.25;
-const MAX = 0.75;
-const clamp = (r: number) => Math.min(MAX, Math.max(MIN, r));
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { nearestLayout, stepLayout, type LayoutId } from '../domain/layouts.ts';
+import { layoutById } from '../domain/layouts.ts';
 
 /**
- * Two panes with a draggable "spine" (docs §4.2): 25–75%, double-click resets to 50%,
- * arrow keys move it 2% when focused. The ratio is controlled so callers can persist it.
+ * Two panes split by a "spine" that snaps to the fixed layouts (70:30 … 30:70).
+ * While dragging, the split jumps between layouts; the choice is committed on release.
+ * Keyboard: ←/→ move one layout, Home = the default. Double-click = the default.
  */
-export default function SplitPane({ left, right, ratio, onRatioChange, leftLabel, rightLabel }: {
+export default function SplitPane({ left, right, layout, defaultLayout, onLayoutChange, leftLabel, rightLabel }: {
   left: ReactNode;
   right: ReactNode;
-  ratio: number;
-  onRatioChange: (ratio: number) => void;
+  layout: LayoutId;
+  defaultLayout: LayoutId;
+  onLayoutChange: (layout: LayoutId) => void;
   leftLabel: string;
   rightLabel: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
+  const [preview, setPreview] = useState<LayoutId | null>(null);
+  const shown = layoutById(preview ?? layout);
 
-  const fromPointer = useCallback((clientX: number) => {
+  const fromPointer = (clientX: number) => {
     const box = rootRef.current?.getBoundingClientRect();
-    if (box && box.width > 0) onRatioChange(clamp((clientX - box.left) / box.width));
-  }, [onRatioChange]);
-
+    if (box && box.width > 0) setPreview(nearestLayout((clientX - box.left) / box.width).id);
+  };
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    dragging.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
     document.body.classList.add('is-resizing');
+    setPreview(layout);
   };
-  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => { if (dragging.current) fromPointer(e.clientX); };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => { if (preview) fromPointer(e.clientX); };
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-    dragging.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
     document.body.classList.remove('is-resizing');
+    if (preview && preview !== layout) onLayoutChange(preview);
+    setPreview(null);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'ArrowLeft') { e.preventDefault(); onRatioChange(clamp(ratio - 0.02)); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); onRatioChange(clamp(ratio + 0.02)); }
-    if (e.key === 'Home') { e.preventDefault(); onRatioChange(0.5); }
+    const next = e.key === 'ArrowRight' ? stepLayout(layout, 1).id : e.key === 'ArrowLeft' ? stepLayout(layout, -1).id : e.key === 'Home' ? defaultLayout : null;
+    if (next) { e.preventDefault(); if (next !== layout) onLayoutChange(next); }
   };
 
   return (
-    <div ref={rootRef} className="split" style={{ gridTemplateColumns: `${ratio}fr 10px ${1 - ratio}fr` }}>
+    <div ref={rootRef} className={`split${preview ? ' is-dragging' : ''}`} style={{ gridTemplateColumns: `${shown.text}fr 10px ${1 - shown.text}fr` }}>
       <section className="split-pane split-left" aria-label={leftLabel}>{left}</section>
-      <div className="split-spine" role="separator" aria-orientation="vertical" aria-label="Resize panes"
-        aria-valuemin={MIN * 100} aria-valuemax={MAX * 100} aria-valuenow={Math.round(ratio * 100)} tabIndex={0}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-        onDoubleClick={() => onRatioChange(0.5)} onKeyDown={onKeyDown} title="Drag to resize · double-click to reset">
+      <div className="split-spine" role="separator" aria-orientation="vertical" aria-label="Layout (text : drawing)"
+        aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(shown.text * 100)} aria-valuetext={shown.id.replace('-', ' : ')}
+        tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+        onDoubleClick={() => { if (layout !== defaultLayout) onLayoutChange(defaultLayout); }} onKeyDown={onKeyDown}
+        title="Drag to change the layout · double-click for the article's default">
         <span className="split-grip" aria-hidden="true" />
+        {preview && <span className="split-badge" aria-hidden="true">{shown.id.replace('-', ' : ')}</span>}
       </div>
       <section className="split-pane split-right" aria-label={rightLabel}>{right}</section>
     </div>

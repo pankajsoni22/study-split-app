@@ -1,28 +1,33 @@
 import { BookOpen, ChevronLeft, ChevronRight, Clock, Columns2, Eye, PenLine, Presentation } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { filterForLevel, splitSections, type ReadingLevel, type Section } from '../../domain/content.ts';
+import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
 import { getServices } from '../../data/services.ts';
 import { useQuery } from '../../data/useQuery.ts';
 import { readJson, writeJson } from '../../lib/storage.ts';
 import { formatCount, formatDate } from '../../lib/text.ts';
 import { useIsNarrow } from '../../lib/useMediaQuery.ts';
-import { useStoredRatio } from '../../lib/useStoredRatio.ts';
 import { shouldRecordView } from '../../lib/viewCounter.ts';
 import Avatar from '../../ui/Avatar.tsx';
+import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import ThemeSwitch from '../../ui/ThemeSwitch.tsx';
-import { scrollToFrame, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
-import FrameFigure from './FrameFigure.tsx';
+import SlideImage from '../canvas/SlideImage.tsx';
+import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
 
-const Canvas = lazy(() => import('../canvas/Canvas.tsx'));
-
 type Mode = 'flow' | 'present' | 'article';
-interface ReadPrefs { mode?: Mode; level?: ReadingLevel; sectionId?: string; step?: number }
+interface ReadPrefs { mode?: Mode; level?: ReadingLevel; sectionId?: string; step?: number; layout?: LayoutId }
+
+/** The slide shown with a section: its own, else the closest earlier one, else the first slide. */
+function slideFor(sections: Section[], index: number): Section | null {
+  for (let i = Math.min(index, sections.length - 1); i >= 0; i--) if (sections[i]?.frameId) return sections[i]!;
+  return sections.find(s => s.frameId) ?? null;
+}
 
 /** /:username/:slug — one RPC loads everything (docs §11.3). */
 export default function ReaderPage() {
@@ -68,6 +73,8 @@ function Reader({ article }: { article: PublishedArticle }) {
     [article.doc, level]
   );
   const [views, setViews] = useState(article.views);
+  const authorLayout = layoutById(article.canvas.layout).id;
+  const layout = layoutById(prefs.layout ?? authorLayout).id;
 
   // FR-24: one view per browser per article per day. Fire and forget.
   useEffect(() => {
@@ -106,13 +113,16 @@ function Reader({ article }: { article: PublishedArticle }) {
             ))}
           </div>
         )}
+        {!narrow && mode !== 'article' && (
+          <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" />
+        )}
         {!narrow && <ThemeSwitch compact />}
         {article.isOwner && !narrow && (
           <Link className="btn btn-ghost btn-sm" to={`/write/${article.id}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
         )}
       </header>
-      {mode === 'flow' && <FlowMode article={article} sections={sections} views={views} prefs={prefs} setPrefs={setPrefs} />}
-      {mode === 'present' && <PresentMode article={article} sections={sections} prefs={prefs} setPrefs={setPrefs} narrow={narrow} />}
+      {mode === 'flow' && <FlowMode article={article} sections={sections} views={views} prefs={prefs} setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} />}
+      {mode === 'present' && <PresentMode article={article} sections={sections} prefs={prefs} setPrefs={setPrefs} narrow={narrow} layout={layout} authorLayout={authorLayout} />}
       {mode === 'article' && (
         <ArticleMode article={article} sections={sections} views={views}
           onOpen={narrow ? undefined : sectionId => setPrefs({ mode: 'flow', sectionId })} />
@@ -150,12 +160,11 @@ function ArticleHeader({ article, views }: { article: PublishedArticle; views: n
 }
 
 // ---------------------------------------------------------------- Flow (split, synced)
-function FlowMode({ article, sections, views, prefs, setPrefs }: {
+function FlowMode({ article, sections, views, prefs, setPrefs, layout, authorLayout }: {
   article: PublishedArticle; sections: Section[]; views: number; prefs: ReadPrefs; setPrefs: (p: ReadPrefs) => void;
+  layout: LayoutId; authorLayout: LayoutId;
 }) {
-  const [ratio, setRatio] = useStoredRatio('read');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [active, setActive] = useState<string | null>(prefs.sectionId ?? sections[0]?.id ?? null);
   const restored = useRef(false);
 
@@ -166,7 +175,7 @@ function FlowMode({ article, sections, views, prefs, setPrefs }: {
     if (prefs.sectionId) scrollRef.current?.querySelector(`[data-reader-section="${CSS.escape(prefs.sectionId)}"]`)?.scrollIntoView({ block: 'start' });
   }, [prefs.sectionId]);
 
-  // The section crossing the upper third of the text pane is "active".
+  // The section crossing the upper third of the text pane is "active"; its slide is shown.
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -179,16 +188,15 @@ function FlowMode({ article, sections, views, prefs, setPrefs }: {
     return () => io.disconnect();
   }, [sections]);
 
-  const activeFrame = sections.find(s => s.id === active)?.frameId ?? sections.find(s => s.frameId)?.frameId ?? null;
-  useEffect(() => { if (api && activeFrame) scrollToFrame(api, activeFrame); }, [api, activeFrame]);
   useEffect(() => {
     if (!active) return;
     const t = window.setTimeout(() => setPrefs({ sectionId: active }), 400);
     return () => window.clearTimeout(t);
   }, [active, setPrefs]);
 
+  const slide = slideFor(sections, Math.max(0, sections.findIndex(s => s.id === active)));
   return (
-    <SplitPane ratio={ratio} onRatioChange={setRatio} leftLabel="Article text" rightLabel="Diagrams"
+    <SplitPane layout={layout} defaultLayout={authorLayout} onLayoutChange={l => setPrefs({ layout: l })} leftLabel="Article text" rightLabel="Slides"
       left={(
         <div ref={scrollRef} className="reader-scroll" id="main">
           <div className="reader-column">
@@ -201,21 +209,16 @@ function FlowMode({ article, sections, views, prefs, setPrefs }: {
           </div>
         </div>
       )}
-      right={(
-        <Suspense fallback={<Loading label="Loading diagrams" />}>
-          <Canvas initialScene={article.canvas} viewMode onApi={setApi} />
-        </Suspense>
-      )}
+      right={<SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} />}
     />
   );
 }
 
 // ---------------------------------------------------------------- Present (one section per step)
-function PresentMode({ article, sections, prefs, setPrefs, narrow }: {
+function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, authorLayout }: {
   article: PublishedArticle; sections: Section[]; prefs: ReadPrefs; setPrefs: (p: ReadPrefs) => void; narrow: boolean;
+  layout: LayoutId; authorLayout: LayoutId;
 }) {
-  const [ratio, setRatio] = useStoredRatio('read');
-  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const step = Math.min(Math.max(prefs.step ?? 0, 0), Math.max(sections.length - 1, 0));
   const go = useCallback((n: number) => setPrefs({ step: Math.min(Math.max(n, 0), sections.length - 1) }), [sections.length, setPrefs]);
   const section = sections[step];
@@ -233,7 +236,6 @@ function PresentMode({ article, sections, prefs, setPrefs, narrow }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, step]);
 
-  useEffect(() => { if (api && section?.frameId) scrollToFrame(api, section.frameId); }, [api, section]);
 
   const text = (
     <div className="present-text" id="main">
@@ -241,16 +243,14 @@ function PresentMode({ article, sections, prefs, setPrefs, narrow }: {
       {section ? <SectionView key={section.id} nodes={section.nodes} /> : <p className="muted">This article is empty.</p>}
     </div>
   );
-  const canvas = (
-    <Suspense fallback={<Loading label="Loading diagrams" />}>
-      <Canvas initialScene={article.canvas} viewMode onApi={setApi} />
-    </Suspense>
-  );
+  const slide = slideFor(sections, step);
+  const canvas = <SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} />;
   return (
     <div className="present">
       {narrow
         ? <div className="present-stack"><div className="present-canvas">{canvas}</div>{text}</div>
-        : <SplitPane ratio={ratio} onRatioChange={setRatio} leftLabel="Current section" rightLabel="Diagram" left={text} right={canvas} />}
+        : <SplitPane layout={layout} defaultLayout={authorLayout} onLayoutChange={l => setPrefs({ layout: l })}
+            leftLabel="Current section" rightLabel="Slide" left={text} right={canvas} />}
       <nav className="present-nav" aria-label="Sections">
         <button type="button" className="icon-btn" onClick={() => go(step - 1)} disabled={step === 0} aria-label="Previous section"><ChevronLeft size={20} /></button>
         <ol className="present-dots">
@@ -279,7 +279,12 @@ function ArticleMode({ article, sections, views, onOpen }: {
           <section key={s.id} className="reader-section">
             <SectionView nodes={s.nodes} />
             {s.frameId && (
-              <FrameFigure scene={article.canvas} frameId={s.frameId} caption={s.title} onOpen={onOpen ? () => onOpen(s.id) : undefined} />
+              <figure className="slide-figure">
+                <SlideImage scene={article.canvas} frameId={s.frameId} label={s.title} />
+                {onOpen && (
+                  <figcaption><button type="button" className="link-button" onClick={() => onOpen(s.id)}>Read beside the text →</button></figcaption>
+                )}
+              </figure>
             )}
           </section>
         ))}

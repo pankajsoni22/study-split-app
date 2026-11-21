@@ -1,19 +1,13 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
-  Bold, Code, Frame, Heading2, Heading3, Italic, Link2, List, ListOrdered, Pilcrow, Quote, SquareCode
+  Bold, Code, Heading2, Heading3, Italic, Link2, List, ListOrdered, Pilcrow, Quote, SquareCode
 } from 'lucide-react';
 import type { Visibility } from '../../domain/content.ts';
-import type { FrameInfo } from '../canvas/excalidraw.ts';
 import { CODE_LANGUAGES } from './extensions.ts';
-import { selectionContext, type CurrentSection } from './selection.ts';
+import { selectionContext } from './selection.ts';
 
-export default function Toolbar({ editor, frames, onLinkFrame, onCreateFrame }: {
-  editor: Editor;
-  frames: FrameInfo[];
-  onLinkFrame: (section: CurrentSection, frameId: string | null) => void;
-  onCreateFrame: (section: CurrentSection) => void;
-}) {
+export default function Toolbar({ editor }: { editor: Editor }) {
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => {
@@ -24,8 +18,7 @@ export default function Toolbar({ editor, frames, onLinkFrame, onCreateFrame }: 
         bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), quote: e.isActive('blockquote'),
         codeBlock: e.isActive('codeBlock'), language: (e.getAttributes('codeBlock').language as string | undefined) ?? 'plaintext',
         blockType: ctx.block?.type.name ?? null,
-        visibility: ((ctx.block?.attrs.visibility as Visibility | null) ?? 'always'),
-        section: ctx.section
+        visibility: ((ctx.block?.attrs.visibility as Visibility | null) ?? 'always')
       };
     }
   });
@@ -59,7 +52,7 @@ export default function Toolbar({ editor, frames, onLinkFrame, onCreateFrame }: 
     <div className="toolbar" role="toolbar" aria-label="Formatting">
       <div className="tb-group">
         {btn(!s.h2 && !s.h3 && !s.codeBlock, 'Paragraph', () => chain().setParagraph().run(), Pilcrow)}
-        {btn(s.h2, 'New section (H2)', () => chain().toggleHeading({ level: 2 }).run(), Heading2, 'Ctrl+Alt+2')}
+        {btn(s.h2, 'New section with its own slide (H2)', () => chain().toggleHeading({ level: 2 }).run(), Heading2, 'Ctrl+Alt+2')}
         {btn(s.h3, 'Sub-heading (H3)', () => chain().toggleHeading({ level: 3 }).run(), Heading3, 'Ctrl+Alt+3')}
       </div>
       <div className="tb-group">
@@ -93,21 +86,6 @@ export default function Toolbar({ editor, frames, onLinkFrame, onCreateFrame }: 
         </div>
       </div>
 
-      <div className="tb-group" title="The canvas frame shown next to this section">
-        <Frame size={16} aria-hidden="true" className="tb-icon" />
-        {s.section ? (
-          <select className="tb-select" aria-label={`Canvas frame for section "${s.section.title}"`} value={s.section.frameId ?? ''}
-            onChange={e => {
-              const section = s.section!;
-              if (e.target.value === '__new') onCreateFrame(section);
-              else onLinkFrame(section, e.target.value || null);
-            }}>
-            <option value="">No frame</option>
-            {frames.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            <option value="__new">＋ New frame for “{s.section.title || 'this section'}”</option>
-          </select>
-        ) : <span className="tb-label muted">Add an H2 section to link a frame</span>}
-      </div>
     </div>
   );
 }

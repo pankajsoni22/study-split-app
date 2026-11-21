@@ -20,6 +20,10 @@
 | D8 | Private articles | Owner + admin |
 | D9 | Mobile | Read-only below 768 px |
 | D10 | Analytics | Per-article view counts |
+| D11 | Split divider | **Fixed layouts** 70:30 · 60:40 · 50:50 · 40:60 · 30:70; the divider snaps, plus a layout picker |
+| D12 | Drawing area | **Fixed slides**: no zoom/pan; one slide fills the drawing side |
+| D13 | Slide shape | **Follows the article layout** (3:5 … 16:10); readers' other layouts letterbox |
+| D14 | Slides per section | **Exactly one** (each H2 = one slide) |
 
 ---
 
@@ -108,11 +112,38 @@ All modes render from the same article data. The mode switcher sits in the top b
 - Frames can also be marked detail-only; in Brief mode those sections skip the canvas jump.
 - Keyboard: `B` toggles. Reading position is preserved across the switch (anchored to the current section).
 
-### 4.2 Split divider
+### 4.2 Layouts and slides (revised 2026-11-22, D11–D14)
 
-- Default 50/50. Drag to resize between **25% and 75%**; double-click resets to 50%.
-- Keyboard-accessible (focus + ←/→). Width persisted locally (global default + per-article override).
-- Collapse buttons on each side (text-only / canvas-only) at any width.
+**Fixed layouts, not a free divider.** Five text : drawing layouts: `70:30 · 60:40 · 50:50 · 40:60 · 30:70`
+(`src/domain/layouts.ts`).
+- A **Layout** picker in the top bar (editor and reader) shows each proportion as a small icon.
+- Dragging the divider **snaps** between layouts (a badge shows the current one) and commits on release;
+  ←/→ step one layout; double-click returns to the article's default.
+- The **writer's layout is part of the article** (stored with the canvas, so it is versioned with each published
+  version). Templates pick a sensible default (System Design 40:60, Interview 60:40, others 50:50).
+  Readers may switch layout for themselves (remembered per article); slides are scaled to fit with margins.
+
+**Slides, not an infinite canvas.** Every H2 section has exactly **one slide**: a fixed-size drawing board whose
+shape follows the article layout:
+
+| Layout | 70:30 | 60:40 | 50:50 | 40:60 | 30:70 |
+|---|---|---|---|---|---|
+| Slide | 3:5 (900×1500) | 3:4 (1200×1600) | 1:1 (1400×1400) | 4:3 (1600×1200) | 16:10 (1600×1000) |
+
+- **Editor:**
+  - The canvas shows the current section's slide on a "paper" sheet. **Zoom and pan are disabled**: wheel, pinch,
+    zoom shortcuts and the hand tool are blocked, and any drift snaps back. Excalidraw's drawing tools work as usual.
+  - A **slide strip** (thumbnails) sits under the canvas. Clicking a slide jumps to its section; **+ Add slide**
+    inserts a new section with its slide after the current one.
+  - Slides are created, named and kept in order automatically. Each H2 shows a "Slide n" label, and the old
+    "link a frame" control is gone.
+  - Changing the layout reshapes all slides (with a confirmation if any slide has drawings). Drawings keep their size
+    and position.
+- **Reader:** slides are static pictures (SVG exported from the frame), shown whole and centred.
+  - Split mode: the slide changes as you scroll the text.
+  - Present mode: steps through the slides.
+  - Article mode: the slides are inline.
+  - Text before the first section shows the first slide.
 
 ### 4.3 Responsive behaviour
 
@@ -353,9 +384,10 @@ flowchart LR
 
 ### 11.2 The key performance idea: publish-time rendering
 
-> **Status (Phase 1b):** not built yet. Readers load the published version with one RPC (`get_published_article`)
-> and render the canvas with Excalidraw in view mode, which is a large download (~0.75 MB gzipped, cached afterwards).
-> Pre-rendered snapshots on Storage are planned for 1c; the home page is unaffected (~150 KB gzipped).
+> **Status (Phase 1):** readers load the published version with one RPC (`get_published_article`) and see slides as
+> static SVG pictures, with no live canvas, so nothing to zoom or pan. The SVGs are still exported in the reader's browser,
+> which needs the Excalidraw library (~0.75 MB gzipped, cached afterwards). Pre-rendering them at publish time is
+> planned for 1c; with fixed-size slides this is now simple. The home page is unaffected (~150 KB gzipped).
 
 When a writer clicks **Publish**, *the writer's browser* (which already has Excalidraw and Shiki loaded) produces:
 

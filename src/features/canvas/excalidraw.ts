@@ -3,8 +3,9 @@
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import {
-  CaptureUpdateAction, convertToExcalidrawElements, exportToSvg, hashElementsVersion
+  CaptureUpdateAction, convertToExcalidrawElements, exportToSvg, hashElementsVersion, restoreElements
 } from '@excalidraw/excalidraw';
+import { SLIDE_GAP, type Layout } from '../../domain/layouts.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 
 declare global {
@@ -21,32 +22,48 @@ type AnyElement = { id: string; type: string; isDeleted?: boolean; name?: string
 
 export interface FrameInfo { id: string; name: string }
 
-const FRAME_W = 720;
-const FRAME_H = 460;
-const GAP = 120;
-
 export function listFrames(elements: readonly unknown[]): FrameInfo[] {
   return (elements as AnyElement[])
     .filter(e => e.type === 'frame' && !e.isDeleted)
     .map((e, i) => ({ id: e.id, name: e.name || `Frame ${i + 1}` }));
 }
 
-/** Fly the camera to a frame (docs §4: 450 ms glide). No-op if the frame is gone. */
-export function scrollToFrame(api: ExcalidrawImperativeAPI, frameId: string, animate = true) {
+/** Fit one slide in the pane (the camera is then locked there, see Canvas.tsx). */
+export function fitSlide(api: ExcalidrawImperativeAPI, frameId: string) {
   const frame = api.getSceneElements().find(e => e.id === frameId);
-  if (frame) api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate, duration: 450 });
+  if (frame) api.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.9, animate: false });
 }
 
-/** Adds a named, empty frame to the right of the existing ones and returns its id. */
-export function createFrame(api: ExcalidrawImperativeAPI, name: string): string {
-  const existing = api.getSceneElements() as unknown as AnyElement[];
-  const frames = existing.filter(e => e.type === 'frame');
-  const x = frames.length ? Math.max(...frames.map(f => f.x + f.width)) + GAP : 0;
-  const y = frames.length ? Math.min(...frames.map(f => f.y)) : 0;
-  const [frame] = convertToExcalidrawElements([{ type: 'frame', children: [], name, x, y, width: FRAME_W, height: FRAME_H }]);
-  if (!frame) throw new Error('Could not create frame');
-  api.updateScene({ elements: [...api.getSceneElementsIncludingDeleted(), frame], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+/** Adds a slide (a named frame of the layout's size) after the existing ones and returns its id. */
+export function createSlide(api: ExcalidrawImperativeAPI, name: string, layout: Layout): string {
+  const frames = (api.getSceneElements() as unknown as AnyElement[]).filter(e => e.type === 'frame');
+  const x = frames.length ? Math.max(...frames.map(f => f.x + f.width)) + SLIDE_GAP : 0;
+  const [frame] = convertToExcalidrawElements([{ type: 'frame', children: [], name, x, y: 0, width: layout.slide.width, height: layout.slide.height }]);
+  if (!frame) throw new Error('Could not create slide');
+  api.updateScene({ elements: [...api.getSceneElementsIncludingDeleted(), frame], captureUpdate: CaptureUpdateAction.NEVER });
   return frame.id;
+}
+
+/** Applies several frame changes (rename / resize) in one scene update. */
+export function updateFrames(api: ExcalidrawImperativeAPI, changes: Map<string, { name?: string; width?: number; height?: number }>) {
+  if (changes.size === 0) return;
+  const elements = api.getSceneElementsIncludingDeleted().map(e => {
+    const c = changes.get(e.id);
+    if (!c || e.type !== 'frame') return e;
+    return { ...e, ...c, version: e.version + 1, versionNonce: Math.floor(Math.random() * 2 ** 31), updated: Date.now() };
+  });
+  api.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
+}
+
+/** Frame size, for drawing the slide's aspect ratio. */
+export function frameSize(scene: CanvasScene, frameId: string): { width: number; height: number } | null {
+  const f = (scene.elements as AnyElement[]).find(e => e.id === frameId && e.type === 'frame');
+  return f ? { width: f.width, height: f.height } : null;
+}
+
+/** True when a slide has anything drawn on it. */
+export function slideHasContent(elements: readonly unknown[], frameId: string): boolean {
+  return (elements as (AnyElement & { frameId?: string | null })[]).some(e => e.frameId === frameId && !e.isDeleted);
 }
 
 /** Scene to store: live elements + only the image files still referenced. */
@@ -69,7 +86,9 @@ type ExportToSvg = (opts: {
 }) => Promise<SVGSVGElement>;
 
 export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean): Promise<SVGSVGElement | null> {
-  const elements = scene.elements as Element[];
+  // restoreElements fills defaults/repairs bindings (same as Excalidraw does when loading), so older or
+  // partial scenes export correctly.
+  const elements = restoreElements(scene.elements as never, null, { repairBindings: true }) as unknown as Element[];
   const frame = elements.find(e => e.id === frameId);
   if (!frame || frame.type !== 'frame') return Promise.resolve(null);
   return (exportToSvg as unknown as ExportToSvg)({

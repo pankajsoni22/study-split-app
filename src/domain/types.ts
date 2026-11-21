@@ -1,4 +1,5 @@
 import type { Doc } from './content.ts';
+import type { LayoutId } from './layouts.ts';
 
 // Pure domain types. No vendor (Supabase) shapes leak past src/data/adapters.
 
@@ -68,6 +69,8 @@ export interface Tag {
 export interface CanvasScene {
   elements: unknown[];
   files: Record<string, unknown>;
+  /** The author's layout; sets the slide shape. Stored with the canvas so it is versioned. */
+  layout?: LayoutId;
 }
 
 export interface ArticleMeta {

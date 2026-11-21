@@ -2,20 +2,16 @@ import type { Editor } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
 import type { Doc } from '../../domain/content.ts';
-import type { FrameInfo } from '../canvas/excalidraw.ts';
 import { buildExtensions } from './extensions.ts';
 import { selectionContext, type CurrentSection } from './selection.ts';
 import Toolbar from './Toolbar.tsx';
 
 /** Rich-text side of the editor. Reports content changes and which section the cursor is in. */
-export default function TextEditor({ initialDoc, frames, onReady, onChange, onActiveSection, onLinkFrame, onCreateFrame }: {
+export default function TextEditor({ initialDoc, onReady, onChange, onActiveSection }: {
   initialDoc: Doc;
-  frames: FrameInfo[];
   onReady: (editor: Editor) => void;
   onChange: (doc: Doc) => void;
   onActiveSection: (section: CurrentSection | null) => void;
-  onLinkFrame: (section: CurrentSection, frameId: string | null) => void;
-  onCreateFrame: (section: CurrentSection) => void;
 }) {
   const callbacks = useRef({ onChange, onActiveSection });
   useEffect(() => { callbacks.current = { onChange, onActiveSection }; });
@@ -29,7 +25,7 @@ export default function TextEditor({ initialDoc, frames, onReady, onChange, onAc
     onUpdate: ({ editor: e }) => callbacks.current.onChange(e.getJSON() as Doc),
     onSelectionUpdate: ({ editor: e }) => {
       const { section } = selectionContext(e);
-      const key = section ? `${section.sectionId}:${section.frameId ?? ''}` : null;
+      const key = section ? section.sectionId : null;
       if (key === lastSection.current) return;
       lastSection.current = key;
       callbacks.current.onActiveSection(section);
@@ -41,7 +37,7 @@ export default function TextEditor({ initialDoc, frames, onReady, onChange, onAc
   if (!editor) return null;
   return (
     <div className="text-editor">
-      <Toolbar editor={editor} frames={frames} onLinkFrame={onLinkFrame} onCreateFrame={onCreateFrame} />
+      <Toolbar editor={editor} />
       <EditorContent editor={editor} className="editor-scroll" />
     </div>
   );
