@@ -18,10 +18,9 @@ await db.exec(`
   alter table storage.objects enable row level security;
   create function storage.foldername(name text) returns text[] language sql as $$ select string_to_array(name, '/') $$;
   grant usage on schema public, auth, storage to anon, authenticated;
-  -- Supabase's default privileges: new objects in public are granted to the API roles (RLS then filters rows).
-  alter default privileges in schema public grant all on tables to anon, authenticated;
-  alter default privileges in schema public grant all on functions to anon, authenticated;
-  alter default privileges in schema public grant all on sequences to anon, authenticated;
+  -- Strict like new Supabase projects: NO automatic grants to the API roles, and functions are not
+  -- executable by PUBLIC by default. Every grant the app needs must be in the migrations.
+  alter default privileges revoke execute on functions from public;
 `);
 await db.exec(readdirSync(new URL('../migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).sort()
   .map(f => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n'));
