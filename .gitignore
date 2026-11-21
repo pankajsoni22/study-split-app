@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db
+.idea/
+*.log
+.claude/settings.local.json
+# Supabase CLI local state and DB dumps (dumps contain user data — never commit)
+supabase/.temp/
+supabase/.branches/
+*.dump
+*.sql.gz
+*.age
+# Backup decryption key (age-keygen output) — keep offline, never commit
+*.key
+study-split-backup*
+# Editors, caches and test output
+.vscode/
+.vite/
+coverage/
+playwright-report/
+test-results/
