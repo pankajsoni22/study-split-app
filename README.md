@@ -3,6 +3,7 @@
 Write study notes and engineering articles with **text on the left and hand-drawn diagrams on the right**. You can publish them under your own `@username`, revise them in Brief mode, and read them on any screen.
 
 - Design & requirements: [`docs/01-product-and-architecture.md`](docs/01-product-and-architecture.md)
+- **Setup checklist (start here):** [`docs/02-setup-checklist.md`](docs/02-setup-checklist.md)
 - Live site: `https://pankajsoni22.github.io/study-split-app/`
 
 | Layer | Tech |

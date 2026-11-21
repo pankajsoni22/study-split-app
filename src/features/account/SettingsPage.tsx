@@ -116,7 +116,7 @@ function UsernameForm() {
     return (
       <form onSubmit={e => void save(e)}>
         <p className="card-sub" style={{ marginBottom: 14 }}>
-          Your articles live at /{p.username}/…. You can change it once every 30 days.
+          Your articles live at /{p.username}/your-article. You can change it once every 30 days.
           {locked && <> Next change possible in <b>{waitDays} day{waitDays === 1 ? '' : 's'}</b>.</>}
         </p>
         <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0 }}>

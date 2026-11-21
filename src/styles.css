@@ -420,3 +420,14 @@ select { appearance: none; padding-right: 36px; cursor: pointer;
 }
 .spin-icon { animation: spin 0.9s linear infinite; color: var(--muted); }
 .form-row-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
+
+/* Phones: keep the hero compact so the articles start above the fold. */
+@media (max-width: 599px) {
+  .hero { padding: 22px 20px; gap: 18px; }
+  .hero p { font-size: 14.5px; }
+  .hero-actions { margin-top: 16px; }
+  .hero-actions .btn-lg { min-height: 42px; padding: 8px 14px; font-size: 14px; flex: 1 1 auto; }
+  .split-demo { min-height: 120px; }
+  .split-demo-text { gap: 6px; padding: 12px 10px; }
+}
+.article-meta > span { white-space: nowrap; }
