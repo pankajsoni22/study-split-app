@@ -1,5 +1,6 @@
 import { copyFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -13,12 +14,14 @@ function contentSecurityPolicy(supabaseUrl: string): Plugin {
   const supabaseWs = supabase.replace(/^https:/, 'wss:');
   const csp = [
     "default-src 'self'",
-    "script-src 'self' https://accounts.google.com/gsi/client",
+    // 'wasm-unsafe-eval': Excalidraw compiles its font-subsetting WebAssembly (no JS eval is allowed).
+    "script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client",
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
     `connect-src 'self' ${supabase} ${supabaseWs} https://accounts.google.com/gsi/`,
     'frame-src https://accounts.google.com/gsi/',
     `img-src 'self' data: blob: ${supabase} https://*.googleusercontent.com https://*.gstatic.com`,
-    "font-src 'self'",
+    "font-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'"
@@ -45,7 +48,8 @@ function spaFallback(): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  // Read .env files next to this config (not process.cwd()), so automatic dev-server restarts keep the base path.
+  const env = loadEnv(mode, dirname(fileURLToPath(import.meta.url)), 'VITE_');
   return {
     base: env.VITE_BASE_PATH || '/study-split-app/',
     plugins: [react(), contentSecurityPolicy(env.VITE_SUPABASE_URL ?? ''), spaFallback()],
@@ -63,6 +67,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
-    test: { include: ['src/**/*.test.ts'], environment: 'node' }
+    test: { include: ['src/**/*.test.{ts,tsx}'], environment: 'node' }
   };
 });

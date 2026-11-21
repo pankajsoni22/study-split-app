@@ -2,6 +2,9 @@
 export type AppErrorCode =
   | 'UNAVAILABLE'      // e.g. username taken/reserved
   | 'RATE_LIMIT'       // e.g. username changed < 30 days ago
+  | 'CONFLICT'         // draft saved elsewhere since we loaded it
+  | 'SLUG_TAKEN'
+  | 'TOO_LARGE'
   | 'FORBIDDEN'        // RLS / role check refused
   | 'NOT_FOUND'
   | 'NETWORK'

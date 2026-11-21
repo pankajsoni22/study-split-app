@@ -26,6 +26,8 @@ await db.exec(readdirSync(new URL('../migrations/', import.meta.url)).filter(f =
   .map(f => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n'));
 console.log('✓ migration applied');
 
+const fail = e => { console.log('✗ UNEXPECTED:', e.message, '|', e.query); process.exit(1); };
+process.on('uncaughtException', fail);
 process.on('unhandledRejection', e => { console.log('✗ UNEXPECTED:', e.message, '|', e.query); process.exit(1); });
 const q = async (sql, params) => (await db.query(sql, params)).rows;
 const as = async (uid, fn) => { await db.exec(`set test.uid = '${uid ?? ''}'`); try { return await fn(); } finally { await db.exec(`reset test.uid`); } };
@@ -97,11 +99,55 @@ await as(u3.id, async () => {
   ok((await q(`select count(*)::int n from public.articles`))[0].n === 3, 'admin sees every article incl. private and draft');
 });
 
+// Phase 1: editor + publishing RPCs
+let artId;
+await as(u1.id, async () => {
+  [{ create_article: artId }] = await q(`select public.create_article('System Design: Chat App!', 'system-design', '{"type":"doc","content":[]}'::jsonb)`);
+  const [a] = await q(`select slug::text, title, status from public.articles where id = $1`, [artId]);
+  ok(a.slug === 'system-design-chat-app' && a.status === 'draft', 'create_article makes a draft with a slug: ' + a.slug);
+  const [{ create_article: dupId }] = await q(`select public.create_article('System Design: Chat App', null, null)`);
+  ok((await q(`select slug::text from public.articles where id = $1`, [dupId]))[0].slug === 'system-design-chat-app-2', 'duplicate titles get -2 slugs');
+
+  const meta = JSON.stringify({ title: 'Chat App', slug: 'chat-app', summary: 'WebSockets', tags: ['System Design', 'backend'], visibility: 'public', hasBrief: true, readingMinutes: 4 });
+  const doc = JSON.stringify({ type: 'doc', content: [{ type: 'heading', attrs: { level: 2, sectionId: 's1' }, content: [{ type: 'text', text: 'HLD' }] }] });
+  const canvas = JSON.stringify({ elements: [{ id: 'f1', type: 'frame' }], files: {} });
+  const [{ save_draft: v2 }] = await q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [artId, doc, canvas, meta]);
+  ok(v2 === 2, 'save_draft bumps the version');
+  const [m] = await q(`select slug::text, title, tags, has_brief, reading_minutes from public.articles where id = $1`, [artId]);
+  ok(m.slug === 'chat-app' && m.tags.includes('system-design') && m.has_brief && m.reading_minutes === 4, 'save_draft updates metadata: ' + JSON.stringify(m));
+  await expectFail('stale save (CONFLICT)', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [artId, doc, canvas, meta]));
+  await expectFail('slug already used by my other article', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`,
+    [dupId, doc, canvas, JSON.stringify({ title: 'x', slug: 'chat-app' })]));
+  const [{ publish_article: pv }] = await q(`select public.publish_article($1)`, [artId]);
+  ok(pv === 1, 'publish_article creates version 1');
+});
+await as(u2.id, async () => {
+  await expectFail('reader publishes someone else\'s article', () => q(`select public.publish_article($1)`, [artId]));
+  await expectFail('reader saves someone else\'s draft', async () => {
+    const [{ save_draft: v }] = await q(`select public.save_draft($1, 2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb)`, [artId]);
+    if (v === null) throw new Error('blocked by RLS (no row)');
+  });
+});
+await db.exec(`reset role; set role anon`);
+{
+  const [{ get_published_article: pub }] = await q(`select public.get_published_article('pankaj-new', 'chat-app')`);
+  ok(pub && pub.title === 'Chat App' && pub.doc.content.length === 1 && pub.canvas.elements.length === 1 && pub.author.username === 'pankaj-new',
+    'anon loads a published article in one call');
+  const [{ get_published_article: none }] = await q(`select public.get_published_article('pankaj-new', 'system-design-chat-app-2')`);
+  ok(none === null, 'anon gets null for a draft');
+}
+await db.exec(`reset role; set role authenticated`);
+await as(u1.id, async () => { await q(`select public.unpublish_article($1)`, [artId]); });
+await db.exec(`reset role; set role anon`);
+ok((await q(`select public.get_published_article('pankaj-new', 'chat-app') a`))[0].a === null, 'unpublished article disappears for readers');
+await db.exec(`reset role; set role authenticated`);
+await as(u1.id, async () => { await q(`select public.publish_article($1)`, [artId]); });
+
 // Anonymous visitor
 await db.exec(`reset role; set role anon`);
-ok((await q(`select count(*)::int n from public.articles`))[0].n === 1, 'anon sees only public published');
+ok((await q(`select count(*)::int n from public.articles`))[0].n === 2, 'anon sees only public published (2)');
 ok((await q(`select public.ping() p`))[0].p.startsWith('ok'), 'anon can ping');
 const feed = await q(`select a.title, p.username::text, s.views from public.articles a join public.profiles p on p.id = a.owner_id left join public.article_stats s on s.article_id = a.id`);
 console.log('  anon feed:', JSON.stringify(feed));
-ok(feed.length === 1 && Number(feed[0].views) === 1, 'anon feed join works (profiles + stats)');
+ok(feed.length === 2 && feed.some(f => Number(f.views) === 1), 'anon feed join works (profiles + stats)');
 console.log(process.exitCode ? '\nSOME CHECKS FAILED' : '\nALL CHECKS PASSED');

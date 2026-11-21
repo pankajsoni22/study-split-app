@@ -12,6 +12,9 @@ export function toAppError(err: PostgrestError | Error | null | undefined): AppE
   const pg = err as Partial<PostgrestError>;
   if (pg.hint === 'UNAVAILABLE') return new AppError('UNAVAILABLE', message);
   if (pg.hint === 'RATE_LIMIT') return new AppError('RATE_LIMIT', message);
+  if (pg.hint === 'CONFLICT') return new AppError('CONFLICT', message);
+  if (pg.hint === 'SLUG_TAKEN') return new AppError('SLUG_TAKEN', message);
+  if (pg.hint === 'TOO_LARGE') return new AppError('TOO_LARGE', message);
   if (pg.code === '42501') return new AppError('FORBIDDEN', message);
   if (pg.code === 'PGRST116' || pg.code === 'P0002') return new AppError('NOT_FOUND', message);
   if (pg.code === '28000') return new AppError('NOT_SIGNED_IN', message);
