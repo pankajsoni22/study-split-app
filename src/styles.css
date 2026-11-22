@@ -804,3 +804,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .slide-peek-label { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orphan-menu-preview { display: grid; place-items: center; height: 160px; margin-bottom: 8px; border-radius: 8px; background: var(--canvas); overflow: hidden; }
 .orphan-menu-preview .slide-image.is-peek { max-height: 156px; width: auto; height: 100%; }
+
+/* Always-visible font picker in the drawing format bar */
+.fb-font {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 32px; padding: 0 2px 0 8px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.fb-font:hover, .fb-font:focus-within { border-color: var(--accent); color: var(--accent-strong); }
+.fb-font select {
+  width: auto; min-height: 0; height: 30px; padding: 0 24px 0 2px; border: none; background-color: transparent;
+  box-shadow: none !important; font-size: 13px; font-weight: 600; color: var(--text-2); background-position: calc(100% - 12px) 52%, calc(100% - 7px) 52%;
+}

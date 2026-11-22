@@ -56,6 +56,8 @@ export interface Summary {
   kinds: Kinds;
   /** Shared value per key; undefined when the selection is mixed. */
   values: Partial<Record<StyleKey, StyleValue>>;
+  /** The defaults for the next shapes/text (Excalidraw's currentItem* settings). */
+  defaults: Partial<Record<StyleKey, StyleValue>>;
 }
 
 const live = (elements: readonly El[]) => elements.filter(e => !e.isDeleted);
@@ -85,13 +87,10 @@ function read(key: StyleKey, e: El): StyleValue {
 export function summarize(elements: readonly El[], selected: Record<string, boolean>, appState: Record<string, unknown>): Summary {
   const sel = selectionWithLabels(elements, selected);
   const keys = Object.keys(CURRENT_ITEM_KEY) as StyleKey[];
+  const defaults = Object.fromEntries(keys.map(k => [k, appState[CURRENT_ITEM_KEY[k]] as StyleValue]));
   if (sel.filter(e => selected[e.id]).length === 0) {
     const tool = (appState.activeTool as { type?: string } | undefined)?.type;
-    return {
-      count: 0,
-      kinds: { fill: true, edges: true, stroke: true, text: tool === 'text' },
-      values: Object.fromEntries(keys.map(k => [k, appState[CURRENT_ITEM_KEY[k]] as StyleValue]))
-    };
+    return { count: 0, kinds: { fill: true, edges: true, stroke: true, text: tool === 'text' }, values: defaults, defaults };
   }
   const values: Partial<Record<StyleKey, StyleValue>> = {};
   for (const k of keys) {
@@ -106,7 +105,8 @@ export function summarize(elements: readonly El[], selected: Record<string, bool
       stroke: sel.some(e => e.type !== 'text' || LINEAR.has(e.type)),
       text: sel.some(e => e.type === 'text')
     },
-    values
+    values,
+    defaults
   };
 }
 

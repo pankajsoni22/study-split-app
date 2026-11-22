@@ -1,4 +1,4 @@
-import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, SendToBack, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, SendToBack, SlidersHorizontal, Trash2, Type } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { applyStyle, deleteSelection, moveSelection, type ExcalidrawImperativeAPI } from './excalidraw.ts';
 import ShapesPanel from './ShapesPanel.tsx';
@@ -83,15 +83,13 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative }: 
         </Pop>
       )}
 
+      <FontPicker
+        value={s.kinds.text ? v.fontFamily : s.defaults.fontFamily}
+        appliesTo={s.kinds.text ? scope : 'next text'}
+        onPick={set('fontFamily')} />
+
       {s.kinds.text && (
-        <Pop label={`Text (${scope})`} trigger={<span className="fb-aa">Aa</span>}>
-          <Row label="Font">
-            <select className="tb-select" aria-label="Font" value={typeof v.fontFamily === 'number' ? v.fontFamily : ''}
-              onChange={e => set('fontFamily')(Number(e.target.value))}>
-              {v.fontFamily === undefined && <option value="">Mixed</option>}
-              {FONTS.map(f => <option key={f.value} value={f.value}>{f.name}</option>)}
-            </select>
-          </Row>
+        <Pop label={`Text size and alignment (${scope})`} trigger={<span className="fb-aa">Aa</span>}>
           <Row label="Size">
             <Seg label="Font size" value={v.fontSize} onPick={set('fontSize')} options={FONT_SIZES.map(f => [f.value, f.name])} />
           </Row>
@@ -166,6 +164,23 @@ function Pop({ label, trigger, children }: { label: string; trigger: ReactNode; 
       </button>
       {open && <div className="fb-popover" style={pos} role="dialog" aria-label={label}>{children}</div>}
     </div>
+  );
+}
+
+/**
+ * Always-visible font picker. With text (or labelled shapes) selected it changes their font; otherwise it sets
+ * the font for the next text, so the font can be chosen before typing.
+ */
+function FontPicker({ value, appliesTo, onPick }: { value: StyleValue | undefined; appliesTo: string; onPick: (v: number) => void }) {
+  return (
+    <label className="fb-font" title={`Font (${appliesTo})`}>
+      <Type size={14} aria-hidden="true" />
+      <select aria-label={`Font (${appliesTo})`} value={typeof value === 'number' ? value : ''}
+        onChange={e => onPick(Number(e.target.value))}>
+        {typeof value !== 'number' && <option value="">Mixed</option>}
+        {FONTS.map(f => <option key={f.value} value={f.value}>{f.name}</option>)}
+      </select>
+    </label>
   );
 }
 

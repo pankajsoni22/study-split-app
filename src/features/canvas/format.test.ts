@@ -14,6 +14,12 @@ describe('summarize', () => {
     expect(s.values.strokeColor).toBe('#c2410c');
     expect(s.kinds.text).toBe(true);
   });
+  it('always carries the defaults for new shapes/text (used by the always-visible font picker)', () => {
+    const s = summarize(all, { a: true }, { currentItemFontFamily: 6 });
+    expect(s.kinds.text).toBe(false);
+    expect(s.defaults.fontFamily).toBe(6);
+  });
+
   it('reports shared values and mixed values', () => {
     const s = summarize(all, { r: true, a: true }, {});
     expect(s.count).toBe(2);
