@@ -1,6 +1,7 @@
 import { Shapes } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { readJson, writeJson } from '../../lib/storage.ts';
+import { nextSvgPrefix, scopeSvgIds } from '../../lib/svgIds.ts';
 import { useResolvedTheme } from '../../lib/useResolvedTheme.ts';
 import { insertShape, shapePreview, type ExcalidrawImperativeAPI } from './excalidraw.ts';
 import { SHAPES, type ShapeCategory, type ShapeDef } from './shapes.ts';
@@ -64,7 +65,7 @@ function ShapeThumb({ def }: { def: ShapeDef }) {
   useEffect(() => {
     let cancelled = false;
     shapePreview(def.key, def.build(), theme === 'dark').then(markup => {
-      if (!cancelled && ref.current) ref.current.innerHTML = markup;   // our own Excalidraw export
+      if (!cancelled && ref.current) ref.current.innerHTML = scopeSvgIds(markup, nextSvgPrefix());   // our own export, ids scoped
     }, () => {});
     return () => { cancelled = true; };
   }, [def, theme]);

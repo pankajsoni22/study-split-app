@@ -132,7 +132,12 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
   );
 }
 
-/** An unlinked slide: click to link it to a new or existing section; ✕ deletes it. */
+const PEEK_WIDTH = 340;
+const PEEK_HEIGHT = 300;
+const MENU_PREVIEW = 170;
+const MENU_MAX = 520;
+
+/** An unlinked slide: hover to preview it, click to link it to a new or existing section; ✕ deletes it. */
 function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
   orphan: { frameId: string; title: string };
   slides: SlideRef[];
@@ -141,7 +146,19 @@ function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
   onDelete: (frameId: string) => void;
 }) {
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
+  /** Large hover preview (after a short pause, so moving across the strip doesn't flash previews). */
+  const [peek, setPeek] = useState<{ top: number; left: number } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+  const startPeek = () => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => {
+      const box = ref.current?.getBoundingClientRect();
+      if (box) setPeek({ top: Math.max(8, box.top - PEEK_HEIGHT - 12), left: Math.max(8, Math.min(box.left - 120, window.innerWidth - PEEK_WIDTH - 8)) });
+    }, 350);
+  };
+  const stopPeek = () => { window.clearTimeout(peekTimer.current); setPeek(null); };
   useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setMenu(null); };
@@ -152,9 +169,10 @@ function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
   }, [menu]);
 
   const open = () => {
+    stopPeek();
     const box = ref.current?.getBoundingClientRect();
     if (!box) return;
-    const height = Math.min(320, 92 + slides.length * 34);
+    const height = Math.min(MENU_MAX, 92 + MENU_PREVIEW + slides.length * 34);
     setMenu(m => (m ? null : { top: Math.max(8, box.top - height - 8), left: Math.max(8, Math.min(box.left, window.innerWidth - 280)) }));
   };
   const pick = (target: LinkTarget) => { setMenu(null); onAdopt(orphan.frameId, target); };
@@ -162,6 +180,7 @@ function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
   return (
     <div className="orphan" ref={ref}>
       <button type="button" className="slide-thumb is-orphan" onClick={open} aria-haspopup="menu" aria-expanded={!!menu}
+        onMouseEnter={() => { if (!menu) startPeek(); }} onMouseLeave={stopPeek} onFocus={() => { if (!menu) startPeek(); }} onBlur={stopPeek}
         title={`"${orphan.title}" has drawings but no section uses it. Click to link it to a section.`}>
         <span className="slide-thumb-box">
           <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-thumb" />
@@ -172,8 +191,17 @@ function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
         onClick={() => { if (window.confirm(`Delete the unlinked slide "${orphan.title}" and everything drawn on it?`)) onDelete(orphan.frameId); }}>
         <X size={12} aria-hidden="true" />
       </button>
+      {peek && !menu && (
+        <div className="slide-peek" style={peek} aria-hidden="true">
+          <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-peek" />
+          <span className="slide-peek-label">{orphan.title} · not used by any section</span>
+        </div>
+      )}
       {menu && (
         <div className="orphan-menu" role="menu" style={menu} aria-label={`Link "${orphan.title}"`}>
+          <div className="orphan-menu-preview">
+            <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-peek" />
+          </div>
           <p className="orphan-menu-title">Link “{orphan.title}” to…</p>
           <button type="button" role="menuitem" className="orphan-menu-item is-new" onClick={() => pick('new')}>
             <Plus size={15} aria-hidden="true" /> A new section

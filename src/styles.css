@@ -777,7 +777,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 }
 .orphan-delete:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
 .orphan-menu {
-  position: fixed; z-index: 60; width: 270px; max-height: 320px; display: flex; flex-direction: column; padding: 8px;
+  position: fixed; z-index: 60; width: 270px; max-height: 520px; display: flex; flex-direction: column; padding: 8px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg);
 }
 .orphan-menu-title { font-size: 12.5px; font-weight: 700; padding: 2px 6px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -791,3 +791,16 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .orphan-menu-item:hover { background: var(--accent-soft); color: var(--accent-strong); }
 .orphan-menu-item b { color: var(--accent-strong); min-width: 16px; }
 .orphan-menu-item.is-new { font-weight: 600; color: var(--accent-strong); }
+
+/* Unlinked slide previews (hover + top of the link menu) */
+.slide-peek {
+  position: fixed; z-index: 60; width: 340px; padding: 8px; pointer-events: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg);
+  animation: strip-up 0.14s ease-out;
+}
+.slide-peek .slide-image.is-peek, .orphan-menu-preview .slide-image.is-peek {
+  width: 100%; max-height: 260px; border: 1px solid var(--border); background: var(--surface);
+}
+.slide-peek-label { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orphan-menu-preview { display: grid; place-items: center; height: 160px; margin-bottom: 8px; border-radius: 8px; background: var(--canvas); overflow: hidden; }
+.orphan-menu-preview .slide-image.is-peek { max-height: 156px; width: auto; height: 100%; }
