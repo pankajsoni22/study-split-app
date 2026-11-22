@@ -815,3 +815,19 @@ body.is-resizing { cursor: col-resize; user-select: none; }
   width: auto; min-height: 0; height: 30px; padding: 0 24px 0 2px; border: none; background-color: transparent;
   box-shadow: none !important; font-size: 13px; font-weight: 600; color: var(--text-2); background-position: calc(100% - 12px) 52%, calc(100% - 7px) 52%;
 }
+
+/* Drawing tool shortcuts are letters (see Canvas.tsx): show them on the toolbar instead of Excalidraw's numbers */
+.canvas-host .ToolIcon .ToolIcon__keybinding { font-size: 0; }
+.canvas-host .ToolIcon .ToolIcon__keybinding::after { font-size: 0.625rem; font-weight: 600; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-selection"]) .ToolIcon__keybinding::after { content: "V"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-rectangle"]) .ToolIcon__keybinding::after { content: "R"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-diamond"]) .ToolIcon__keybinding::after { content: "D"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-ellipse"]) .ToolIcon__keybinding::after { content: "C"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-arrow"]) .ToolIcon__keybinding::after { content: "A"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-line"]) .ToolIcon__keybinding::after { content: "L"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-freedraw"]) .ToolIcon__keybinding::after { content: "P"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-text"]) .ToolIcon__keybinding::after { content: "T"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-image"]) .ToolIcon__keybinding::after { content: ""; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-eraser"]) .ToolIcon__keybinding::after { content: "E"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-hand"]) .ToolIcon__keybinding::after { content: "H"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-lock"]) .ToolIcon__keybinding::after { content: "Q"; }
