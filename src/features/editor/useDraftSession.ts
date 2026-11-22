@@ -164,6 +164,9 @@ export function useDraftSession(articleId: string) {
     setSaveState('dirty');
   }, [replaceContent, restoreOffer, saveState]);
 
+  /** Closing the banner: keep the restored copy (nothing to undo any more). */
+  const keepRestore = useCallback(() => setBeforeRestore(null), []);
+
   /** Back to exactly what was there before "Restore". The local copy is kept (offered again next time). */
   const undoRestore = useCallback(() => {
     if (!beforeRestore) return;
@@ -230,7 +233,7 @@ export function useDraftSession(articleId: string) {
 
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
-    restoreOffer, acceptRestore, declineRestore, canUndoRestore: beforeRestore !== null, undoRestore,
+    restoreOffer, acceptRestore, declineRestore, canUndoRestore: beforeRestore !== null, undoRestore, keepRestore,
     docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, remove
   };
 }

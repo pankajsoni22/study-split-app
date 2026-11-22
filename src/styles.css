@@ -767,3 +767,4 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .orphan-head { display: flex; align-items: center; padding: 0 4px 0 10px; border-left: 1px dashed var(--border-strong); }
 .orphan-head span { font-size: 11px; font-weight: 700; color: var(--pending); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; }
 .slide-thumb.is-orphan { border-style: dashed; border-color: color-mix(in srgb, var(--pending) 45%, transparent); }
+.banner-close { min-width: 30px; min-height: 30px; margin: -4px -6px -4px 0; color: var(--muted); }

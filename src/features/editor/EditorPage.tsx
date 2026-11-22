@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -274,6 +274,10 @@ export default function EditorPage() {
           <CircleAlert size={18} aria-hidden="true" />
           <span style={{ flex: 1 }}>Showing the restored copy from this device. Not right? Undo it to get the saved copy back (until you save).</span>
           <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
+          <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.keepRestore}
+            aria-label="Keep the restored copy and close" title="Keep the restored copy and close">
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
       )}
       {session.saveState === 'conflict' && (
