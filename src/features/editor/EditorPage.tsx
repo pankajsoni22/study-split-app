@@ -269,7 +269,7 @@ export default function EditorPage() {
         right={(
           <div className="slide-pane">
             <div className="canvas-zone" onPointerUpCapture={() => editorView.activity('draw')}>
-              <FormatBar api={api} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
+              <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
                   onApi={setApi} onSceneChange={onCanvasChange} />

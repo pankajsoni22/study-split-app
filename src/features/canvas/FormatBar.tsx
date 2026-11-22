@@ -1,14 +1,17 @@
 import { AlignCenter, AlignLeft, AlignRight, BringToFront, SendToBack, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { applyStyle, deleteSelection, moveSelection, type ExcalidrawImperativeAPI } from './excalidraw.ts';
+import ShapesPanel from './ShapesPanel.tsx';
 import { FILL_COLORS, FONT_SIZES, FONTS, STROKE_COLORS, summarize, type StyleKey, type StyleValue, type Summary } from './format.ts';
 
 /**
  * Study Split's drawing format bar (replaces Excalidraw's floating properties panel, which covered the slide).
  * With a selection it restyles the selection; with nothing selected it sets the style of the next shapes.
  */
-export default function FormatBar({ api, nativeOpen, onToggleNative }: {
+export default function FormatBar({ api, slideId, nativeOpen, onToggleNative }: {
   api: ExcalidrawImperativeAPI | null;
+  /** Current slide: shapes from the pack are inserted in its middle. */
+  slideId: string | null;
   nativeOpen: boolean;
   onToggleNative: () => void;
 }) {
@@ -38,6 +41,7 @@ export default function FormatBar({ api, nativeOpen, onToggleNative }: {
 
   return (
     <div className="format-bar" role="toolbar" aria-label="Drawing style">
+      <ShapesPanel api={api} slideId={slideId} />
       <span className="fb-scope" title={s.count ? 'Changes apply to the selection' : 'Changes apply to the next shapes you draw'}>
         {s.count ? `${s.count} selected` : 'New shapes'}
       </span>
