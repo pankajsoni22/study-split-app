@@ -26,6 +26,7 @@ export interface ArticleSummaryRow {
   reading_minutes: number;
   published_at: string | null;
   updated_at: string;
+  deleted_at: string | null;
   owner: PublicProfileRow | PublicProfileRow[] | null;
   stats: { views: number } | { views: number }[] | null;
 }
@@ -37,7 +38,7 @@ export interface AdminUserRow {
 
 /** Columns for article cards. Never selects the heavy JSON bodies (docs §12). */
 export const ARTICLE_SUMMARY_COLUMNS =
-  'id, slug, title, summary, tags, status, visibility, reading_minutes, published_at, updated_at,' +
+  'id, slug, title, summary, tags, status, visibility, reading_minutes, published_at, updated_at, deleted_at,' +
   ' owner:profiles!inner(username, display_name, avatar_url, bio), stats:article_stats(views)';
 
 const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
@@ -72,6 +73,7 @@ export function toArticleSummary(r: ArticleSummaryRow): ArticleSummary {
     publishedAt: r.published_at,
     updatedAt: r.updated_at,
     views: one(r.stats)?.views ?? 0,
+    deletedAt: r.deleted_at,
     author: owner ? toPublicProfile(owner) : { username: 'unknown', displayName: null, avatarUrl: null, bio: null }
   };
 }

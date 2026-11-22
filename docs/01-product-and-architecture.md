@@ -233,6 +233,17 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - Clicking a section in the editor flies the canvas to its frame — same behaviour as reading, so writers see what readers will see.
 - Pasted images are uploaded to Storage and referenced by URL (never embedded as base64 — keeps the scene small).
 
+### 6.3a Deleting articles: Trash (decided 2026-11-22)
+
+- **Delete article** (in Settings) asks the writer to **type the exact article title**; pasting is disabled. The article
+  moves to **Trash** (`/me/trash`, also in the sidebar): readers stop seeing it at once, and My articles offers **Undo**.
+- **Trash** lists deleted articles with **Restore** (back exactly as before, published or draft) and **Delete forever**
+  (type the title again). After Delete forever, the writer can't see or restore it, and its address is freed.
+- **Nothing is hard-deleted by the app.** The database only marks rows (`deleted_at`, `purged_at`). Users can't clear
+  those marks or delete rows, even through the API (RLS + column grants). Admins restore or erase rows with the SQL in
+  [`docs/03-admin-scripts.md`](03-admin-scripts.md).
+- A trashed article can't be saved or published (the editor shows "This article is in the Trash · Restore").
+
 ### 6.4 Saving (idea #13)
 
 | State | Indicator | Save button |

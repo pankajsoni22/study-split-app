@@ -12,6 +12,7 @@ describe('route table', () => {
     ['/write/new', '/write/new'],
     ['/write/0b1c-uuid', '/write/:articleId'],
     ['/me/articles', '/me/articles'],
+    ['/me/trash', '/me/trash'],
     ['/admin/users', '/admin/users'],
     ['/admin/settings', '/admin/settings'],
     ['/settings', '/settings'],

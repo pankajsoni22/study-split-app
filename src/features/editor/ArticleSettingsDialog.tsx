@@ -5,6 +5,7 @@ import { slugify, tagSlug } from '../../domain/slug.ts';
 import type { ArticleVisibility } from '../../domain/types.ts';
 import { errorMessage } from '../../data/errors.ts';
 import Dialog from '../../ui/Dialog.tsx';
+import TypeToConfirmDialog from '../../ui/TypeToConfirmDialog.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import type { DraftSession } from './useDraftSession.ts';
 
@@ -15,18 +16,20 @@ const VISIBILITY: { value: ArticleVisibility; label: string; hint: string; Icon:
 ];
 
 /** Address, summary, tags, visibility + unpublish/delete. Changes are saved with the article. */
-export default function ArticleSettingsDialog({ session, username, articleLayout, onArticleLayout, onClose, onDeleted }: {
+export default function ArticleSettingsDialog({ session, username, articleLayout, onArticleLayout, onClose, onTrashed }: {
   session: DraftSession;
   username: string;
   articleLayout: LayoutId;
   onArticleLayout: (id: LayoutId) => void;
   onClose: () => void;
-  onDeleted: () => void;
+  /** Called after the article was moved to the Trash. */
+  onTrashed: (title: string) => void;
 }) {
   const meta = session.meta!;
   const [tagInput, setTagInput] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   function addTag() {
     const t = tagSlug(tagInput);
@@ -41,6 +44,17 @@ export default function ArticleSettingsDialog({ session, username, articleLayout
   async function act(label: string, fn: () => Promise<void>) {
     setBusy(label); setError('');
     try { await fn(); } catch (err) { setError(errorMessage(err)); } finally { setBusy(''); }
+  }
+
+  if (confirmDelete) {
+    const title = meta.title.trim() || 'Untitled';
+    return (
+      <TypeToConfirmDialog title="Move article to Trash?" expected={title} confirmLabel="Move to Trash" busyLabel="Moving…"
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={async () => { await session.moveToTrash(); onTrashed(title); }}>
+        <p>Readers will no longer see <b>{title}</b>. You can restore it from <b>Trash</b> at any time.</p>
+      </TypeToConfirmDialog>
+    );
   }
 
   return (
@@ -109,13 +123,8 @@ export default function ArticleSettingsDialog({ session, username, articleLayout
             <Undo2 size={15} aria-hidden="true" /> {busy === 'unpublish' ? 'Unpublishing…' : 'Unpublish'}
           </button>
         )}
-        <button type="button" className="btn btn-ghost btn-sm btn-danger-text" disabled={!!busy}
-          onClick={() => {
-            if (window.confirm(`Delete "${meta.title}" permanently? This cannot be undone.`)) {
-              void act('delete', async () => { await session.remove(); onDeleted(); });
-            }
-          }}>
-          <Trash2 size={15} aria-hidden="true" /> {busy === 'delete' ? 'Deleting…' : 'Delete article'}
+        <button type="button" className="btn btn-ghost btn-sm btn-danger-text" disabled={!!busy} onClick={() => setConfirmDelete(true)}>
+          <Trash2 size={15} aria-hidden="true" /> Delete article
         </button>
         <span style={{ flex: 1 }} />
         <button type="button" className="btn" onClick={onClose}>Done</button>

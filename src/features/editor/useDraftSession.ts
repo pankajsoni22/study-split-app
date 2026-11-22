@@ -230,10 +230,12 @@ export function useDraftSession(articleId: string) {
     invalidate('articles:');
   }, [articleId, services]);
 
-  const remove = useCallback(async () => {
-    await services.articles.remove(articleId);
-    await localDrafts.remove(articleId);
+  /** Move to Trash (restorable from the Trash page). The local unsaved copy is kept until it's restored or purged. */
+  const moveToTrash = useCallback(async () => {
+    window.clearTimeout(autosaveTimer.current);
+    await services.articles.trash(articleId);
     invalidate('articles:');
+    invalidate('trash');
   }, [articleId, services]);
 
   // ---- Ctrl/⌘+S and the leave-page warning ----
@@ -259,7 +261,7 @@ export function useDraftSession(articleId: string) {
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
     restore: restore ? { mode: restore.mode, local: restore.local } : null, acceptRestore, undoRestore, closeRestore,
-    docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, remove
+    docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, moveToTrash
   };
 }
 

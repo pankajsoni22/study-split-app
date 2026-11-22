@@ -32,6 +32,7 @@ process.on('unhandledRejection', e => { console.log('✗ UNEXPECTED:', e.message
 const q = async (sql, params) => (await db.query(sql, params)).rows;
 const as = async (uid, fn) => { await db.exec(`set test.uid = '${uid ?? ''}'`); try { return await fn(); } finally { await db.exec(`reset test.uid`); } };
 const expectFail = async (label, fn) => { try { await fn(); console.log('✗ expected failure:', label); process.exitCode = 1; } catch (e) { console.log('✓ refused:', label, '→', e.message); } };
+const check = (cond, label) => ok(cond, label);
 const ok = (cond, label) => { console.log(cond ? '✓' : '✗', label); if (!cond) process.exitCode = 1; };
 
 // Sign-ups → profiles with suggested usernames and the default role
@@ -150,4 +151,60 @@ ok((await q(`select public.ping() p`))[0].p.startsWith('ok'), 'anon can ping');
 const feed = await q(`select a.title, p.username::text, s.views from public.articles a join public.profiles p on p.id = a.owner_id left join public.article_stats s on s.article_id = a.id`);
 console.log('  anon feed:', JSON.stringify(feed));
 ok(feed.length === 2 && feed.some(f => Number(f.views) === 1), 'anon feed join works (profiles + stats)');
+
+// ---------------------------------------------------------------- Trash (soft delete, no hard delete)
+await db.exec(`reset role; set role authenticated`);
+const anonSees = async (slug) => {
+  await db.exec(`reset role; set role anon`);
+  const [{ a }] = await q(`select public.get_published_article('pankaj-new', $1) a`, [slug]);
+  await db.exec(`reset role; set role authenticated`);
+  return a !== null;
+};
+check(await anonSees('chat-app'), 'trash: published article visible to readers before deleting');
+await as(u1.id, async () => {
+  await q(`select public.trash_article($1)`, [artId]);
+  ok((await q(`select deleted_at from public.articles where id = $1`, [artId]))[0]?.deleted_at !== null, 'trash: owner still sees it (in Trash)');
+  await expectFail('save a draft in the Trash', () => q(`select public.save_draft($1, 2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb)`, [artId]));
+  await expectFail('publish an article in the Trash', () => q(`select public.publish_article($1)`, [artId]));
+  await expectFail('owner clears deleted_at directly', () => q(`update public.articles set deleted_at = null where id = $1`, [artId]));
+  await expectFail('owner hard-deletes the row', () => q(`delete from public.articles where id = $1`, [artId]));
+});
+check(!(await anonSees('chat-app')), 'trash: readers no longer see it');
+await as(u1.id, async () => { await q(`select public.restore_article($1)`, [artId]); });
+check(await anonSees('chat-app'), 'restore: readers see it again, still published');
+await as(u2.id, async () => { await expectFail("someone else trashes my article", () => q(`select public.trash_article($1)`, [artId])); });
+await as(u1.id, async () => {
+  await expectFail('delete forever while not in Trash', () => q(`select public.purge_article($1)`, [artId]));
+  await q(`select public.trash_article($1)`, [artId]);
+  await q(`select public.purge_article($1)`, [artId]);
+  ok((await q(`select id from public.articles where id = $1`, [artId])).length === 0, 'delete forever: owner can no longer see it');
+  await expectFail('restore after delete forever', () => q(`select public.restore_article($1)`, [artId]));
+  await expectFail('un-purge directly', () => q(`update public.articles set purged_at = null where id = $1`, [artId]));
+  const [{ create_article: again }] = await q(`select public.create_article('Chat App', null, null)`);
+  ok((await q(`select slug::text from public.articles where id = $1`, [again]))[0].slug === 'chat-app', 'delete forever frees the address for reuse');
+});
+check(!(await anonSees('chat-app-deleted')), 'deleted-forever article is not readable');
+await as(u3.id, async () => {
+  const [row] = await q(`select purged_at, slug::text from public.articles where id = $1`, [artId]);
+  ok(row && row.purged_at !== null && row.slug.startsWith('chat-app-deleted-'), 'admin still sees the deleted-forever row (worst-case recovery): ' + row?.slug);
+  ok((await q(`select count(*)::int n from public.article_versions where article_id = $1`, [artId]))[0].n > 0, 'its content (versions) is kept in the database');
+});
+
+// Admin worst-case restore script (docs/03-admin-scripts.md §2), run as the database owner.
+{
+  const md = readFileSync(new URL('../../docs/03-admin-scripts.md', import.meta.url), 'utf8');
+  const section = md.slice(md.indexOf('### 2.'), md.indexOf('### 3.'));
+  const script = section.slice(section.indexOf('```sql') + 6, section.indexOf('```', section.indexOf('```sql') + 6)).replaceAll('ARTICLE_ID', artId);
+  await db.exec(`reset role`);
+  await db.exec(script);
+  await db.exec(`set role authenticated`);
+  await as(u1.id, async () => {
+    const [row] = await q(`select deleted_at, purged_at, slug::text from public.articles where id = $1`, [artId]);
+    ok(row && row.purged_at === null && row.deleted_at !== null, 'admin script: article is back in the owner\'s Trash');
+    ok(row?.slug.startsWith('chat-app-deleted-'), 'admin script: keeps the renamed address when the original is taken: ' + row?.slug);
+    await q(`select public.restore_article($1)`, [artId]);
+    ok((await q(`select deleted_at from public.articles where id = $1`, [artId]))[0].deleted_at === null, 'owner can then restore it from Trash');
+  });
+}
+
 console.log(process.exitCode ? '\nSOME CHECKS FAILED' : '\nALL CHECKS PASSED');

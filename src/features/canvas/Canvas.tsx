@@ -76,14 +76,25 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
     return () => ro.disconnect();
   }, [fit, placePaper]);
 
-  // Shift+1 normally zooms to ALL content (every slide); here it fits the current slide instead.
+  // Keyboard (canvas focused, not typing in a text box):
+  // - Shift+1 normally zooms to ALL content (every slide); here it fits the current slide instead.
+  // - Tool shortcuts are letters only (decided 2026-11-22): number keys no longer switch tools, C = circle
+  //   (ellipse; Excalidraw's O still works), F (new frame) is off because frames are managed as slides.
+  //   All other letters are Excalidraw's own: V R D A L P T E H Q.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === 'Digit1' && !(e.target instanceof HTMLTextAreaElement)) {
-        e.preventDefault(); e.stopPropagation(); fit();
-      }
+      const typing = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement
+        || (e.target instanceof HTMLElement && e.target.isContentEditable);
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const stop = () => { e.preventDefault(); e.stopPropagation(); };
+      if (e.shiftKey && e.code === 'Digit1') { stop(); fit(); return; }
+      if (e.shiftKey) return;
+      if (/^Digit[0-9]$/.test(e.code)) { stop(); return; }
+      const key = e.key.toLowerCase();
+      if (key === 'c') { stop(); apiRef.current?.setActiveTool({ type: 'ellipse' }); return; }
+      if (key === 'f') stop();
     };
     host.addEventListener('keydown', onKey, { capture: true });
     return () => host.removeEventListener('keydown', onKey, { capture: true });

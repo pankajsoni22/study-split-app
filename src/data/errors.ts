@@ -5,6 +5,7 @@ export type AppErrorCode =
   | 'CONFLICT'         // draft saved elsewhere since we loaded it
   | 'SLUG_TAKEN'
   | 'TOO_LARGE'
+  | 'IN_TRASH'
   | 'FORBIDDEN'        // RLS / role check refused
   | 'NOT_FOUND'
   | 'NETWORK'

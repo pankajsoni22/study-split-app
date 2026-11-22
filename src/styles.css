@@ -804,3 +804,35 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .slide-peek-label { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orphan-menu-preview { display: grid; place-items: center; height: 160px; margin-bottom: 8px; border-radius: 8px; background: var(--canvas); overflow: hidden; }
 .orphan-menu-preview .slide-image.is-peek { max-height: 156px; width: auto; height: 100%; }
+
+/* Always-visible font picker in the drawing format bar */
+.fb-font {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 32px; padding: 0 2px 0 8px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.fb-font:hover, .fb-font:focus-within { border-color: var(--accent); color: var(--accent-strong); }
+.fb-font select {
+  width: auto; min-height: 0; height: 30px; padding: 0 24px 0 2px; border: none; background-color: transparent;
+  box-shadow: none !important; font-size: 13px; font-weight: 600; color: var(--text-2); background-position: calc(100% - 12px) 52%, calc(100% - 7px) 52%;
+}
+
+/* Drawing tool shortcuts are letters (see Canvas.tsx): show them on the toolbar instead of Excalidraw's numbers */
+.canvas-host .ToolIcon .ToolIcon__keybinding { font-size: 0; }
+.canvas-host .ToolIcon .ToolIcon__keybinding::after { font-size: 0.625rem; font-weight: 600; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-selection"]) .ToolIcon__keybinding::after { content: "V"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-rectangle"]) .ToolIcon__keybinding::after { content: "R"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-diamond"]) .ToolIcon__keybinding::after { content: "D"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-ellipse"]) .ToolIcon__keybinding::after { content: "C"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-arrow"]) .ToolIcon__keybinding::after { content: "A"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-line"]) .ToolIcon__keybinding::after { content: "L"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-freedraw"]) .ToolIcon__keybinding::after { content: "P"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-text"]) .ToolIcon__keybinding::after { content: "T"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-image"]) .ToolIcon__keybinding::after { content: ""; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-eraser"]) .ToolIcon__keybinding::after { content: "E"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-hand"]) .ToolIcon__keybinding::after { content: "H"; }
+.canvas-host .ToolIcon:has([data-testid="toolbar-lock"]) .ToolIcon__keybinding::after { content: "Q"; }
+
+/* Destructive confirmations (Trash) */
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 88%, black); }
+.confirm-expected { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0 5px; }

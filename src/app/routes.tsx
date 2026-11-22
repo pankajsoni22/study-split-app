@@ -16,6 +16,7 @@ import { useFocusOnNavigate } from './useFocusOnNavigate.ts';
 // Everything except the landing page loads on demand, keeping the first download small (NFR-01).
 const SettingsPage = lazy(() => import('../features/account/SettingsPage.tsx'));
 const MyArticlesPage = lazy(() => import('../features/articles/MyArticlesPage.tsx'));
+const TrashPage = lazy(() => import('../features/articles/TrashPage.tsx'));
 const ProfilePage = lazy(() => import('../features/articles/ProfilePage.tsx'));
 const NewArticlePage = lazy(() => import('../features/editor/NewArticlePage.tsx'));
 const AdminUsersPage = lazy(() => import('../features/admin/AdminUsersPage.tsx'));
@@ -44,6 +45,7 @@ export const routeTable = (
       <Route path="/" element={<HomePage />} />
       <Route path="/write/new" element={<RequireAuth need="write"><NewArticlePage /></RequireAuth>} />
       <Route path="/me/articles" element={<RequireAuth need="write"><MyArticlesPage /></RequireAuth>} />
+      <Route path="/me/trash" element={<RequireAuth need="write"><TrashPage /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
       <Route path="/admin/users" element={<RequireAuth need="admin"><AdminUsersPage /></RequireAuth>} />
