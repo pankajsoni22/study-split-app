@@ -39,6 +39,8 @@ export interface ArticleSummary {
   updatedAt: string;
   views: number;
   author: PublicProfile;
+  /** Set while the article is in the Trash. */
+  deletedAt: string | null;
 }
 
 export interface AdminUser {
@@ -92,6 +94,8 @@ export interface ArticleDraft {
   canvas: CanvasScene;
   version: number;
   updatedAt: string;
+  /** Set while the article is in the Trash (it can't be edited until restored). */
+  deletedAt: string | null;
 }
 
 export interface PublishedArticle {

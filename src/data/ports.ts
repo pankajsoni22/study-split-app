@@ -40,7 +40,15 @@ export interface ArticleRepo {
   saveDraft(articleId: string, expectedVersion: number, input: { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; hasBrief: boolean; readingMinutes: number }): Promise<number>;
   publish(articleId: string): Promise<number>;
   unpublish(articleId: string): Promise<void>;
-  remove(articleId: string): Promise<void>;
+
+  // ---- Trash (articles are never hard-deleted by the app) ----
+  /** Move to Trash: hidden from readers, restorable. */
+  trash(articleId: string): Promise<void>;
+  restore(articleId: string): Promise<void>;
+  /** "Delete forever": hidden from the owner for good (kept in the database for admin recovery). */
+  purge(articleId: string): Promise<void>;
+  /** The signed-in user's articles in the Trash, most recently deleted first. */
+  listTrash(): Promise<ArticleSummary[]>;
 
   // ---- Reader ----
   /** Everything the reader page needs, in one call. Null when missing or not visible to the caller. */

@@ -831,3 +831,8 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .canvas-host .ToolIcon:has([data-testid="toolbar-eraser"]) .ToolIcon__keybinding::after { content: "E"; }
 .canvas-host .ToolIcon:has([data-testid="toolbar-hand"]) .ToolIcon__keybinding::after { content: "H"; }
 .canvas-host .ToolIcon:has([data-testid="toolbar-lock"]) .ToolIcon__keybinding::after { content: "Q"; }
+
+/* Destructive confirmations (Trash) */
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: color-mix(in srgb, var(--danger) 88%, black); }
+.confirm-expected { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0 5px; }

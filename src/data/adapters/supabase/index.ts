@@ -11,7 +11,7 @@ import {
 } from './mappers.ts';
 
 interface DraftRow {
-  id: string; title: string; slug: string; summary: string | null; tags: string[];
+  id: string; title: string; slug: string; summary: string | null; tags: string[]; deleted_at: string | null;
   visibility: ArticleDraft['meta']['visibility']; status: ArticleDraft['status'];
   template_key: string | null; published_version: number | null;
   owner: { username: string } | { username: string }[] | null;
@@ -81,7 +81,7 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
     articles: {
       async listPublic({ limit = 20, before, tag } = {}) {
         let q = sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
-          .eq('status', 'published').eq('visibility', 'public')
+          .eq('status', 'published').eq('visibility', 'public').is('deleted_at', null)
           .order('published_at', { ascending: false }).limit(limit);
         if (before) q = q.lt('published_at', before);
         if (tag) q = q.contains('tags', [tag]);
@@ -89,14 +89,14 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       },
       async listPublishedBy(username) {
         const rows = unwrap(await sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
-          .eq('status', 'published').eq('visibility', 'public').eq('owner.username', username.toLowerCase())
+          .eq('status', 'published').eq('visibility', 'public').is('deleted_at', null).eq('owner.username', username.toLowerCase())
           .order('published_at', { ascending: false }).limit(50).returns<ArticleSummaryRow[]>());
         return rows.map(toArticleSummary);
       },
       async listMine() {
         const id = await myId();
         const rows = unwrap(await sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
-          .eq('owner_id', id).order('updated_at', { ascending: false }).returns<ArticleSummaryRow[]>());
+          .eq('owner_id', id).is('deleted_at', null).order('updated_at', { ascending: false }).returns<ArticleSummaryRow[]>());
         return rows.map(toArticleSummary);
       },
       async recordView(articleId) {
@@ -109,7 +109,7 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       async getDraft(articleId) {
         // One query: metadata + owner + draft body (docs §11.3 "Open editor: 1 call").
         const row = unwrap(await sb.from('articles')
-          .select('id, title, slug, summary, tags, visibility, status, template_key, published_version,' +
+          .select('id, title, slug, summary, tags, visibility, status, template_key, published_version, deleted_at,' +
             ' owner:profiles!inner(username), draft:article_drafts(doc, canvas, version, updated_at)')
           .eq('id', articleId).maybeSingle<DraftRow>());
         if (!row) return null;
@@ -126,7 +126,8 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
           doc: draft.doc,
           canvas: draft.canvas,
           version: draft.version,
-          updatedAt: draft.updated_at
+          updatedAt: draft.updated_at,
+          deletedAt: row.deleted_at
         };
         return result;
       },
@@ -142,8 +143,20 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       async unpublish(articleId) {
         unwrap(await sb.rpc('unpublish_article', { p_article_id: articleId }));
       },
-      async remove(articleId) {
-        unwrap(await sb.from('articles').delete().eq('id', articleId));
+      async trash(articleId) {
+        unwrap(await sb.rpc('trash_article', { p_article_id: articleId }));
+      },
+      async restore(articleId) {
+        unwrap(await sb.rpc('restore_article', { p_article_id: articleId }));
+      },
+      async purge(articleId) {
+        unwrap(await sb.rpc('purge_article', { p_article_id: articleId }));
+      },
+      async listTrash() {
+        const id = await myId();
+        const rows = unwrap(await sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
+          .eq('owner_id', id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).returns<ArticleSummaryRow[]>());
+        return rows.map(toArticleSummary);
       },
       async getPublished(username, slug) {
         const data = unwrap(await sb.rpc('get_published_article', { p_username: username, p_slug: slug })) as PublishedArticle | null;

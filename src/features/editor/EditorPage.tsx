@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload, X } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -10,6 +10,9 @@ import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
+import { errorMessage } from '../../data/errors.ts';
+import { getServices } from '../../data/services.ts';
+import { invalidate } from '../../data/useQuery.ts';
 import { useAuth } from '../auth/useAuth.ts';
 import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
@@ -228,6 +231,7 @@ export default function EditorPage() {
 
   if (session.loadError) return <div className="editor-page"><main className="narrow" style={{ margin: '40px auto' }}><ErrorState error={session.loadError} /><Link to={backTo}>← Back to my articles</Link></main></div>;
   if (!draft || !session.meta) return <div className="editor-page"><Loading label="Opening article" /></div>;
+  if (draft.deletedAt) return <TrashedNotice articleId={articleId} title={session.meta.title} deletedAt={draft.deletedAt} />;
 
   const strip = (
     <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
@@ -356,8 +360,38 @@ export default function EditorPage() {
       {settingsOpen && (
         <ArticleSettingsDialog session={session} username={draft.ownerUsername || profile?.username || ''}
           articleLayout={articleLayout} onArticleLayout={changeArticleLayout}
-          onClose={() => setSettingsOpen(false)} onDeleted={() => void navigate(backTo, { replace: true })} />
+          onClose={() => setSettingsOpen(false)}
+          onTrashed={title => void navigate(backTo, { replace: true, state: { trashed: { id: articleId, title } } })} />
       )}
+    </div>
+  );
+}
+
+/** Opening an article that is in the Trash: it can't be edited until restored. */
+function TrashedNotice({ articleId, title, deletedAt }: { articleId: string; title: string; deletedAt: string }) {
+  const [state, setState] = useState<{ busy: boolean; error: string }>({ busy: false, error: '' });
+  async function restore() {
+    setState({ busy: true, error: '' });
+    try {
+      await getServices().articles.restore(articleId);
+      invalidate('articles:'); invalidate('trash');
+      window.location.reload();
+    } catch (err) { setState({ busy: false, error: errorMessage(err) }); }
+  }
+  return (
+    <div className="editor-page">
+      <main id="main" className="narrow" style={{ margin: '60px auto', padding: '0 16px' }}>
+        <div className="card state">
+          <span className="state-icon"><Trash2 size={24} aria-hidden="true" /></span>
+          <h1 className="state-title">“{title}” is in the Trash</h1>
+          <p className="muted">It was deleted on {new Date(deletedAt).toLocaleString()}. Restore it to read or edit it again.</p>
+          {state.error && <p className="field-error" role="alert">{state.error}</p>}
+          <div className="dialog-actions">
+            <Link className="btn btn-ghost" to="/me/trash">Open Trash</Link>
+            <button type="button" className="btn" disabled={state.busy} onClick={() => void restore()}>{state.busy ? 'Restoring…' : 'Restore'}</button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

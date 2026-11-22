@@ -1,4 +1,4 @@
-import { FilePen, FileText, Home, Settings, SlidersHorizontal, UserCog, type LucideIcon } from 'lucide-react';
+import { FilePen, FileText, Home, Settings, SlidersHorizontal, Trash2, UserCog, type LucideIcon } from 'lucide-react';
 import { can } from '../../domain/roles.ts';
 import type { Role } from '../../domain/types.ts';
 
@@ -18,6 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: Home, end: true, group: 'main', show: 'all' },
   { to: '/me/articles', label: 'My articles', icon: FileText, group: 'main', show: 'write' },
   { to: '/write/new', label: 'New article', icon: FilePen, group: 'main', show: 'write', desktopOnly: true },
+  { to: '/me/trash', label: 'Trash', icon: Trash2, group: 'main', show: 'write', desktopOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings, group: 'main', show: 'signedIn' },
   { to: '/admin/users', label: 'Users', icon: UserCog, group: 'admin', show: 'admin' },
   { to: '/admin/settings', label: 'App settings', icon: SlidersHorizontal, group: 'admin', show: 'admin' }
