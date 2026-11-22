@@ -96,7 +96,7 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       async listMine() {
         const id = await myId();
         const rows = unwrap(await sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
-          .eq('owner_id', id).is('deleted_at', null).order('updated_at', { ascending: false }).returns<ArticleSummaryRow[]>());
+          .eq('owner_id', id).is('deleted_at', null).is('purged_at', null).order('updated_at', { ascending: false }).returns<ArticleSummaryRow[]>());
         return rows.map(toArticleSummary);
       },
       async recordView(articleId) {
@@ -111,7 +111,7 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
         const row = unwrap(await sb.from('articles')
           .select('id, title, slug, summary, tags, visibility, status, template_key, published_version, deleted_at,' +
             ' owner:profiles!inner(username), draft:article_drafts(doc, canvas, version, updated_at)')
-          .eq('id', articleId).maybeSingle<DraftRow>());
+          .eq('id', articleId).is('purged_at', null).maybeSingle<DraftRow>());   // deleted forever = gone (even for admins)
         if (!row) return null;
         const draft = Array.isArray(row.draft) ? row.draft[0] : row.draft;
         const owner = Array.isArray(row.owner) ? row.owner[0] : row.owner;
@@ -155,7 +155,9 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       async listTrash() {
         const id = await myId();
         const rows = unwrap(await sb.from('articles').select(ARTICLE_SUMMARY_COLUMNS)
-          .eq('owner_id', id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }).returns<ArticleSummaryRow[]>());
+          // purged_at must be excluded explicitly: admins can read deleted-forever rows (RLS), owners can't.
+          .eq('owner_id', id).not('deleted_at', 'is', null).is('purged_at', null)
+          .order('deleted_at', { ascending: false }).returns<ArticleSummaryRow[]>());
         return rows.map(toArticleSummary);
       },
       async getPublished(username, slug) {
