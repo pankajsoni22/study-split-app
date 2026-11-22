@@ -11,10 +11,10 @@ import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { useAuth } from '../auth/useAuth.ts';
-import { createSlide, deleteFrameIfEmpty, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
-import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
+import SlideStrip, { type LinkTarget, type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
 import type { CurrentSection } from './selection.ts';
 import { useDraftSession, type SaveState } from './useDraftSession.ts';
@@ -160,19 +160,43 @@ export default function EditorPage() {
   }, [activeSlide, editor, headingPos]);
 
   /** Recovery: link an unlinked (but drawn) slide to the current section; its old slide is removed if empty. */
-  const adoptSlide = useCallback((frameId: string) => {
-    if (!editor || !api || !activeSlide) return;
-    const h = headingPos(activeSlide.sectionId);
-    if (!h) return;
-    const previous = activeSlide.frameId;
-    editor.chain().command(({ tr }) => {
-      const node = tr.doc.nodeAt(h.pos);
-      if (node) tr.setNodeMarkup(h.pos, undefined, { ...node.attrs, frameId });
-      return true;
-    }).run();
-    deleteFrameIfEmpty(api, previous);
+  /**
+   * Links an unlinked slide to a section.
+   * - target = { section }: that section now uses this slide. Its previous slide is removed if empty; if it has
+   *   drawings it becomes unlinked in turn (nothing is ever lost).
+   * - target = 'new': a new section is added at the end of the article, titled like the slide.
+   */
+  const adoptSlide = useCallback((frameId: string, target: LinkTarget) => {
+    if (!editor || !api) return;
+    if (target === 'new') {
+      const title = orphans.find(o => o.frameId === frameId)?.title || 'New section';
+      const end = editor.state.doc.content.size;
+      editor.chain().focus()
+        .insertContentAt(end, [{ type: 'heading', attrs: { level: 2, frameId }, content: [{ type: 'text', text: title }] }, { type: 'paragraph' }])
+        .setTextSelection(end + 1 + title.length)
+        .scrollIntoView()
+        .run();
+    } else {
+      const h = headingPos(target.section);
+      const current = slides.find(sl => sl.sectionId === target.section);
+      if (!h) return;
+      editor.chain().command(({ tr }) => {
+        const node = tr.doc.nodeAt(h.pos);
+        if (node) tr.setNodeMarkup(h.pos, undefined, { ...node.attrs, frameId });
+        return true;
+      }).run();
+      if (current) deleteFrameIfEmpty(api, current.frameId);
+      setActiveSectionId(target.section);
+    }
     window.setTimeout(syncSlides, 0);
-  }, [activeSlide, api, editor, headingPos, syncSlides]);
+  }, [api, editor, headingPos, orphans, slides, syncSlides]);
+
+  /** Deletes an unlinked slide and its drawings (after the strip asked for confirmation). */
+  const deleteOrphan = useCallback((frameId: string) => {
+    if (!api) return;
+    deleteSlide(api, frameId);
+    window.setTimeout(syncSlides, 0);
+  }, [api, syncSlides]);
 
   /** Author changes the article layout: slides take the new shape (drawings keep their size and place). */
   const changeArticleLayout = useCallback((id: LayoutId) => {
@@ -208,7 +232,7 @@ export default function EditorPage() {
   const strip = (
     <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
       scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide}
-      pinned={stripPinned} onPinnedChange={pinStrip} orphans={orphans} onAdopt={adoptSlide} />
+      pinned={stripPinned} onPinnedChange={pinStrip} orphans={orphans} onAdopt={adoptSlide} onDeleteOrphan={deleteOrphan} />
   );
 
   async function publish() {

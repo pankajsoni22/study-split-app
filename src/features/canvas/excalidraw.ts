@@ -215,3 +215,18 @@ export function deleteFrameIfEmpty(api: ExcalidrawImperativeAPI, frameId: string
     captureUpdate: CaptureUpdateAction.NEVER
   });
 }
+
+/** Deletes a slide and everything on it (labels and arrows inside included). Undoable on the canvas (Ctrl+Z). */
+export function deleteSlide(api: ExcalidrawImperativeAPI, frameId: string) {
+  const all = api.getSceneElementsIncludingDeleted();
+  const doomed = new Set<string>([frameId]);
+  for (const e of all) if ((e as { frameId?: string | null }).frameId === frameId) doomed.add(e.id);
+  for (const e of all) {
+    const c = (e as { containerId?: string | null }).containerId;
+    if (c && doomed.has(c)) doomed.add(e.id);
+  }
+  api.updateScene({
+    elements: all.map(e => (doomed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY
+  });
+}
