@@ -9,6 +9,9 @@ import { localDrafts, type LocalDraft } from '../../lib/localDrafts.ts';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 
+/** What was on screen before a restore (for Undo restore). */
+interface Snapshot { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; state: SaveState }
+
 /**
  * Editor state + saving rules (docs §6.4, idea #13):
  * - Changes mark the draft dirty; nothing goes to the server until Save / Ctrl+S (keeps backend load low).
@@ -19,7 +22,13 @@ export function useDraftSession(articleId: string) {
   const services = getServices();
   const [draft, setDraft] = useState<ArticleDraft | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
-  const [restoreOffer, setRestoreOffer] = useState<LocalDraft | null>(null);
+  /**
+   * Restore banner (decided 2026-11-22). One banner, closed only by its ✕:
+   *   offer    — a newer local copy exists; the saved copy is on screen          [Restore] [✕]
+   *   restored — the local copy is on screen; `before` is what it replaced       [Undo restore] [✕]
+   * Restore/Undo switch between the two; saving never closes it.
+   */
+  const [restore, setRestore] = useState<{ local: LocalDraft; mode: 'offer' | 'restored'; before: Snapshot | null } | null>(null);
   /** Bumped when content is replaced from outside (restore / reload) so editor + canvas remount. */
   const [sessionKey, setSessionKey] = useState(0);
   const [meta, setMetaState] = useState<ArticleMeta | null>(null);
@@ -28,6 +37,7 @@ export function useDraftSession(articleId: string) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<ArticleDraft['status']>('draft');
   const [publishing, setPublishing] = useState(false);
+  /** What was on screen before a restore, so the restore can be undone exactly. */
 
   const docRef = useRef<Doc | null>(null);
   const canvasRef = useRef<CanvasScene | null>(null);
@@ -37,6 +47,10 @@ export function useDraftSession(articleId: string) {
   const savingRef = useRef(false);
   const slugTouched = useRef(false);
   const autosaveTimer = useRef<number | undefined>(undefined);
+  /** Mirrors sessionKey but changes synchronously, so late events from a torn-down editor/canvas can be ignored. */
+  const sessionRef = useRef(0);
+  /** Set once a save happens after a restore: undoing then needs a save to reach the server. */
+  const savedSinceRestore = useRef(false);
 
   // ---- load (1 DB call) + local copy check ----
   useEffect(() => {
@@ -54,7 +68,7 @@ export function useDraftSession(articleId: string) {
       setStatus(d.status);
       setDraft(d);
       const local = await localDrafts.get(articleId);
-      if (!cancelled && local && local.savedAt > Date.parse(d.updatedAt)) setRestoreOffer(local);
+      if (!cancelled && local && local.savedAt > Date.parse(d.updatedAt)) setRestore({ local, mode: 'offer', before: null });
     })().catch((err: unknown) => { if (!cancelled) setLoadError(err); });
     return () => { cancelled = true; };
   }, [articleId, services]);
@@ -76,8 +90,17 @@ export function useDraftSession(articleId: string) {
     scheduleLocalSave();
   }, [scheduleLocalSave]);
 
-  const setDoc = useCallback((doc: Doc) => { docRef.current = doc; markChanged(); }, [markChanged]);
-  const setCanvas = useCallback((scene: CanvasScene) => { canvasRef.current = scene; markChanged(); }, [markChanged]);
+  /** `forSession`: the session the change came from; changes from an older (unmounted) session are dropped. */
+  const setDoc = useCallback((doc: Doc, forSession?: number) => {
+    if (forSession !== undefined && forSession !== sessionRef.current) return;
+    docRef.current = doc;
+    markChanged();
+  }, [markChanged]);
+  const setCanvas = useCallback((scene: CanvasScene, forSession?: number) => {
+    if (forSession !== undefined && forSession !== sessionRef.current) return;
+    canvasRef.current = scene;
+    markChanged();
+  }, [markChanged]);
   const setMeta = useCallback((patch: Partial<ArticleMeta>, opts?: { slugEdited?: boolean }) => {
     if (!metaRef.current) return;
     if (opts?.slugEdited) slugTouched.current = true;
@@ -103,6 +126,7 @@ export function useDraftSession(articleId: string) {
         hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
       });
       setLastSavedAt(Date.now());
+      savedSinceRestore.current = true;   // the server now holds the restored version
       const clean = changeCount.current === startedAt;
       setSaveState(clean ? 'saved' : 'dirty');
       if (clean) { window.clearTimeout(autosaveTimer.current); void localDrafts.remove(articleId); }
@@ -130,23 +154,57 @@ export function useDraftSession(articleId: string) {
     window.location.reload();
   }, [articleId]);
 
+  /** Replaces the whole editing session (editor + canvas remount from this content). */
+  const replaceContent = useCallback((doc: Doc, canvas: CanvasScene, meta: ArticleMeta) => {
+    docRef.current = doc;
+    canvasRef.current = canvas;
+    metaRef.current = meta;
+    setMetaState(meta);
+    setDraft(d => (d ? { ...d, doc, canvas, meta } : d));
+    sessionRef.current += 1;
+    setSessionKey(sessionRef.current);
+  }, []);
+
+  /** Offer → restored: show the local copy, remembering what was on screen. */
   const acceptRestore = useCallback(() => {
-    if (!restoreOffer) return;
-    docRef.current = restoreOffer.doc;
-    canvasRef.current = restoreOffer.canvas;
-    metaRef.current = restoreOffer.meta;
-    setMetaState(restoreOffer.meta);
-    setDraft(d => (d ? { ...d, doc: restoreOffer.doc, canvas: restoreOffer.canvas, meta: restoreOffer.meta } : d));
-    setRestoreOffer(null);
-    setSessionKey(k => k + 1);
+    if (!restore || restore.mode !== 'offer' || !docRef.current || !canvasRef.current || !metaRef.current) return;
+    const before: Snapshot = { doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current, state: saveState };
+    savedSinceRestore.current = false;
+    replaceContent(restore.local.doc, restore.local.canvas, restore.local.meta);
+    setRestore({ ...restore, mode: 'restored', before });
     changeCount.current += 1;
     setSaveState('dirty');
-  }, [restoreOffer]);
+  }, [replaceContent, restore, saveState]);
 
-  const declineRestore = useCallback(() => {
-    setRestoreOffer(null);
-    void localDrafts.remove(articleId);
-  }, [articleId]);
+  /** Restored → offer: exactly what was there before "Restore". The banner stays (Restore is offered again). */
+  const undoRestore = useCallback(() => {
+    if (!restore || restore.mode !== 'restored' || !restore.before) return;
+    const { before } = restore;
+    replaceContent(before.doc, before.canvas, before.meta);
+    window.clearTimeout(autosaveTimer.current);
+    if (savedSinceRestore.current) { changeCount.current += 1; setSaveState('dirty'); }   // server holds the restored copy
+    else setSaveState(before.state);
+    setRestore({ ...restore, mode: 'offer', before: null });
+  }, [replaceContent, restore]);
+
+  /**
+   * ✕ closes the banner.
+   * - offer (saved copy on screen): the local copy is deleted, so it is not offered again. If there are newer unsaved
+   *   edits from this session, those are kept as the local copy instead, so nothing typed since opening is lost.
+   * - restored: just closes. The local copy is deleted when the article is saved (see save()).
+   */
+  const closeRestore = useCallback(() => {
+    if (!restore) return;
+    if (restore.mode === 'offer') {
+      window.clearTimeout(autosaveTimer.current);
+      if (saveState === 'saved' || !docRef.current || !canvasRef.current || !metaRef.current) {
+        void localDrafts.remove(articleId);
+      } else {
+        void localDrafts.put({ articleId, baseVersion: versionRef.current, savedAt: Date.now(), doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current });
+      }
+    }
+    setRestore(null);
+  }, [articleId, restore, saveState]);
 
   // ---- publish ----
   const publish = useCallback(async (): Promise<boolean> => {
@@ -200,7 +258,7 @@ export function useDraftSession(articleId: string) {
 
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
-    restoreOffer, acceptRestore, declineRestore,
+    restore: restore ? { mode: restore.mode, local: restore.local } : null, acceptRestore, undoRestore, closeRestore,
     docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, remove
   };
 }

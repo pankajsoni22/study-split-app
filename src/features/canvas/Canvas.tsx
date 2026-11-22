@@ -1,5 +1,5 @@
 import { Maximize } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasScene } from '../../domain/types.ts';
 import { useResolvedTheme } from '../../lib/useResolvedTheme.ts';
 import { Excalidraw, fitSlide, sceneSignature, toStoredScene, type ExcalidrawImperativeAPI } from './excalidraw.ts';
@@ -25,6 +25,10 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const lastSig = useRef<number | null>(null);
+  /** False from the moment this canvas starts unmounting: Excalidraw then swaps in an EMPTY scene, which must never
+   *  be reported as the user's drawing. Layout cleanup runs before Excalidraw's own unmount. */
+  const alive = useRef(true);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const paperFrame = useRef(0);
   /** True once the user zoomed/panned since the last fit; pane resizes then keep their view. */
   const userMoved = useRef(false);
@@ -106,7 +110,7 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
         onScrollChange={() => { if (!fitting.current) userMoved.current = true; placePaper(); }}
         onChange={(elements, appState, files) => {
           // Excalidraw hands out its API before initialData is applied; announce it after loading.
-          if (appState.isLoading) return;
+          if (appState.isLoading || !alive.current) return;
           const sig = sceneSignature(elements);
           if (lastSig.current === null) {
             lastSig.current = sig;

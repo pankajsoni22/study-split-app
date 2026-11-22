@@ -1,9 +1,12 @@
-import { GalleryHorizontal, Pin, PinOff, Plus } from 'lucide-react';
+import { GalleryHorizontal, Pin, PinOff, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasScene } from '../../domain/types.ts';
 import SlideImage from '../canvas/SlideImage.tsx';
 
 export interface SlideRef { sectionId: string; title: string; frameId: string }
+
+/** Where an unlinked slide goes: a new section, or an existing one (whose slide it replaces). */
+export type LinkTarget = 'new' | { section: string };
 
 interface StripProps {
   slides: SlideRef[];
@@ -14,6 +17,10 @@ interface StripProps {
   onAdd: () => void;
   pinned: boolean;
   onPinnedChange: (pinned: boolean) => void;
+  /** Drawn slides no section points to: can be linked to a new or existing section, or deleted. */
+  orphans: { frameId: string; title: string }[];
+  onAdopt: (frameId: string, target: LinkTarget) => void;
+  onDeleteOrphan: (frameId: string) => void;
 }
 
 const AUTO_HIDE_MS = 3000;
@@ -76,7 +83,7 @@ function FloatingStrip(props: StripProps) {
   );
 }
 
-function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinnedChange, docked }: StripProps & { docked: boolean }) {
+function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinnedChange, orphans, onAdopt, onDeleteOrphan, docked }: StripProps & { docked: boolean }) {
   const listRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     listRef.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -99,6 +106,16 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
             </li>
           );
         })}
+        {orphans.length > 0 && (
+          <li className="orphan-head" aria-label="Unlinked slides">
+            <span>Unlinked<br />slides</span>
+          </li>
+        )}
+        {orphans.map(o => (
+          <li key={o.frameId}>
+            <OrphanSlide orphan={o} slides={slides} scene={scene} onAdopt={onAdopt} onDelete={onDeleteOrphan} />
+          </li>
+        ))}
         <li>
           <button type="button" className="slide-add" onClick={onAdd} title="Add a section with its own slide after the current one">
             <Plus size={16} aria-hidden="true" />
@@ -112,5 +129,93 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
         <span className="visually-hidden">{pinned ? 'Unpin slides' : 'Pin slides'}</span>
       </button>
     </nav>
+  );
+}
+
+const PEEK_WIDTH = 340;
+const PEEK_HEIGHT = 300;
+const MENU_PREVIEW = 170;
+const MENU_MAX = 520;
+
+/** An unlinked slide: hover to preview it, click to link it to a new or existing section; ✕ deletes it. */
+function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
+  orphan: { frameId: string; title: string };
+  slides: SlideRef[];
+  scene: CanvasScene;
+  onAdopt: (frameId: string, target: LinkTarget) => void;
+  onDelete: (frameId: string) => void;
+}) {
+  const [menu, setMenu] = useState<{ top: number; left: number } | null>(null);
+  /** Large hover preview (after a short pause, so moving across the strip doesn't flash previews). */
+  const [peek, setPeek] = useState<{ top: number; left: number } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+  const startPeek = () => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => {
+      const box = ref.current?.getBoundingClientRect();
+      if (box) setPeek({ top: Math.max(8, box.top - PEEK_HEIGHT - 12), left: Math.max(8, Math.min(box.left - 120, window.innerWidth - PEEK_WIDTH - 8)) });
+    }, 350);
+  };
+  const stopPeek = () => { window.clearTimeout(peekTimer.current); setPeek(null); };
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setMenu(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [menu]);
+
+  const open = () => {
+    stopPeek();
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return;
+    const height = Math.min(MENU_MAX, 92 + MENU_PREVIEW + slides.length * 34);
+    setMenu(m => (m ? null : { top: Math.max(8, box.top - height - 8), left: Math.max(8, Math.min(box.left, window.innerWidth - 280)) }));
+  };
+  const pick = (target: LinkTarget) => { setMenu(null); onAdopt(orphan.frameId, target); };
+
+  return (
+    <div className="orphan" ref={ref}>
+      <button type="button" className="slide-thumb is-orphan" onClick={open} aria-haspopup="menu" aria-expanded={!!menu}
+        onMouseEnter={() => { if (!menu) startPeek(); }} onMouseLeave={stopPeek} onFocus={() => { if (!menu) startPeek(); }} onBlur={stopPeek}
+        title={`"${orphan.title}" has drawings but no section uses it. Click to link it to a section.`}>
+        <span className="slide-thumb-box">
+          <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-thumb" />
+        </span>
+        <span className="slide-thumb-label">{orphan.title}</span>
+      </button>
+      <button type="button" className="orphan-delete" aria-label={`Delete unlinked slide "${orphan.title}"`} title="Delete this slide and its drawings"
+        onClick={() => { if (window.confirm(`Delete the unlinked slide "${orphan.title}" and everything drawn on it?`)) onDelete(orphan.frameId); }}>
+        <X size={12} aria-hidden="true" />
+      </button>
+      {peek && !menu && (
+        <div className="slide-peek" style={peek} aria-hidden="true">
+          <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-peek" />
+          <span className="slide-peek-label">{orphan.title} · not used by any section</span>
+        </div>
+      )}
+      {menu && (
+        <div className="orphan-menu" role="menu" style={menu} aria-label={`Link "${orphan.title}"`}>
+          <div className="orphan-menu-preview">
+            <SlideImage scene={scene} frameId={orphan.frameId} label={orphan.title} className="is-peek" />
+          </div>
+          <p className="orphan-menu-title">Link “{orphan.title}” to…</p>
+          <button type="button" role="menuitem" className="orphan-menu-item is-new" onClick={() => pick('new')}>
+            <Plus size={15} aria-hidden="true" /> A new section
+          </button>
+          {slides.length > 0 && <p className="orphan-menu-sub">An existing section (replaces its slide)</p>}
+          <div className="orphan-menu-list">
+            {slides.map((sl, i) => (
+              <button key={sl.sectionId} type="button" role="menuitem" className="orphan-menu-item" onClick={() => pick({ section: sl.sectionId })}>
+                <b>{i + 1}</b> {sl.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

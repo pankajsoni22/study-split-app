@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Upload, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -11,10 +11,10 @@ import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { useAuth } from '../auth/useAuth.ts';
-import { createSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
-import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
+import SlideStrip, { type LinkTarget, type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
 import type { CurrentSection } from './selection.ts';
 import { useDraftSession, type SaveState } from './useDraftSession.ts';
@@ -28,8 +28,10 @@ export default function EditorPage() {
   const session = useDraftSession(articleId);
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  // Editor and canvas are tagged with the session they belong to: after a restore (new session) the old,
+  // unmounted ones must never be used (the old canvas reports an EMPTY scene once it unmounts).
+  const [editorTag, setEditorTag] = useState<{ key: number; editor: Editor } | null>(null);
+  const [apiTag, setApiTag] = useState<{ key: number; api: ExcalidrawImperativeAPI } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [nativeProps, setNativeProps] = useState(false);
   const [notice, setNotice] = useState('');
@@ -44,6 +46,12 @@ export default function EditorPage() {
   const thumbTimer = useRef<number | undefined>(undefined);
 
   const { draft, sessionKey, setCanvas, setDoc, canvasRef } = session;
+  const editor = editorTag?.key === sessionKey && !editorTag.editor.isDestroyed ? editorTag.editor : null;
+  const api = apiTag?.key === sessionKey ? apiTag.api : null;
+  const onEditorReady = useCallback((e: Editor) => setEditorTag({ key: sessionKey, editor: e }), [sessionKey]);
+  const onCanvasApi = useCallback((a: ExcalidrawImperativeAPI) => setApiTag({ key: sessionKey, api: a }), [sessionKey]);
+  /** Drawn slides that no section points to (recoverable from the slides panel). */
+  const [orphans, setOrphans] = useState<{ frameId: string; title: string }[]>([]);
 
   // ---- Article layout: slide shape + readers' default. Stored with the canvas (versioned on publish).
   //      Changed in Settings. Separate from the editor's on-screen split (editorView, incl. Auto). ----
@@ -57,7 +65,7 @@ export default function EditorPage() {
 
   const onCanvasChange = useCallback((scene: CanvasScene) => {
     const withLayout = { ...scene, layout: layoutRef.current };
-    setCanvas(withLayout);
+    setCanvas(withLayout, sessionKey);
     window.clearTimeout(thumbTimer.current);
     thumbTimer.current = window.setTimeout(() => setThumbScene({ key: sessionKey, scene: withLayout }), 700);
   }, [sessionKey, setCanvas]);
@@ -87,6 +95,10 @@ export default function EditorPage() {
       next.push({ sectionId: node.attrs.sectionId as string, title, frameId });
     });
     updateFrames(api, renames);
+    const linked = new Set([...next.map(n => n.frameId), ...links.map(l => l.frameId)]);
+    const elements = api.getSceneElements();
+    const lost = [...frames.values()].filter(f => !linked.has(f.id) && slideHasContent(elements, f.id)).map(f => ({ frameId: f.id, title: f.name }));
+    setOrphans(prev => (JSON.stringify(prev) === JSON.stringify(lost) ? prev : lost));
     if (links.length) {
       editor.chain().command(({ tr }) => {
         for (const { pos, frameId } of links) {
@@ -103,10 +115,10 @@ export default function EditorPage() {
   useEffect(() => { syncSlides(); }, [syncSlides, sessionKey]);
 
   const onTextChange = useCallback((doc: Parameters<typeof setDoc>[0]) => {
-    setDoc(doc);
+    setDoc(doc, sessionKey);
     window.clearTimeout(syncTimer.current);
     syncTimer.current = window.setTimeout(syncSlides, 300);
-  }, [setDoc, syncSlides]);
+  }, [sessionKey, setDoc, syncSlides]);
 
   const onActiveSection = useCallback((section: CurrentSection | null) => {
     setActiveSectionId(section?.sectionId ?? null);
@@ -147,6 +159,45 @@ export default function EditorPage() {
       .run();
   }, [activeSlide, editor, headingPos]);
 
+  /** Recovery: link an unlinked (but drawn) slide to the current section; its old slide is removed if empty. */
+  /**
+   * Links an unlinked slide to a section.
+   * - target = { section }: that section now uses this slide. Its previous slide is removed if empty; if it has
+   *   drawings it becomes unlinked in turn (nothing is ever lost).
+   * - target = 'new': a new section is added at the end of the article, titled like the slide.
+   */
+  const adoptSlide = useCallback((frameId: string, target: LinkTarget) => {
+    if (!editor || !api) return;
+    if (target === 'new') {
+      const title = orphans.find(o => o.frameId === frameId)?.title || 'New section';
+      const end = editor.state.doc.content.size;
+      editor.chain().focus()
+        .insertContentAt(end, [{ type: 'heading', attrs: { level: 2, frameId }, content: [{ type: 'text', text: title }] }, { type: 'paragraph' }])
+        .setTextSelection(end + 1 + title.length)
+        .scrollIntoView()
+        .run();
+    } else {
+      const h = headingPos(target.section);
+      const current = slides.find(sl => sl.sectionId === target.section);
+      if (!h) return;
+      editor.chain().command(({ tr }) => {
+        const node = tr.doc.nodeAt(h.pos);
+        if (node) tr.setNodeMarkup(h.pos, undefined, { ...node.attrs, frameId });
+        return true;
+      }).run();
+      if (current) deleteFrameIfEmpty(api, current.frameId);
+      setActiveSectionId(target.section);
+    }
+    window.setTimeout(syncSlides, 0);
+  }, [api, editor, headingPos, orphans, slides, syncSlides]);
+
+  /** Deletes an unlinked slide and its drawings (after the strip asked for confirmation). */
+  const deleteOrphan = useCallback((frameId: string) => {
+    if (!api) return;
+    deleteSlide(api, frameId);
+    window.setTimeout(syncSlides, 0);
+  }, [api, syncSlides]);
+
   /** Author changes the article layout: slides take the new shape (drawings keep their size and place). */
   const changeArticleLayout = useCallback((id: LayoutId) => {
     const target = layoutById(id);
@@ -181,7 +232,7 @@ export default function EditorPage() {
   const strip = (
     <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
       scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide}
-      pinned={stripPinned} onPinnedChange={pinStrip} />
+      pinned={stripPinned} onPinnedChange={pinStrip} orphans={orphans} onAdopt={adoptSlide} onDeleteOrphan={deleteOrphan} />
   );
 
   async function publish() {
@@ -229,12 +280,33 @@ export default function EditorPage() {
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}
       </header>
 
-      {session.restoreOffer && (
-        <div className="banner editor-banner" role="alert">
+      {session.restore && (
+        <div className="banner editor-banner" role="status">
           <CircleAlert size={18} aria-hidden="true" />
-          <span style={{ flex: 1 }}>Unsaved changes from {new Date(session.restoreOffer.savedAt).toLocaleString()} were found on this device.</span>
-          <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore them</button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={session.declineRestore}>Discard</button>
+          {session.restore.mode === 'offer' ? (
+            <>
+              <span style={{ flex: 1 }}>
+                Unsaved changes from {new Date(session.restore.local.savedAt).toLocaleString()} were found on this device.
+                <span className="restore-compare">
+                  This device: {contentSummary(session.restore.local.doc, session.restore.local.canvas)} · Saved copy: {contentSummary(draft.doc, draft.canvas)}
+                </span>
+              </span>
+              <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore</button>
+            </>
+          ) : (
+            <>
+              <span style={{ flex: 1 }}>
+                Showing the restored copy from this device ({new Date(session.restore.local.savedAt).toLocaleString()}).
+                <span className="restore-compare">Not right? Undo restore brings back the copy you had before.</span>
+              </span>
+              <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
+            </>
+          )}
+          <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.closeRestore}
+            aria-label={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}
+            title={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}>
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
       )}
       {session.saveState === 'conflict' && (
@@ -263,16 +335,16 @@ export default function EditorPage() {
         leftLabel="Text" rightLabel="Slides"
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
-            <TextEditor initialDoc={draft.doc} onReady={setEditor} onChange={onTextChange} onActiveSection={onActiveSection} />
+            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} />
           </div>
         )}
         right={(
           <div className="slide-pane">
             <div className="canvas-zone" onPointerUpCapture={() => editorView.activity('draw')}>
-              <FormatBar api={api} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
+              <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
-                  onApi={setApi} onSceneChange={onCanvasChange} />
+                  onApi={onCanvasApi} onSceneChange={onCanvasChange} />
               </Suspense>
             </div>
             {!stripPinned && strip}
@@ -288,6 +360,14 @@ export default function EditorPage() {
       )}
     </div>
   );
+}
+
+/** "7 sections · 42 drawn items" — lets the writer compare two copies before choosing one. */
+function contentSummary(doc: { content: { type: string; attrs?: Record<string, unknown> }[] }, canvas: CanvasScene): string {
+  const sections = doc.content.filter(n => n.type === 'heading' && n.attrs?.level === 2).length;
+  const items = (canvas.elements as { type?: string; isDeleted?: boolean; containerId?: string | null }[])
+    .filter(e => !e.isDeleted && e.type !== 'frame' && !e.containerId).length;
+  return `${sections} section${sections === 1 ? '' : 's'}, ${items} drawn item${items === 1 ? '' : 's'}`;
 }
 
 function SaveIndicator({ state, lastSavedAt }: { state: SaveState; lastSavedAt: number | null }) {

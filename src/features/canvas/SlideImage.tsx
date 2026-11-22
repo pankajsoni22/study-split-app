@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CanvasScene } from '../../domain/types.ts';
+import { nextSvgPrefix, scopeSvgIds } from '../../lib/svgIds.ts';
 import { useResolvedTheme } from '../../lib/useResolvedTheme.ts';
 import { frameSize, frameToSvg } from './excalidraw.ts';
 
@@ -27,7 +28,8 @@ export default function SlideImage({ scene, frameId, label, stamp = 0, className
     const show = (markup: string) => {
       const host = ref.current;
       if (cancelled || !host) return;
-      host.innerHTML = markup;           // our own Excalidraw export (no user HTML)
+      // Our own Excalidraw export (no user HTML). Ids are scoped per copy: several slides share this page.
+      host.innerHTML = scopeSvgIds(markup, nextSvgPrefix());
       const svg = host.querySelector('svg');
       if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('aria-hidden', 'true'); }
     };

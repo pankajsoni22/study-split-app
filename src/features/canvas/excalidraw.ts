@@ -6,6 +6,7 @@ import {
   CaptureUpdateAction, convertToExcalidrawElements, exportToSvg, hashElementsVersion, newElementWith, restoreElements
 } from '@excalidraw/excalidraw';
 import { CURRENT_ITEM_KEY, reorder, restyle, selectionWithLabels, type El, type StyleKey, type StyleValue } from './format.ts';
+import type { Skeleton } from './shapes.ts';
 import { SLIDE_GAP, type Layout } from '../../domain/layouts.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 
@@ -137,6 +138,95 @@ export function deleteSelection(api: ExcalidrawImperativeAPI) {
   api.updateScene({
     elements: all.map(e => (doomed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
     appState: { selectedElementIds: {} },
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY
+  });
+}
+
+// ---------------------------------------------------------------- Shape pack (see shapes.ts)
+
+type Placed = Element & { x: number; y: number; width: number; height: number; groupIds: readonly string[]; containerId?: string | null };
+
+function boundsOf(els: readonly Placed[]) {
+  const minX = Math.min(...els.map(e => e.x)), minY = Math.min(...els.map(e => e.y));
+  const maxX = Math.max(...els.map(e => e.x + e.width)), maxY = Math.max(...els.map(e => e.y + e.height));
+  return { minX, minY, width: maxX - minX, height: maxY - minY };
+}
+
+/**
+ * Inserts a shape from the pack in the middle of the current slide (or of the visible area): fresh ids,
+ * part of the slide's frame, all parts grouped and selected. One undo step.
+ */
+export function insertShape(api: ExcalidrawImperativeAPI, skeleton: Skeleton[], slideId: string | null) {
+  const converted = convertToExcalidrawElements(skeleton as never, { regenerateIds: true }) as unknown as Placed[];
+  if (converted.length === 0) return;
+  const b = boundsOf(converted);
+
+  const st = api.getAppState();
+  const scene = api.getSceneElements() as unknown as Placed[];
+  const frame = slideId ? scene.find(e => e.id === slideId) : undefined;
+  const center = frame
+    ? { x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 }
+    : { x: -st.scrollX + st.width / 2 / st.zoom.value, y: -st.scrollY + st.height / 2 / st.zoom.value };
+  const dx = center.x - (b.minX + b.width / 2);
+  const dy = center.y - (b.minY + b.height / 2);
+  const groupId = `g_${Math.random().toString(36).slice(2, 10)}`;
+
+  const placed = converted.map(e => newElementWith(e as never, {
+    x: e.x + dx, y: e.y + dy, frameId: frame ? frame.id : null, groupIds: [...e.groupIds, groupId]
+  } as never) as unknown as Placed);
+
+  api.updateScene({
+    elements: [...api.getSceneElementsIncludingDeleted(), ...placed] as never,
+    appState: {
+      selectedElementIds: Object.fromEntries(placed.filter(e => !e.containerId).map(e => [e.id, true])),
+      selectedGroupIds: { [groupId]: true },
+      activeTool: { ...st.activeTool, type: 'selection' }
+    } as never,
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY
+  });
+}
+
+const previewCache = new Map<string, string>();
+
+/** SVG markup of a shape for the Shapes panel (cached per shape and theme). */
+export async function shapePreview(key: string, skeleton: Skeleton[], dark: boolean): Promise<string> {
+  const cacheKey = `${key}:${dark ? 'd' : 'l'}`;
+  const hit = previewCache.get(cacheKey);
+  if (hit) return hit;
+  const elements = convertToExcalidrawElements(skeleton as never, { regenerateIds: true });
+  const svg = await (exportToSvg as unknown as ExportToSvg)({
+    elements: elements, files: {} as never, exportPadding: 8,
+    appState: { exportBackground: false, exportWithDarkMode: dark }
+  });
+  svg.removeAttribute('width');
+  svg.removeAttribute('height');
+  svg.setAttribute('aria-hidden', 'true');
+  const markup = svg.outerHTML;
+  previewCache.set(cacheKey, markup);
+  return markup;
+}
+
+/** Removes a slide frame if nothing is drawn on it (used when a section adopts an unlinked slide). */
+export function deleteFrameIfEmpty(api: ExcalidrawImperativeAPI, frameId: string) {
+  const all = api.getSceneElementsIncludingDeleted();
+  if (slideHasContent(all, frameId)) return;
+  api.updateScene({
+    elements: all.map(e => (e.id === frameId ? newElementWith(e, { isDeleted: true }) : e)),
+    captureUpdate: CaptureUpdateAction.NEVER
+  });
+}
+
+/** Deletes a slide and everything on it (labels and arrows inside included). Undoable on the canvas (Ctrl+Z). */
+export function deleteSlide(api: ExcalidrawImperativeAPI, frameId: string) {
+  const all = api.getSceneElementsIncludingDeleted();
+  const doomed = new Set<string>([frameId]);
+  for (const e of all) if ((e as { frameId?: string | null }).frameId === frameId) doomed.add(e.id);
+  for (const e of all) {
+    const c = (e as { containerId?: string | null }).containerId;
+    if (c && doomed.has(c)) doomed.add(e.id);
+  }
+  api.updateScene({
+    elements: all.map(e => (doomed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
     captureUpdate: CaptureUpdateAction.IMMEDIATELY
   });
 }

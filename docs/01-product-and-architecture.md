@@ -220,7 +220,15 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 
 ### 6.3 Canvas
 
-- Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, libraries (AWS/GCP/system-design shape packs), frames, laser pointer, lock, grouping, export.
+- Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, frames, laser pointer, lock, grouping, export.
+- **Format bar** (top of the drawing side) replaces Excalidraw's floating properties panel; **More options** reopens it.
+- **Built-in shape pack** (decided 2026-11-22). A **Shapes** button in the format bar opens two tabs:
+  - **System design:** client, user, service, server, load balancer, API gateway, database, cache, message queue,
+    object storage, CDN.
+  - **Data structures:** array, stack, queue, linked list, hash map, binary tree, graph.
+
+  A shape is inserted in the middle of the current slide as an editable group in the Study Split palette. Shapes are
+  generated in code (`src/features/canvas/shapes.ts`), so there's no network access and no third-party library imports.
 - Frame names auto-sync with linked section titles (editable).
 - Clicking a section in the editor flies the canvas to its frame — same behaviour as reading, so writers see what readers will see.
 - Pasted images are uploaded to Storage and referenced by URL (never embedded as base64 — keeps the scene small).
