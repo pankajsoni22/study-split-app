@@ -51,7 +51,7 @@ export default function ArticleSettingsDialog({ session, username, articleLayout
           <span className="affix affix-left">/{username}/</span>
           <input id="slug" value={meta.slug} spellCheck={false}
             onChange={e => session.setMeta({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }, { slugEdited: true })}
-            onBlur={() => session.setMeta({ slug: slugify(meta.slug) }, { slugEdited: true })} />
+            onBlur={() => { if (slugify(meta.slug) !== meta.slug) session.setMeta({ slug: slugify(meta.slug) }, { slugEdited: true }); }} />
         </div>
         <span className="field-hint">Changing the address of a published article breaks old links.</span>
       </div>

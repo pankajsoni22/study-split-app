@@ -272,7 +272,7 @@ export default function EditorPage() {
       {session.canUndoRestore && (
         <div className="banner editor-banner" role="status">
           <CircleAlert size={18} aria-hidden="true" />
-          <span style={{ flex: 1 }}>Showing the restored copy from this device. Not right? Undo it to get the saved copy back (until you save).</span>
+          <span style={{ flex: 1 }}>Showing the restored copy from this device. Not right? Undo restore brings back the copy you had before.</span>
           <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
           <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.keepRestore}
             aria-label="Keep the restored copy and close" title="Keep the restored copy and close">

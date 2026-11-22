@@ -41,6 +41,8 @@ export function useDraftSession(articleId: string) {
   const autosaveTimer = useRef<number | undefined>(undefined);
   /** Mirrors sessionKey but changes synchronously, so late events from a torn-down editor/canvas can be ignored. */
   const sessionRef = useRef(0);
+  /** Set once a save happens after a restore: undoing then needs a save to reach the server. */
+  const savedSinceRestore = useRef(false);
 
   // ---- load (1 DB call) + local copy check ----
   useEffect(() => {
@@ -116,7 +118,7 @@ export function useDraftSession(articleId: string) {
         hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
       });
       setLastSavedAt(Date.now());
-      setBeforeRestore(null);
+      savedSinceRestore.current = true;   // the server now holds the restored version
       const clean = changeCount.current === startedAt;
       setSaveState(clean ? 'saved' : 'dirty');
       if (clean) { window.clearTimeout(autosaveTimer.current); void localDrafts.remove(articleId); }
@@ -158,6 +160,7 @@ export function useDraftSession(articleId: string) {
   const acceptRestore = useCallback(() => {
     if (!restoreOffer || !docRef.current || !canvasRef.current || !metaRef.current) return;
     setBeforeRestore({ doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current, state: saveState });
+    savedSinceRestore.current = false;
     replaceContent(restoreOffer.doc, restoreOffer.canvas, restoreOffer.meta);
     setRestoreOffer(null);
     changeCount.current += 1;
@@ -172,7 +175,8 @@ export function useDraftSession(articleId: string) {
     if (!beforeRestore) return;
     replaceContent(beforeRestore.doc, beforeRestore.canvas, beforeRestore.meta);
     window.clearTimeout(autosaveTimer.current);
-    setSaveState(beforeRestore.state);
+    if (savedSinceRestore.current) { changeCount.current += 1; setSaveState('dirty'); }   // server has the restored copy
+    else setSaveState(beforeRestore.state);
     setBeforeRestore(null);
   }, [beforeRestore, replaceContent]);
 
