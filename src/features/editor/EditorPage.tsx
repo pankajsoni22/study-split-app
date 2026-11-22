@@ -11,7 +11,7 @@ import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { useAuth } from '../auth/useAuth.ts';
-import { createSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import { createSlide, deleteFrameIfEmpty, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
 import SlideStrip, { type SlideRef } from './SlideStrip.tsx';
@@ -28,8 +28,10 @@ export default function EditorPage() {
   const session = useDraftSession(articleId);
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [editor, setEditor] = useState<Editor | null>(null);
-  const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  // Editor and canvas are tagged with the session they belong to: after a restore (new session) the old,
+  // unmounted ones must never be used (the old canvas reports an EMPTY scene once it unmounts).
+  const [editorTag, setEditorTag] = useState<{ key: number; editor: Editor } | null>(null);
+  const [apiTag, setApiTag] = useState<{ key: number; api: ExcalidrawImperativeAPI } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [nativeProps, setNativeProps] = useState(false);
   const [notice, setNotice] = useState('');
@@ -44,6 +46,12 @@ export default function EditorPage() {
   const thumbTimer = useRef<number | undefined>(undefined);
 
   const { draft, sessionKey, setCanvas, setDoc, canvasRef } = session;
+  const editor = editorTag?.key === sessionKey && !editorTag.editor.isDestroyed ? editorTag.editor : null;
+  const api = apiTag?.key === sessionKey ? apiTag.api : null;
+  const onEditorReady = useCallback((e: Editor) => setEditorTag({ key: sessionKey, editor: e }), [sessionKey]);
+  const onCanvasApi = useCallback((a: ExcalidrawImperativeAPI) => setApiTag({ key: sessionKey, api: a }), [sessionKey]);
+  /** Drawn slides that no section points to (recoverable from the slides panel). */
+  const [orphans, setOrphans] = useState<{ frameId: string; title: string }[]>([]);
 
   // ---- Article layout: slide shape + readers' default. Stored with the canvas (versioned on publish).
   //      Changed in Settings. Separate from the editor's on-screen split (editorView, incl. Auto). ----
@@ -57,7 +65,7 @@ export default function EditorPage() {
 
   const onCanvasChange = useCallback((scene: CanvasScene) => {
     const withLayout = { ...scene, layout: layoutRef.current };
-    setCanvas(withLayout);
+    setCanvas(withLayout, sessionKey);
     window.clearTimeout(thumbTimer.current);
     thumbTimer.current = window.setTimeout(() => setThumbScene({ key: sessionKey, scene: withLayout }), 700);
   }, [sessionKey, setCanvas]);
@@ -87,6 +95,10 @@ export default function EditorPage() {
       next.push({ sectionId: node.attrs.sectionId as string, title, frameId });
     });
     updateFrames(api, renames);
+    const linked = new Set([...next.map(n => n.frameId), ...links.map(l => l.frameId)]);
+    const elements = api.getSceneElements();
+    const lost = [...frames.values()].filter(f => !linked.has(f.id) && slideHasContent(elements, f.id)).map(f => ({ frameId: f.id, title: f.name }));
+    setOrphans(prev => (JSON.stringify(prev) === JSON.stringify(lost) ? prev : lost));
     if (links.length) {
       editor.chain().command(({ tr }) => {
         for (const { pos, frameId } of links) {
@@ -103,10 +115,10 @@ export default function EditorPage() {
   useEffect(() => { syncSlides(); }, [syncSlides, sessionKey]);
 
   const onTextChange = useCallback((doc: Parameters<typeof setDoc>[0]) => {
-    setDoc(doc);
+    setDoc(doc, sessionKey);
     window.clearTimeout(syncTimer.current);
     syncTimer.current = window.setTimeout(syncSlides, 300);
-  }, [setDoc, syncSlides]);
+  }, [sessionKey, setDoc, syncSlides]);
 
   const onActiveSection = useCallback((section: CurrentSection | null) => {
     setActiveSectionId(section?.sectionId ?? null);
@@ -147,6 +159,21 @@ export default function EditorPage() {
       .run();
   }, [activeSlide, editor, headingPos]);
 
+  /** Recovery: link an unlinked (but drawn) slide to the current section; its old slide is removed if empty. */
+  const adoptSlide = useCallback((frameId: string) => {
+    if (!editor || !api || !activeSlide) return;
+    const h = headingPos(activeSlide.sectionId);
+    if (!h) return;
+    const previous = activeSlide.frameId;
+    editor.chain().command(({ tr }) => {
+      const node = tr.doc.nodeAt(h.pos);
+      if (node) tr.setNodeMarkup(h.pos, undefined, { ...node.attrs, frameId });
+      return true;
+    }).run();
+    deleteFrameIfEmpty(api, previous);
+    window.setTimeout(syncSlides, 0);
+  }, [activeSlide, api, editor, headingPos, syncSlides]);
+
   /** Author changes the article layout: slides take the new shape (drawings keep their size and place). */
   const changeArticleLayout = useCallback((id: LayoutId) => {
     const target = layoutById(id);
@@ -181,7 +208,7 @@ export default function EditorPage() {
   const strip = (
     <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
       scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide}
-      pinned={stripPinned} onPinnedChange={pinStrip} />
+      pinned={stripPinned} onPinnedChange={pinStrip} orphans={orphans} onAdopt={adoptSlide} />
   );
 
   async function publish() {
@@ -232,9 +259,21 @@ export default function EditorPage() {
       {session.restoreOffer && (
         <div className="banner editor-banner" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
-          <span style={{ flex: 1 }}>Unsaved changes from {new Date(session.restoreOffer.savedAt).toLocaleString()} were found on this device.</span>
+          <span style={{ flex: 1 }}>
+            Unsaved changes from {new Date(session.restoreOffer.savedAt).toLocaleString()} were found on this device.
+            <span className="restore-compare">
+              This device: {contentSummary(session.restoreOffer.doc, session.restoreOffer.canvas)} · Saved copy: {contentSummary(draft.doc, draft.canvas)}
+            </span>
+          </span>
           <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore them</button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={session.declineRestore}>Discard</button>
+        </div>
+      )}
+      {session.canUndoRestore && (
+        <div className="banner editor-banner" role="status">
+          <CircleAlert size={18} aria-hidden="true" />
+          <span style={{ flex: 1 }}>Showing the restored copy from this device. Not right? Undo it to get the saved copy back (until you save).</span>
+          <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
         </div>
       )}
       {session.saveState === 'conflict' && (
@@ -263,7 +302,7 @@ export default function EditorPage() {
         leftLabel="Text" rightLabel="Slides"
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
-            <TextEditor initialDoc={draft.doc} onReady={setEditor} onChange={onTextChange} onActiveSection={onActiveSection} />
+            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} />
           </div>
         )}
         right={(
@@ -272,7 +311,7 @@ export default function EditorPage() {
               <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
-                  onApi={setApi} onSceneChange={onCanvasChange} />
+                  onApi={onCanvasApi} onSceneChange={onCanvasChange} />
               </Suspense>
             </div>
             {!stripPinned && strip}
@@ -288,6 +327,14 @@ export default function EditorPage() {
       )}
     </div>
   );
+}
+
+/** "7 sections · 42 drawn items" — lets the writer compare two copies before choosing one. */
+function contentSummary(doc: { content: { type: string; attrs?: Record<string, unknown> }[] }, canvas: CanvasScene): string {
+  const sections = doc.content.filter(n => n.type === 'heading' && n.attrs?.level === 2).length;
+  const items = (canvas.elements as { type?: string; isDeleted?: boolean; containerId?: string | null }[])
+    .filter(e => !e.isDeleted && e.type !== 'frame' && !e.containerId).length;
+  return `${sections} section${sections === 1 ? '' : 's'}, ${items} drawn item${items === 1 ? '' : 's'}`;
 }
 
 function SaveIndicator({ state, lastSavedAt }: { state: SaveState; lastSavedAt: number | null }) {

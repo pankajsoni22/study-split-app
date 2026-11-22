@@ -14,6 +14,9 @@ interface StripProps {
   onAdd: () => void;
   pinned: boolean;
   onPinnedChange: (pinned: boolean) => void;
+  /** Drawn slides no section points to: can be attached to the current section (recovery). */
+  orphans: { frameId: string; title: string }[];
+  onAdopt: (frameId: string) => void;
 }
 
 const AUTO_HIDE_MS = 3000;
@@ -76,7 +79,7 @@ function FloatingStrip(props: StripProps) {
   );
 }
 
-function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinnedChange, docked }: StripProps & { docked: boolean }) {
+function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinnedChange, orphans, onAdopt, docked }: StripProps & { docked: boolean }) {
   const listRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     listRef.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -99,6 +102,22 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
             </li>
           );
         })}
+        {orphans.length > 0 && (
+          <li className="orphan-head" aria-label="Unlinked slides">
+            <span>Unlinked<br />slides</span>
+          </li>
+        )}
+        {orphans.map(o => (
+          <li key={o.frameId}>
+            <button type="button" className="slide-thumb is-orphan" onClick={() => onAdopt(o.frameId)}
+              title={`"${o.title}" has drawings but no section uses it. Click to use it for the current section.`}>
+              <span className="slide-thumb-box">
+                <SlideImage scene={scene} frameId={o.frameId} label={o.title} className="is-thumb" />
+              </span>
+              <span className="slide-thumb-label">Use here: {o.title}</span>
+            </button>
+          </li>
+        ))}
         <li>
           <button type="button" className="slide-add" onClick={onAdd} title="Add a section with its own slide after the current one">
             <Plus size={16} aria-hidden="true" />

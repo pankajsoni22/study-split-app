@@ -28,6 +28,8 @@ export function useDraftSession(articleId: string) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<ArticleDraft['status']>('draft');
   const [publishing, setPublishing] = useState(false);
+  /** What was on screen before a restore, so the restore can be undone exactly. */
+  const [beforeRestore, setBeforeRestore] = useState<{ doc: Doc; canvas: CanvasScene; meta: ArticleMeta; state: SaveState } | null>(null);
 
   const docRef = useRef<Doc | null>(null);
   const canvasRef = useRef<CanvasScene | null>(null);
@@ -37,6 +39,8 @@ export function useDraftSession(articleId: string) {
   const savingRef = useRef(false);
   const slugTouched = useRef(false);
   const autosaveTimer = useRef<number | undefined>(undefined);
+  /** Mirrors sessionKey but changes synchronously, so late events from a torn-down editor/canvas can be ignored. */
+  const sessionRef = useRef(0);
 
   // ---- load (1 DB call) + local copy check ----
   useEffect(() => {
@@ -76,8 +80,17 @@ export function useDraftSession(articleId: string) {
     scheduleLocalSave();
   }, [scheduleLocalSave]);
 
-  const setDoc = useCallback((doc: Doc) => { docRef.current = doc; markChanged(); }, [markChanged]);
-  const setCanvas = useCallback((scene: CanvasScene) => { canvasRef.current = scene; markChanged(); }, [markChanged]);
+  /** `forSession`: the session the change came from; changes from an older (unmounted) session are dropped. */
+  const setDoc = useCallback((doc: Doc, forSession?: number) => {
+    if (forSession !== undefined && forSession !== sessionRef.current) return;
+    docRef.current = doc;
+    markChanged();
+  }, [markChanged]);
+  const setCanvas = useCallback((scene: CanvasScene, forSession?: number) => {
+    if (forSession !== undefined && forSession !== sessionRef.current) return;
+    canvasRef.current = scene;
+    markChanged();
+  }, [markChanged]);
   const setMeta = useCallback((patch: Partial<ArticleMeta>, opts?: { slugEdited?: boolean }) => {
     if (!metaRef.current) return;
     if (opts?.slugEdited) slugTouched.current = true;
@@ -103,6 +116,7 @@ export function useDraftSession(articleId: string) {
         hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
       });
       setLastSavedAt(Date.now());
+      setBeforeRestore(null);
       const clean = changeCount.current === startedAt;
       setSaveState(clean ? 'saved' : 'dirty');
       if (clean) { window.clearTimeout(autosaveTimer.current); void localDrafts.remove(articleId); }
@@ -130,18 +144,34 @@ export function useDraftSession(articleId: string) {
     window.location.reload();
   }, [articleId]);
 
+  /** Replaces the whole editing session (editor + canvas remount from this content). */
+  const replaceContent = useCallback((doc: Doc, canvas: CanvasScene, meta: ArticleMeta) => {
+    docRef.current = doc;
+    canvasRef.current = canvas;
+    metaRef.current = meta;
+    setMetaState(meta);
+    setDraft(d => (d ? { ...d, doc, canvas, meta } : d));
+    sessionRef.current += 1;
+    setSessionKey(sessionRef.current);
+  }, []);
+
   const acceptRestore = useCallback(() => {
-    if (!restoreOffer) return;
-    docRef.current = restoreOffer.doc;
-    canvasRef.current = restoreOffer.canvas;
-    metaRef.current = restoreOffer.meta;
-    setMetaState(restoreOffer.meta);
-    setDraft(d => (d ? { ...d, doc: restoreOffer.doc, canvas: restoreOffer.canvas, meta: restoreOffer.meta } : d));
+    if (!restoreOffer || !docRef.current || !canvasRef.current || !metaRef.current) return;
+    setBeforeRestore({ doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current, state: saveState });
+    replaceContent(restoreOffer.doc, restoreOffer.canvas, restoreOffer.meta);
     setRestoreOffer(null);
-    setSessionKey(k => k + 1);
     changeCount.current += 1;
     setSaveState('dirty');
-  }, [restoreOffer]);
+  }, [replaceContent, restoreOffer, saveState]);
+
+  /** Back to exactly what was there before "Restore". The local copy is kept (offered again next time). */
+  const undoRestore = useCallback(() => {
+    if (!beforeRestore) return;
+    replaceContent(beforeRestore.doc, beforeRestore.canvas, beforeRestore.meta);
+    window.clearTimeout(autosaveTimer.current);
+    setSaveState(beforeRestore.state);
+    setBeforeRestore(null);
+  }, [beforeRestore, replaceContent]);
 
   const declineRestore = useCallback(() => {
     setRestoreOffer(null);
@@ -200,7 +230,7 @@ export function useDraftSession(articleId: string) {
 
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
-    restoreOffer, acceptRestore, declineRestore,
+    restoreOffer, acceptRestore, declineRestore, canUndoRestore: beforeRestore !== null, undoRestore,
     docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, remove
   };
 }

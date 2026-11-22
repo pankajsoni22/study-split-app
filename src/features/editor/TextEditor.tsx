@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Doc } from '../../domain/content.ts';
 import { buildExtensions } from './extensions.ts';
 import { selectionContext, type CurrentSection } from './selection.ts';
@@ -16,13 +16,15 @@ export default function TextEditor({ initialDoc, onReady, onChange, onActiveSect
   const callbacks = useRef({ onChange, onActiveSection });
   useEffect(() => { callbacks.current = { onChange, onActiveSection }; });
   const lastSection = useRef<string | null>(null);
+  const alive = useRef(true);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const editor = useEditor({
     extensions: buildExtensions({ editable: true }),
     content: initialDoc,
     immediatelyRender: true,
     editorProps: { attributes: { class: 'prose prose-edit', 'aria-label': 'Article text', spellcheck: 'true' } },
-    onUpdate: ({ editor: e }) => callbacks.current.onChange(e.getJSON() as Doc),
+    onUpdate: ({ editor: e }) => { if (alive.current) callbacks.current.onChange(e.getJSON() as Doc); },
     onSelectionUpdate: ({ editor: e }) => {
       const { section } = selectionContext(e);
       const key = section ? section.sectionId : null;

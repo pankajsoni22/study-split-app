@@ -205,3 +205,13 @@ export async function shapePreview(key: string, skeleton: Skeleton[], dark: bool
   previewCache.set(cacheKey, markup);
   return markup;
 }
+
+/** Removes a slide frame if nothing is drawn on it (used when a section adopts an unlinked slide). */
+export function deleteFrameIfEmpty(api: ExcalidrawImperativeAPI, frameId: string) {
+  const all = api.getSceneElementsIncludingDeleted();
+  if (slideHasContent(all, frameId)) return;
+  api.updateScene({
+    elements: all.map(e => (e.id === frameId ? newElementWith(e, { isDeleted: true }) : e)),
+    captureUpdate: CaptureUpdateAction.NEVER
+  });
+}
