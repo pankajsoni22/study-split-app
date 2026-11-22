@@ -256,26 +256,31 @@ export default function EditorPage() {
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}
       </header>
 
-      {session.restoreOffer && (
-        <div className="banner editor-banner" role="alert">
-          <CircleAlert size={18} aria-hidden="true" />
-          <span style={{ flex: 1 }}>
-            Unsaved changes from {new Date(session.restoreOffer.savedAt).toLocaleString()} were found on this device.
-            <span className="restore-compare">
-              This device: {contentSummary(session.restoreOffer.doc, session.restoreOffer.canvas)} · Saved copy: {contentSummary(draft.doc, draft.canvas)}
-            </span>
-          </span>
-          <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore them</button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={session.declineRestore}>Discard</button>
-        </div>
-      )}
-      {session.canUndoRestore && (
+      {session.restore && (
         <div className="banner editor-banner" role="status">
           <CircleAlert size={18} aria-hidden="true" />
-          <span style={{ flex: 1 }}>Showing the restored copy from this device. Not right? Undo restore brings back the copy you had before.</span>
-          <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
-          <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.keepRestore}
-            aria-label="Keep the restored copy and close" title="Keep the restored copy and close">
+          {session.restore.mode === 'offer' ? (
+            <>
+              <span style={{ flex: 1 }}>
+                Unsaved changes from {new Date(session.restore.local.savedAt).toLocaleString()} were found on this device.
+                <span className="restore-compare">
+                  This device: {contentSummary(session.restore.local.doc, session.restore.local.canvas)} · Saved copy: {contentSummary(draft.doc, draft.canvas)}
+                </span>
+              </span>
+              <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore</button>
+            </>
+          ) : (
+            <>
+              <span style={{ flex: 1 }}>
+                Showing the restored copy from this device ({new Date(session.restore.local.savedAt).toLocaleString()}).
+                <span className="restore-compare">Not right? Undo restore brings back the copy you had before.</span>
+              </span>
+              <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
+            </>
+          )}
+          <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.closeRestore}
+            aria-label={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}
+            title={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}>
             <X size={16} aria-hidden="true" />
           </button>
         </div>
