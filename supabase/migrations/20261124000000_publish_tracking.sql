@@ -4,7 +4,7 @@
 -- Only publish_article (SECURITY DEFINER) writes it; writers have no UPDATE grant on this column.
 -- =====================================================================================
 
-alter table public.articles add column published_draft_version int;
+alter table public.articles add column if not exists published_draft_version int;   -- safe to run twice
 
 -- Same as before, plus: record the draft version that was published.
 create or replace function public.publish_article(p_article_id uuid)
