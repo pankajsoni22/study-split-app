@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -7,6 +7,7 @@ import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 import { readJson, writeJson } from '../../lib/storage.ts';
 import Dialog from '../../ui/Dialog.tsx';
+import TimedToast from '../../ui/TimedToast.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
@@ -225,8 +226,11 @@ export default function EditorPage() {
   }, [api, canvasRef, draft, sessionKey, setCanvas]);
 
   const backTo = '/me/articles';
+  const [leaveAsk, setLeaveAsk] = useState(false);
   const leave = (e: React.MouseEvent) => {
-    if (session.saveState !== 'saved' && !window.confirm('You have unsaved changes. Leave without saving?')) e.preventDefault();
+    if (session.saveState === 'saved') return;
+    e.preventDefault();
+    setLeaveAsk(true);
   };
 
   const viewUrl = useMemo(() => (session.meta && profile ? `/${draft?.ownerUsername || profile.username}/${session.meta.slug}` : ''), [draft, profile, session.meta]);
@@ -257,7 +261,13 @@ export default function EditorPage() {
           maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })}
           onFocus={() => editorView.activity('write')} />
         <span className={`badge ${session.status === 'published' ? 'badge-good' : 'badge-pending'}`}>{session.status}</span>
-        <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} />
+        <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} fromDevice={session.fromDevice} />
+        {session.saveState === 'dirty' && (
+          <button type="button" className="link-button discard-link" title="Throw away the unsaved changes and go back to the saved version"
+            onClick={() => { if (window.confirm('Discard your unsaved changes and go back to the saved version?')) void session.discardChanges(); }}>
+            Discard
+          </button>
+        )}
         <span className="editor-bar-spacer" />
         <button type="button" className={`btn btn-ghost btn-sm auto-toggle${editorView.auto ? ' is-on' : ''}`} aria-pressed={editorView.auto}
           onClick={editorView.toggleAuto}
@@ -289,35 +299,6 @@ export default function EditorPage() {
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}
       </header>
 
-      {session.restore && (
-        <div className="banner editor-banner" role="status">
-          <CircleAlert size={18} aria-hidden="true" />
-          {session.restore.mode === 'offer' ? (
-            <>
-              <span style={{ flex: 1 }}>
-                Unsaved changes from {new Date(session.restore.local.savedAt).toLocaleString()} were found on this device.
-                <span className="restore-compare">
-                  This device: {contentSummary(session.restore.local.doc, session.restore.local.canvas)} · Saved copy: {contentSummary(draft.doc, draft.canvas)}
-                </span>
-              </span>
-              <button type="button" className="btn btn-sm" onClick={session.acceptRestore}>Restore</button>
-            </>
-          ) : (
-            <>
-              <span style={{ flex: 1 }}>
-                Showing the restored copy from this device ({new Date(session.restore.local.savedAt).toLocaleString()}).
-                <span className="restore-compare">Not right? Undo restore brings back the copy you had before.</span>
-              </span>
-              <button type="button" className="btn btn-sm" onClick={session.undoRestore}>Undo restore</button>
-            </>
-          )}
-          <button type="button" className="icon-btn icon-btn-plain banner-close" onClick={session.closeRestore}
-            aria-label={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}
-            title={session.restore.mode === 'offer' ? 'Keep the saved copy and close (the copy on this device is removed)' : 'Keep the restored copy and close'}>
-            <X size={16} aria-hidden="true" />
-          </button>
-        </div>
-      )}
       {session.saveState === 'conflict' && (
         <div className="banner banner-error editor-banner" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
@@ -333,11 +314,11 @@ export default function EditorPage() {
         </div>
       )}
       {notice === 'published' && (
-        <div className="banner banner-good editor-banner" role="status">
-          <span style={{ flex: 1 }}>Published! Readers now see this version.</span>
-          <a className="btn btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">View article</a>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNotice('')}>Close</button>
-        </div>
+        <TimedToast seconds={10} onClose={() => setNotice('')}
+          action={<a className="btn btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
+            <ExternalLink size={14} aria-hidden="true" /> Read article</a>}>
+          <b>Published!</b> Readers now see this version.
+        </TimedToast>
       )}
 
       <SplitPane layout={viewLayout} defaultLayout={articleLayout} onLayoutChange={editorView.pick} notice={editorView.notice}
@@ -362,6 +343,14 @@ export default function EditorPage() {
       />
       {stripPinned && strip}
 
+      {leaveAsk && (
+        <LeaveDialog saving={session.saveState === 'saving'}
+          onStay={() => setLeaveAsk(false)}
+          onLeave={async () => { await session.flushLocal(); setLeaveAsk(false); void navigate(backTo); }}
+          onSaveAndLeave={async () => { if (await session.save()) { setLeaveAsk(false); void navigate(backTo); } }}
+          error={session.saveState === 'error' || session.saveState === 'conflict' ? session.saveError || 'Could not save.' : ''} />
+      )}
+
       {publishAsk && (
         <PublishDialog title={session.meta.title} unsaved={session.saveState !== 'saved'} firstTime={session.status !== 'published'}
           onCancel={() => setPublishAsk(false)}
@@ -375,6 +364,31 @@ export default function EditorPage() {
           onTrashed={title => void navigate(backTo, { replace: true, state: { trashed: { id: articleId, title } } })} />
       )}
     </div>
+  );
+}
+
+/** Leaving the editor with unsaved changes: save first (recommended), leave anyway (kept on this device), or stay. */
+function LeaveDialog({ saving, error, onStay, onLeave, onSaveAndLeave }: {
+  saving: boolean; error: string; onStay: () => void; onLeave: () => Promise<void>; onSaveAndLeave: () => Promise<void>;
+}) {
+  return (
+    <Dialog title="Save your changes?" onClose={onStay}>
+      <div className="dialog-body">
+        <p>Your latest changes are not saved to the server yet.</p>
+        <p className="leave-note">
+          If you leave without saving, they stay <b>on this device</b> and will be right here when you open this article again
+          (on this device and browser only).
+        </p>
+      </div>
+      {error && <p className="field-error" role="alert">{error}</p>}
+      <div className="dialog-actions">
+        <button type="button" className="btn btn-ghost" disabled={saving} onClick={onStay}>Stay</button>
+        <button type="button" className="btn btn-ghost" disabled={saving} onClick={() => void onLeave()}>Leave without saving</button>
+        <button type="button" className="btn" disabled={saving} onClick={() => void onSaveAndLeave()}>
+          <CloudUpload size={15} aria-hidden="true" /> {saving ? 'Saving…' : 'Save & leave'}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
@@ -430,18 +444,10 @@ function TrashedNotice({ articleId, title, deletedAt }: { articleId: string; tit
   );
 }
 
-/** "7 sections · 42 drawn items" — lets the writer compare two copies before choosing one. */
-function contentSummary(doc: { content: { type: string; attrs?: Record<string, unknown> }[] }, canvas: CanvasScene): string {
-  const sections = doc.content.filter(n => n.type === 'heading' && n.attrs?.level === 2).length;
-  const items = (canvas.elements as { type?: string; isDeleted?: boolean; containerId?: string | null }[])
-    .filter(e => !e.isDeleted && e.type !== 'frame' && !e.containerId).length;
-  return `${sections} section${sections === 1 ? '' : 's'}, ${items} drawn item${items === 1 ? '' : 's'}`;
-}
-
-function SaveIndicator({ state, lastSavedAt }: { state: SaveState; lastSavedAt: number | null }) {
+function SaveIndicator({ state, lastSavedAt, fromDevice }: { state: SaveState; lastSavedAt: number | null; fromDevice: boolean }) {
   const text: Record<SaveState, string> = {
     saved: lastSavedAt ? `Saved · ${new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'All changes saved',
-    dirty: 'Unsaved changes',
+    dirty: fromDevice ? 'Unsaved changes (on this device)' : 'Unsaved changes',
     saving: 'Saving…',
     error: "Couldn't save",
     conflict: 'Save conflict'

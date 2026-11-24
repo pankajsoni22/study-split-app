@@ -763,11 +763,9 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .shapes-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
 
 /* Restore / recovery */
-.restore-compare { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .orphan-head { display: flex; align-items: center; padding: 0 4px 0 10px; border-left: 1px dashed var(--border-strong); }
 .orphan-head span { font-size: 11px; font-weight: 700; color: var(--pending); text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.2; }
 .slide-thumb.is-orphan { border-style: dashed; border-color: color-mix(in srgb, var(--pending) 45%, transparent); }
-.banner-close { min-width: 30px; min-height: 30px; margin: -4px -6px -4px 0; color: var(--muted); }
 
 /* Unlinked slides: delete (✕) and "link to section" menu */
 .orphan { position: relative; }
@@ -902,3 +900,69 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .collapsible [data-type="detailsContent"] > * + * { margin-top: 0.7em; }
 .prose-read .collapsible summary { cursor: pointer; }
 .prose-read .collapsible:not(.is-open) summary::after { content: " · click to expand"; font-weight: 400; font-size: 0.85em; color: var(--muted); }
+
+/* =============================================================================
+   Excalidraw UI in Study Split colours (decided 2026-11-24)
+   Excalidraw themes its panels with CSS variables (greys + a lavender primary, near-black islands in dark mode).
+   Mapping them to our tokens makes toolbars, menus, popups and dialogs follow our light/dark theme.
+   `.excalidraw.excalidraw` out-ranks Excalidraw's own `.excalidraw.theme--dark` block.
+   ========================================================================== */
+.canvas-host .excalidraw.excalidraw {
+  --island-bg-color: var(--surface);
+  --default-bg-color: var(--surface);
+  --popup-bg-color: var(--surface);
+  --popup-secondary-bg-color: var(--surface-2);
+  --popup-text-color: var(--text-2);
+  --sidebar-bg-color: var(--surface);
+  --sidebar-border-color: var(--border);
+  --dialog-border-color: var(--border);
+  --input-bg-color: var(--surface);
+  --input-hover-bg-color: var(--surface-2);
+  --input-border-color: var(--border-strong);
+  --input-label-color: var(--text-2);
+  --text-primary-color: var(--text);
+  --button-gray-1: var(--surface-2);
+  --button-gray-2: var(--border);
+  --button-gray-3: var(--border-strong);
+  --button-hover-bg: var(--surface-2);
+  --button-active-bg: var(--accent-soft);
+  --button-active-border: var(--accent);
+
+  --color-surface-lowest: var(--bg);
+  --color-surface-low: var(--surface-2);
+  --color-surface-mid: var(--surface-2);
+  --color-surface-high: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --color-on-surface: var(--text);
+  --color-border-outline: var(--border-strong);
+  --color-border-outline-variant: var(--border);
+
+  --color-primary: var(--accent);
+  --color-primary-darker: var(--accent-hover);
+  --color-primary-darkest: var(--accent-strong);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-light: var(--accent-soft);
+  --color-primary-light-darker: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  --color-brand-hover: var(--accent-hover);
+  --color-brand-active: var(--accent-strong);
+  --color-surface-primary-container: var(--accent-soft);
+  --color-on-primary-container: var(--accent-strong);
+  --color-logo-text: var(--accent-strong);
+}
+
+/* Timed notification (e.g. "Published!"): closes itself; the bar shows the time left */
+.timed-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 70; width: min(420px, calc(100vw - 40px)); overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg);
+  animation: strip-up 0.18s ease-out;
+}
+.timed-toast-body { display: flex; align-items: center; gap: 10px; padding: 12px 10px 12px 16px; }
+.timed-toast-text { flex: 1; font-size: 14px; color: var(--text-2); }
+.timed-toast-text b { color: var(--good); }
+.timed-toast-bar { display: block; height: 3px; background: var(--accent); transform-origin: left; animation-name: toast-countdown; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes toast-countdown { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .timed-toast-bar { animation-name: toast-countdown; } }
+
+/* Leave dialog + discard link */
+.leave-note { margin-top: 8px; font-size: 13.5px; }
+.discard-link { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.discard-link:hover { color: var(--danger); }

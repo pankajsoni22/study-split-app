@@ -266,8 +266,15 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 | Conflict | "This article changed elsewhere" → *Keep mine / Load theirs / Compare* | — |
 
 - **Ctrl/⌘ + S** saves (browser "Save page" is suppressed).
-- **Local autosave** to IndexedDB every 2 s of idle — zero network. On reopening, if the local copy is newer than the server copy: "Restore unsaved work?".
-- Leaving the page with unsaved changes → browser confirm dialog.
+- **Local autosave** (revised 2026-11-24, no "Restore" prompt):
+  - Unsaved work is written to this device (IndexedDB, one copy per article) 1.5 s after typing stops, and immediately
+    when the page is hidden, closed or left.
+  - Reopening shows that work directly, marked "Unsaved changes (on this device)". **Discard** returns to the saved
+    version.
+  - If the server copy changed elsewhere in the meantime, saving shows the usual conflict choice.
+- **Leaving the editor** with unsaved changes opens a dialog: **Save & leave** · **Leave without saving** (kept on this
+  device for next time) · **Stay**. Closing the tab shows the browser's own warning; the work is still kept on the device.
+- **Publish** shows a 10-second notification with **Read article** and a countdown bar (hover pauses it), instead of a banner.
 - Optimistic concurrency: each save sends `expected_version`; the server rejects stale writes (protects against two open tabs).
 - **Publish** / **Publish update** is a separate primary button with a pre-flight checklist (title, slug, summary, tags, unlinked sections warning, image alt text).
 
@@ -627,7 +634,7 @@ Code tabs (one snippet in several languages) are planned for 1c.
 | FR-07 | Block visibility always / detail / brief | Brief toggle hidden when unused; correct filtering in all modes and PDF |
 | FR-08 | Code blocks & code tabs with highlighting and copy | ≥ 15 languages; reader's preferred language remembered |
 | FR-09 | Dirty indicator, Save button, Ctrl+S, progress bar | States per §6.4; button disabled when clean or saving |
-| FR-10 | Local autosave + restore prompt + leave-page warning | Kill the tab mid-edit → work is offered back on reopen |
+| FR-10 | Local autosave (no prompt) + leave dialog | Kill the tab mid-edit → reopening shows the work exactly where it was |
 | FR-11 | Optimistic concurrency on save | Two tabs: second stale save shows conflict dialog, no silent overwrite |
 | FR-12 | Draft / Publish / Publish update / Unpublish / Archive | Readers see last published version while a draft is being edited |
 | FR-13 | Visibility public / unlisted / private | Unlisted excluded from lists & search; private 404s for others |
