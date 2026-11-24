@@ -1,8 +1,9 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
-  Bold, Code, Heading2, Heading3, Italic, Link2, List, ListOrdered, Pilcrow, Quote, SquareCode
+  Bold, Code, Heading2, Heading3, Highlighter, Italic, Link2, List, ListCollapse, ListOrdered, Pilcrow, Quote, SquareCode, X
 } from 'lucide-react';
+import { CALLOUT_TONES, type CalloutTone } from './callout.ts';
 import type { Visibility } from '../../domain/content.ts';
 import { CODE_LANGUAGES } from './extensions.ts';
 import { selectionContext } from './selection.ts';
@@ -18,7 +19,11 @@ export default function Toolbar({ editor }: { editor: Editor }) {
         bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), quote: e.isActive('blockquote'),
         codeBlock: e.isActive('codeBlock'), language: (e.getAttributes('codeBlock').language as string | undefined) ?? 'plaintext',
         blockType: ctx.block?.type.name ?? null,
-        visibility: ((ctx.block?.attrs.visibility as Visibility | null) ?? 'always')
+        visibility: ((ctx.block?.attrs.visibility as Visibility | null) ?? 'always'),
+        inCallout: e.isActive('callout'),
+        tone: (e.getAttributes('callout').tone as CalloutTone | undefined) ?? 'mint',
+        inDetails: e.isActive('details'),
+        detailsTone: (e.getAttributes('details').tone as CalloutTone | null | undefined) ?? null
       };
     }
   });
@@ -71,6 +76,41 @@ export default function Toolbar({ editor }: { editor: Editor }) {
             onChange={e => chain().updateAttributes('codeBlock', { language: e.target.value }).run()}>
             {CODE_LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
+        )}
+      </div>
+
+      <div className="tb-group">
+        {btn(s.inCallout, s.inCallout ? 'Highlight box (choose a tone)' : 'Highlight box: soft background around the current block(s)',
+          () => { if (!s.inCallout) chain().setCallout(s.tone).run(); }, Highlighter)}
+        {s.inCallout && (
+          <>
+            <span className="tb-tones" role="radiogroup" aria-label="Highlight colour">
+              {CALLOUT_TONES.map(t => (
+                <button key={t.value} type="button" role="radio" aria-checked={s.tone === t.value} title={t.name} aria-label={`Highlight ${t.name}`}
+                  className={`tb-tone tone-${t.value}${s.tone === t.value ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
+                  onClick={() => chain().updateAttributes('callout', { tone: t.value }).run()} />
+              ))}
+            </span>
+            {btn(false, 'Remove the highlight box (keeps the text)', () => chain().unsetCallout().run(), X)}
+          </>
+        )}
+        {btn(s.inDetails, s.inDetails ? 'Collapsible (choose a colour)' : 'Collapsible: readers click its title to expand it',
+          () => { if (!s.inDetails) chain().setDetails().updateAttributes('details', { open: true }).run(); },   // open while writing
+          ListCollapse)}
+        {s.inDetails && (
+          <>
+            <span className="tb-tones" role="radiogroup" aria-label="Collapsible colour">
+              <button type="button" role="radio" aria-checked={s.detailsTone === null} title="No colour" aria-label="No colour"
+                className={`tb-tone tone-none${s.detailsTone === null ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
+                onClick={() => chain().updateAttributes('details', { tone: null }).run()} />
+              {CALLOUT_TONES.map(t => (
+                <button key={t.value} type="button" role="radio" aria-checked={s.detailsTone === t.value} title={t.name} aria-label={`Collapsible ${t.name}`}
+                  className={`tb-tone tone-${t.value}${s.detailsTone === t.value ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
+                  onClick={() => chain().updateAttributes('details', { tone: t.value }).run()} />
+              ))}
+            </span>
+            {btn(false, 'Remove collapsible (keeps the text)', () => chain().unsetDetails().run(), X)}
+          </>
         )}
       </div>
 

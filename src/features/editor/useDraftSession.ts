@@ -5,31 +5,15 @@ import type { ArticleDraft, ArticleMeta, CanvasScene } from '../../domain/types.
 import { AppError, errorMessage } from '../../data/errors.ts';
 import { getServices } from '../../data/services.ts';
 import { invalidate } from '../../data/useQuery.ts';
-import { localDrafts, type LocalDraft } from '../../lib/localDrafts.ts';
+import { localDrafts } from '../../lib/localDrafts.ts';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 
-/** What was on screen before a restore (for Undo restore). */
-interface Snapshot { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; state: SaveState }
-
-/**
- * Editor state + saving rules (docs §6.4, idea #13):
- * - Changes mark the draft dirty; nothing goes to the server until Save / Ctrl+S (keeps backend load low).
- * - Every change is also written to IndexedDB after 1.5 s idle, so nothing is lost if the tab dies.
- * - Saves carry the version they were based on; a stale save becomes a "conflict", never a silent overwrite.
- */
 export function useDraftSession(articleId: string) {
   const services = getServices();
   const [draft, setDraft] = useState<ArticleDraft | null>(null);
   const [loadError, setLoadError] = useState<unknown>(null);
-  /**
-   * Restore banner (decided 2026-11-22). One banner, closed only by its ✕:
-   *   offer    — a newer local copy exists; the saved copy is on screen          [Restore] [✕]
-   *   restored — the local copy is on screen; `before` is what it replaced       [Undo restore] [✕]
-   * Restore/Undo switch between the two; saving never closes it.
-   */
-  const [restore, setRestore] = useState<{ local: LocalDraft; mode: 'offer' | 'restored'; before: Snapshot | null } | null>(null);
-  /** Bumped when content is replaced from outside (restore / reload) so editor + canvas remount. */
+  /** Bumped when content is replaced from outside (discard / reload) so editor + canvas remount. */
   const [sessionKey, setSessionKey] = useState(0);
   const [meta, setMetaState] = useState<ArticleMeta | null>(null);
   const [saveState, setSaveState] = useState<SaveState>('saved');
@@ -37,7 +21,11 @@ export function useDraftSession(articleId: string) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<ArticleDraft['status']>('draft');
   const [publishing, setPublishing] = useState(false);
-  /** What was on screen before a restore, so the restore can be undone exactly. */
+  /** The editor opened unsaved work from this device (shown next to "Unsaved changes"). */
+  const [fromDevice, setFromDevice] = useState(false);
+  /** Draft version saved on the server, and the draft version readers see (for "anything new to publish?"). */
+  const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  const [publishedDraftVersion, setPublishedDraftVersion] = useState<number | null>(null);
 
   const docRef = useRef<Doc | null>(null);
   const canvasRef = useRef<CanvasScene | null>(null);
@@ -49,29 +37,43 @@ export function useDraftSession(articleId: string) {
   const autosaveTimer = useRef<number | undefined>(undefined);
   /** Mirrors sessionKey but changes synchronously, so late events from a torn-down editor/canvas can be ignored. */
   const sessionRef = useRef(0);
-  /** Set once a save happens after a restore: undoing then needs a save to reach the server. */
-  const savedSinceRestore = useRef(false);
-
   // ---- load (1 DB call) + local copy check ----
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const d = await services.articles.getDraft(articleId);
+      const [d, local] = await Promise.all([services.articles.getDraft(articleId), localDrafts.get(articleId)]);
       if (cancelled) return;
       if (!d) { setLoadError(new AppError('NOT_FOUND', 'Article not found, or you cannot edit it.')); return; }
-      docRef.current = ensureSectionIds(d.doc);
-      canvasRef.current = d.canvas;
-      metaRef.current = d.meta;
-      versionRef.current = d.version;
+      // Unsaved work on this device (decided 2026-11-24): no "Restore" prompt. If it is newer than the server copy,
+      // the editor simply opens it, marked unsaved. Its base version is kept, so if the server changed elsewhere in
+      // the meantime, saving shows the usual conflict choice instead of overwriting.
+      const useLocal = !!local && !d.deletedAt && local.savedAt > Date.parse(d.updatedAt);
+      if (local && !useLocal) void localDrafts.remove(articleId);
+      const start = useLocal ? { ...d, doc: local.doc, canvas: local.canvas, meta: local.meta } : d;
+      docRef.current = ensureSectionIds(start.doc);
+      canvasRef.current = start.canvas;
+      metaRef.current = start.meta;
+      versionRef.current = useLocal ? local.baseVersion : d.version;
+      if (useLocal) { changeCount.current = 1; setSaveState('dirty'); setFromDevice(true); }
       slugTouched.current = d.publishedVersion !== null || d.meta.slug !== slugify(d.meta.title);
-      setMetaState(d.meta);
+      setMetaState(start.meta);
       setStatus(d.status);
-      setDraft(d);
-      const local = await localDrafts.get(articleId);
-      if (!cancelled && local && local.savedAt > Date.parse(d.updatedAt)) setRestore({ local, mode: 'offer', before: null });
+      setSavedVersion(d.version);
+      setPublishedDraftVersion(d.publishedDraftVersion);
+      setDraft(start);
     })().catch((err: unknown) => { if (!cancelled) setLoadError(err); });
     return () => { cancelled = true; };
   }, [articleId, services]);
+
+  /** Writes the current unsaved state to this device right away. */
+  const flushLocal = useCallback(async () => {
+    window.clearTimeout(autosaveTimer.current);
+    if (changeCount.current === 0 || !docRef.current || !canvasRef.current || !metaRef.current) return;
+    await localDrafts.put({
+      articleId, baseVersion: versionRef.current, savedAt: Date.now(),
+      doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current
+    });
+  }, [articleId]);
 
   const scheduleLocalSave = useCallback(() => {
     window.clearTimeout(autosaveTimer.current);
@@ -125,10 +127,11 @@ export function useDraftSession(articleId: string) {
         doc, canvas: canvasRef.current, meta: metaRef.current,
         hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
       });
+      setSavedVersion(versionRef.current);
       setLastSavedAt(Date.now());
-      savedSinceRestore.current = true;   // the server now holds the restored version
       const clean = changeCount.current === startedAt;
       setSaveState(clean ? 'saved' : 'dirty');
+      if (clean) { changeCount.current = 0; setFromDevice(false); }
       if (clean) { window.clearTimeout(autosaveTimer.current); void localDrafts.remove(articleId); }
       invalidate('articles:');
       return true;
@@ -165,46 +168,19 @@ export function useDraftSession(articleId: string) {
     setSessionKey(sessionRef.current);
   }, []);
 
-  /** Offer → restored: show the local copy, remembering what was on screen. */
-  const acceptRestore = useCallback(() => {
-    if (!restore || restore.mode !== 'offer' || !docRef.current || !canvasRef.current || !metaRef.current) return;
-    const before: Snapshot = { doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current, state: saveState };
-    savedSinceRestore.current = false;
-    replaceContent(restore.local.doc, restore.local.canvas, restore.local.meta);
-    setRestore({ ...restore, mode: 'restored', before });
-    changeCount.current += 1;
-    setSaveState('dirty');
-  }, [replaceContent, restore, saveState]);
-
-  /** Restored → offer: exactly what was there before "Restore". The banner stays (Restore is offered again). */
-  const undoRestore = useCallback(() => {
-    if (!restore || restore.mode !== 'restored' || !restore.before) return;
-    const { before } = restore;
-    replaceContent(before.doc, before.canvas, before.meta);
+  /** Discard unsaved changes: back to the server copy; this device's copy is deleted. */
+  const discardChanges = useCallback(async () => {
     window.clearTimeout(autosaveTimer.current);
-    if (savedSinceRestore.current) { changeCount.current += 1; setSaveState('dirty'); }   // server holds the restored copy
-    else setSaveState(before.state);
-    setRestore({ ...restore, mode: 'offer', before: null });
-  }, [replaceContent, restore]);
-
-  /**
-   * ✕ closes the banner.
-   * - offer (saved copy on screen): the local copy is deleted, so it is not offered again. If there are newer unsaved
-   *   edits from this session, those are kept as the local copy instead, so nothing typed since opening is lost.
-   * - restored: just closes. The local copy is deleted when the article is saved (see save()).
-   */
-  const closeRestore = useCallback(() => {
-    if (!restore) return;
-    if (restore.mode === 'offer') {
-      window.clearTimeout(autosaveTimer.current);
-      if (saveState === 'saved' || !docRef.current || !canvasRef.current || !metaRef.current) {
-        void localDrafts.remove(articleId);
-      } else {
-        void localDrafts.put({ articleId, baseVersion: versionRef.current, savedAt: Date.now(), doc: docRef.current, canvas: canvasRef.current, meta: metaRef.current });
-      }
-    }
-    setRestore(null);
-  }, [articleId, restore, saveState]);
+    await localDrafts.remove(articleId);
+    const d = await services.articles.getDraft(articleId);
+    if (!d) return;
+    versionRef.current = d.version;
+    changeCount.current = 0;
+    setSavedVersion(d.version);
+    replaceContent(ensureSectionIds(d.doc), d.canvas, d.meta);
+    setSaveState('saved');
+    setFromDevice(false);
+  }, [articleId, replaceContent, services]);
 
   // ---- publish ----
   const publish = useCallback(async (): Promise<boolean> => {
@@ -213,6 +189,7 @@ export function useDraftSession(articleId: string) {
       if (changeCount.current > 0 && saveState !== 'saved' && !(await save())) return false;
       await services.articles.publish(articleId);
       setStatus('published');
+      setPublishedDraftVersion(versionRef.current);
       invalidate('articles:');
       return true;
     } catch (err) {
@@ -252,15 +229,29 @@ export function useDraftSession(articleId: string) {
   }, [save]);
 
   useEffect(() => {
+    const onHide = () => { void flushLocal(); };
+    window.addEventListener('pagehide', onHide);
+    const onVisibility = () => { if (document.visibilityState === 'hidden') void flushLocal(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+      void flushLocal();
+    };
+  }, [flushLocal]);
+
+  useEffect(() => {
     if (saveState === 'saved') return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); void flushLocal(); };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [saveState]);
+  }, [flushLocal, saveState]);
 
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
-    restore: restore ? { mode: restore.mode, local: restore.local } : null, acceptRestore, undoRestore, closeRestore,
+    /** True when publishing would change what readers see (never published, unsaved edits, or saved-but-unpublished). */
+    hasUnpublishedChanges: status !== 'published' || saveState !== 'saved' || savedVersion !== publishedDraftVersion,
+    fromDevice, discardChanges, flushLocal,
     docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, moveToTrash
   };
 }

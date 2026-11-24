@@ -57,3 +57,21 @@ describe('templates', () => {
     }
   });
 });
+
+describe('highlight boxes and collapsibles', () => {
+  const box = (vis?: string) => ({ type: 'callout', attrs: { tone: 'mint', ...(vis ? { visibility: vis } : {}) }, content: [p('inside a box ' + 'word '.repeat(300))] });
+  const fold = { type: 'details', attrs: {}, content: [
+    { type: 'detailsSummary', content: [{ type: 'text', text: 'Trade-off 1' }] },
+    { type: 'detailsContent', content: [p('hidden until expanded ' + 'word '.repeat(300))] }] };
+
+  it('respects Brief/Detail flags on the whole block', () => {
+    const d: Doc = { type: 'doc', content: [box('detail'), fold] };
+    expect(filterForLevel(d.content, 'brief').map(n => n.type)).toEqual(['details']);
+    expect(filterForLevel(d.content, 'detailed').map(n => n.type)).toEqual(['callout', 'details']);
+    expect(hasBriefContent(d)).toBe(true);
+  });
+
+  it('counts text inside boxes and collapsibles for reading time', () => {
+    expect(readingMinutes({ type: 'doc', content: [box(), fold] })).toBe(3);
+  });
+});
