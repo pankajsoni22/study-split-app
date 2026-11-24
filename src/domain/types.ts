@@ -89,6 +89,8 @@ export interface ArticleDraft {
   status: ArticleStatus;
   templateKey: string | null;
   publishedVersion: number | null;
+  /** Draft version that readers currently see (null if never published since tracking began). */
+  publishedDraftVersion: number | null;
   ownerUsername: string;
   doc: Doc;
   canvas: CanvasScene;

@@ -37,6 +37,9 @@ export function useDraftSession(articleId: string) {
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [status, setStatus] = useState<ArticleDraft['status']>('draft');
   const [publishing, setPublishing] = useState(false);
+  /** Draft version saved on the server, and the draft version readers see (for "anything new to publish?"). */
+  const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  const [publishedDraftVersion, setPublishedDraftVersion] = useState<number | null>(null);
   /** What was on screen before a restore, so the restore can be undone exactly. */
 
   const docRef = useRef<Doc | null>(null);
@@ -66,6 +69,8 @@ export function useDraftSession(articleId: string) {
       slugTouched.current = d.publishedVersion !== null || d.meta.slug !== slugify(d.meta.title);
       setMetaState(d.meta);
       setStatus(d.status);
+      setSavedVersion(d.version);
+      setPublishedDraftVersion(d.publishedDraftVersion);
       setDraft(d);
       const local = await localDrafts.get(articleId);
       if (!cancelled && local && local.savedAt > Date.parse(d.updatedAt)) setRestore({ local, mode: 'offer', before: null });
@@ -125,6 +130,7 @@ export function useDraftSession(articleId: string) {
         doc, canvas: canvasRef.current, meta: metaRef.current,
         hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
       });
+      setSavedVersion(versionRef.current);
       setLastSavedAt(Date.now());
       savedSinceRestore.current = true;   // the server now holds the restored version
       const clean = changeCount.current === startedAt;
@@ -213,6 +219,7 @@ export function useDraftSession(articleId: string) {
       if (changeCount.current > 0 && saveState !== 'saved' && !(await save())) return false;
       await services.articles.publish(articleId);
       setStatus('published');
+      setPublishedDraftVersion(versionRef.current);
       invalidate('articles:');
       return true;
     } catch (err) {
@@ -260,6 +267,8 @@ export function useDraftSession(articleId: string) {
 
   return {
     draft, loadError, sessionKey, meta, status, saveState, saveError, lastSavedAt, publishing,
+    /** True when publishing would change what readers see (never published, unsaved edits, or saved-but-unpublished). */
+    hasUnpublishedChanges: status !== 'published' || saveState !== 'saved' || savedVersion !== publishedDraftVersion,
     restore: restore ? { mode: restore.mode, local: restore.local } : null, acceptRestore, undoRestore, closeRestore,
     docRef, canvasRef, setDoc, setCanvas, setMeta, save, overwrite, discardAndReload, publish, unpublish, moveToTrash
   };

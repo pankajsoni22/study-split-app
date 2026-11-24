@@ -190,6 +190,20 @@ await as(u3.id, async () => {
   ok((await q(`select count(*)::int n from public.article_versions where article_id = $1`, [artId]))[0].n > 0, 'its content (versions) is kept in the database');
 });
 
+// Publish tracking: the published draft version is recorded; writers can't fake it.
+await as(u1.id, async () => {
+  const [{ create_article: pid }] = await q(`select public.create_article('Tracking test', null, null)`);
+  await q(`select public.publish_article($1)`, [pid]);
+  const [a] = await q(`select published_draft_version from public.articles where id = $1`, [pid]);
+  const [d] = await q(`select version from public.article_drafts where article_id = $1`, [pid]);
+  ok(a.published_draft_version === d.version, `publish records the draft version (${a.published_draft_version})`);
+  await q(`select public.save_draft($1, $2, '{"type":"doc","content":[]}'::jsonb, '{"elements":[],"files":{}}'::jsonb, '{"title":"Tracking test","slug":"tracking-test"}'::jsonb)`, [pid, d.version]);
+  const [a2] = await q(`select published_draft_version from public.articles where id = $1`, [pid]);
+  const [d2] = await q(`select version from public.article_drafts where article_id = $1`, [pid]);
+  ok(d2.version !== a2.published_draft_version, 'after a new save the draft is ahead of the published version');
+  await expectFail('writer sets published_draft_version directly', () => q(`update public.articles set published_draft_version = 99 where id = $1`, [pid]));
+});
+
 // Admin worst-case restore script (docs/03-admin-scripts.md §2), run as the database owner.
 {
   const md = readFileSync(new URL('../../docs/03-admin-scripts.md', import.meta.url), 'utf8');

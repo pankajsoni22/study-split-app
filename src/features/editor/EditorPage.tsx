@@ -6,6 +6,7 @@ import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.
 import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 import { readJson, writeJson } from '../../lib/storage.ts';
+import Dialog from '../../ui/Dialog.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
@@ -37,6 +38,7 @@ export default function EditorPage() {
   const [apiTag, setApiTag] = useState<{ key: number; api: ExcalidrawImperativeAPI } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [nativeProps, setNativeProps] = useState(false);
+  const [publishAsk, setPublishAsk] = useState(false);
   const [notice, setNotice] = useState('');
   const [slides, setSlides] = useState<SlideRef[]>([]);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
@@ -277,7 +279,10 @@ export default function EditorPage() {
           {session.saveState === 'saving' ? <Loader2 size={15} className="spin-icon" aria-hidden="true" /> : <CloudUpload size={15} aria-hidden="true" />}
           {session.saveState === 'saving' ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" className="btn btn-sm" disabled={session.publishing || session.saveState === 'saving'} onClick={() => void publish()}>
+        <button type="button" className="btn btn-sm"
+          disabled={session.publishing || session.saveState === 'saving' || !session.hasUnpublishedChanges}
+          title={session.hasUnpublishedChanges ? 'Publish this version for readers' : 'Nothing new to publish: readers already see this version'}
+          onClick={() => setPublishAsk(true)}>
           <Upload size={15} aria-hidden="true" />
           {session.publishing ? 'Publishing…' : session.status === 'published' ? 'Publish update' : 'Publish'}
         </button>
@@ -357,6 +362,12 @@ export default function EditorPage() {
       />
       {stripPinned && strip}
 
+      {publishAsk && (
+        <PublishDialog title={session.meta.title} unsaved={session.saveState !== 'saved'} firstTime={session.status !== 'published'}
+          onCancel={() => setPublishAsk(false)}
+          onConfirm={async () => { await publish(); setPublishAsk(false); }} />
+      )}
+
       {settingsOpen && (
         <ArticleSettingsDialog session={session} username={draft.ownerUsername || profile?.username || ''}
           articleLayout={articleLayout} onArticleLayout={changeArticleLayout}
@@ -364,6 +375,29 @@ export default function EditorPage() {
           onTrashed={title => void navigate(backTo, { replace: true, state: { trashed: { id: articleId, title } } })} />
       )}
     </div>
+  );
+}
+
+/** Publishing asks first: "Save & publish" (unsaved edits) or "Publish", or Cancel (nothing changes). */
+function PublishDialog({ title, unsaved, firstTime, onCancel, onConfirm }: {
+  title: string; unsaved: boolean; firstTime: boolean; onCancel: () => void; onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const name = title.trim() || 'Untitled';
+  return (
+    <Dialog title={firstTime ? 'Publish article?' : 'Publish changes?'} onClose={() => { if (!busy) onCancel(); }}>
+      <div className="dialog-body">
+        <p>Readers will see {firstTime ? '' : 'this version of '}<b>{name}</b>{firstTime ? ' at its address' : ' instead of the current one'}.</p>
+        {unsaved && <p style={{ marginTop: 8 }}>You have unsaved changes; they will be saved first.</p>}
+      </div>
+      <div className="dialog-actions">
+        <button type="button" className="btn btn-ghost" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => { setBusy(true); void onConfirm().finally(() => setBusy(false)); }}>
+          <Upload size={15} aria-hidden="true" />
+          {busy ? 'Publishing…' : unsaved ? 'Save & publish' : 'Publish'}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 
