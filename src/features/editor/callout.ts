@@ -1,9 +1,9 @@
 import { mergeAttributes, Node } from '@tiptap/core';
 
-/** Soft background tones for highlight boxes (light and dark values live in styles.css). */
+/** Soft background tones shared by highlight boxes and collapsibles (light and dark values live in styles.css). */
 export const CALLOUT_TONES = [
-  { value: 'mint', name: 'Mint' }, { value: 'sand', name: 'Sand' }, { value: 'sky', name: 'Sky' },
-  { value: 'lilac', name: 'Lilac' }, { value: 'peach', name: 'Peach' }, { value: 'paper', name: 'Paper' }
+  { value: 'green', name: 'Green' }, { value: 'red', name: 'Red' }, { value: 'mint', name: 'Mint' }, { value: 'sand', name: 'Sand' },
+  { value: 'sky', name: 'Sky' }, { value: 'lilac', name: 'Lilac' }, { value: 'peach', name: 'Peach' }, { value: 'paper', name: 'Paper' }
 ] as const;
 export type CalloutTone = (typeof CALLOUT_TONES)[number]['value'];
 

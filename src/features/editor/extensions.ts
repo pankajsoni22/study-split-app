@@ -1,12 +1,13 @@
 import { Extension, type AnyExtension } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
+import { DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import { newSectionId } from '../../domain/content.ts';
 import { Callout } from './callout.ts';
+import { Collapsible } from './collapsible.ts';
 
 export const lowlight = createLowlight(common);
 
@@ -96,7 +97,7 @@ export function buildExtensions({ editable }: { editable: boolean }): AnyExtensi
     Callout,
     // Collapsible blocks (decided 2026-11-24): the writer's open/closed state is kept while editing (persist),
     // but readers always start collapsed and toggle without changing the article (no persist).
-    Details.configure({ persist: editable, openWithoutDelay: true, HTMLAttributes: { class: 'collapsible' } }),
+    Collapsible.configure({ persist: editable, openWithoutDelay: true, HTMLAttributes: { class: 'collapsible' } }),
     DetailsSummary,
     DetailsContent,
     StudySplitAttrs,
