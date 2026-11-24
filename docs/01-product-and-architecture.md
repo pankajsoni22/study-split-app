@@ -218,6 +218,17 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - Per-block menu (⋮): **Visibility → Always / Detail only / Brief only**, duplicate, move, delete. Detail-only blocks show a subtle left dashed rule; brief-only blocks a "Brief" chip.
 - Per-section menu: **Link to frame…** (pick existing frame, or *Create frame here* which adds a new frame on the canvas next to the last one).
 
+### 6.2a Highlight boxes, collapsibles, quotes (decided 2026-11-24)
+
+- **Highlight box:** wraps blocks in a soft background. Tones: Mint, Sand, Sky, Lilac, Peach, Paper, with separate light
+  and dark values. Toolbar: ▣, then choose a tone or remove the box.
+- **Collapsible:** a title plus hidden content (TipTap Details). It stays open while writing (its state is saved);
+  **readers always start collapsed** and expand by clicking the title or the arrow. Use it for trade-offs or long
+  explanations.
+- Both work with Brief/Detail flags. H2 section headings belong outside them.
+- **Quotes** have a teal left line and a faint tint.
+- The reader no longer shows the amber "current section" line (removed on request).
+
 ### 6.3 Canvas
 
 - Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, frames, laser pointer, lock, grouping, export.

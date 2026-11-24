@@ -1,10 +1,12 @@
 import { Extension, type AnyExtension } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { Details, DetailsContent, DetailsSummary } from '@tiptap/extension-details';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import { newSectionId } from '../../domain/content.ts';
+import { Callout } from './callout.ts';
 
 export const lowlight = createLowlight(common);
 
@@ -15,7 +17,7 @@ export const CODE_LANGUAGES = [
   ['bash', 'Shell'], ['json', 'JSON'], ['yaml', 'YAML'], ['xml', 'HTML/XML'], ['css', 'CSS']
 ] as const;
 
-const BLOCK_TYPES = ['paragraph', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule'];
+const BLOCK_TYPES = ['paragraph', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule', 'callout', 'details'];
 
 /**
  * Study Split's document attributes (docs §12.1):
@@ -91,9 +93,18 @@ export function buildExtensions({ editable }: { editable: boolean }): AnyExtensi
       link: { openOnClick: !editable, autolink: true, defaultProtocol: 'https', HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' } }
     }),
     CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'plaintext' }),
+    Callout,
+    // Collapsible blocks (decided 2026-11-24): the writer's open/closed state is kept while editing (persist),
+    // but readers always start collapsed and toggle without changing the article (no persist).
+    Details.configure({ persist: editable, openWithoutDelay: true, HTMLAttributes: { class: 'collapsible' } }),
+    DetailsSummary,
+    DetailsContent,
     StudySplitAttrs,
     ...(editable ? [Placeholder.configure({
-      placeholder: ({ node }) => (node.type.name === 'heading' ? 'Section title' : 'Write here… (Ctrl+Alt+2 for a new section)')
+      includeChildren: true,
+      placeholder: ({ node }) => (node.type.name === 'heading' ? 'Section title'
+        : node.type.name === 'detailsSummary' ? 'Title readers click to expand'
+        : 'Write here… (Ctrl+Alt+2 for a new section)')
     })] : [])
   ];
 }

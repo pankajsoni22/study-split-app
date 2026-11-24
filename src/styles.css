@@ -509,7 +509,10 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .prose ul, .prose ol { padding-left: 1.4em; margin: 0; }
 .prose li + li { margin-top: 0.25em; }
 .prose li p { margin: 0; }
-.prose blockquote { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--border-strong); color: var(--text-2); }
+.prose blockquote {
+  margin: 0; padding: 6px 12px 6px 16px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--text-2);
+}
 .prose a { color: var(--link); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
 .prose code { font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
 .prose pre { margin: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: #0f1a1c; color: #e3ecea; overflow-x: auto; font-size: 13.5px; line-height: 1.6; }
@@ -559,8 +562,6 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .article-summary { font-size: 17px; color: var(--text-2); }
 .reader-section { position: relative; padding-left: 0; transition: opacity 0.2s; }
 .reader-section + .reader-section { margin-top: 18px; }
-.reader-section::before { content: ""; position: absolute; left: -18px; top: 6px; bottom: 6px; width: 3px; border-radius: 3px; background: transparent; transition: background 0.25s; }
-.reader-section.is-active::before { background: var(--marker); }
 .prose-read { font-size: 17px; }
 .reader-article .reader-column { padding-bottom: 80px; }
 
@@ -582,7 +583,6 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 @media (max-width: 767.98px) {
   .hide-narrow { display: none; }
   .reader-column { padding: 20px 18px 120px; }
-  .reader-section::before { left: -10px; }
   .reader-bar-title { display: none; }
 }
 
@@ -836,3 +836,56 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: color-mix(in srgb, var(--danger) 88%, black); }
 .confirm-expected { color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0 5px; }
+
+/* =============================================================================
+   Highlight boxes and collapsible blocks (decided 2026-11-24)
+   ========================================================================== */
+.callout { --tone-bg: #e9f5f1; --tone-line: #cfe8e0; padding: 12px 16px; border-radius: 12px; background: var(--tone-bg); border: 1px solid var(--tone-line); }
+.callout > :first-child { margin-top: 0; }
+.callout > * + * { margin-top: 0.7em; }
+.callout[data-tone="sand"]  { --tone-bg: #fdf4e3; --tone-line: #f1dfba; }
+.callout[data-tone="sky"]   { --tone-bg: #eaf0ff; --tone-line: #d1ddfa; }
+.callout[data-tone="lilac"] { --tone-bg: #f3edff; --tone-line: #ddd1fa; }
+.callout[data-tone="peach"] { --tone-bg: #fdeee8; --tone-line: #f4d4c6; }
+.callout[data-tone="paper"] { --tone-bg: #f5f3ee; --tone-line: #e4dfd4; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .callout                     { --tone-bg: rgb(47 184 162 / 0.10); --tone-line: rgb(47 184 162 / 0.28); }
+  :root:not([data-theme="light"]) .callout[data-tone="sand"]  { --tone-bg: rgb(245 184 90 / 0.10);  --tone-line: rgb(245 184 90 / 0.28); }
+  :root:not([data-theme="light"]) .callout[data-tone="sky"]   { --tone-bg: rgb(127 166 255 / 0.10); --tone-line: rgb(127 166 255 / 0.28); }
+  :root:not([data-theme="light"]) .callout[data-tone="lilac"] { --tone-bg: rgb(167 139 250 / 0.11); --tone-line: rgb(167 139 250 / 0.30); }
+  :root:not([data-theme="light"]) .callout[data-tone="peach"] { --tone-bg: rgb(251 138 92 / 0.10);  --tone-line: rgb(251 138 92 / 0.28); }
+  :root:not([data-theme="light"]) .callout[data-tone="paper"] { --tone-bg: rgb(255 255 255 / 0.05); --tone-line: rgb(255 255 255 / 0.12); }
+}
+:root[data-theme="dark"] .callout                     { --tone-bg: rgb(47 184 162 / 0.10); --tone-line: rgb(47 184 162 / 0.28); }
+:root[data-theme="dark"] .callout[data-tone="sand"]  { --tone-bg: rgb(245 184 90 / 0.10);  --tone-line: rgb(245 184 90 / 0.28); }
+:root[data-theme="dark"] .callout[data-tone="sky"]   { --tone-bg: rgb(127 166 255 / 0.10); --tone-line: rgb(127 166 255 / 0.28); }
+:root[data-theme="dark"] .callout[data-tone="lilac"] { --tone-bg: rgb(167 139 250 / 0.11); --tone-line: rgb(167 139 250 / 0.30); }
+:root[data-theme="dark"] .callout[data-tone="peach"] { --tone-bg: rgb(251 138 92 / 0.10);  --tone-line: rgb(251 138 92 / 0.28); }
+:root[data-theme="dark"] .callout[data-tone="paper"] { --tone-bg: rgb(255 255 255 / 0.05); --tone-line: rgb(255 255 255 / 0.12); }
+
+/* tone swatches in the text toolbar */
+.tb-tones { display: inline-flex; gap: 3px; margin: 0 4px; }
+.tb-tone { width: 18px; height: 18px; padding: 0; border-radius: 5px; border: 1px solid var(--border-strong); cursor: pointer; }
+.tb-tone.is-on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tb-tone.tone-mint { background: #e9f5f1; } .tb-tone.tone-sand { background: #fdf4e3; } .tb-tone.tone-sky { background: #eaf0ff; }
+.tb-tone.tone-lilac { background: #f3edff; } .tb-tone.tone-peach { background: #fdeee8; } .tb-tone.tone-paper { background: #f5f3ee; }
+
+/* collapsible: [▸] Title (click to expand) / content */
+.collapsible { display: flex; gap: 6px; align-items: flex-start; padding: 8px 12px 8px 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.collapsible > button {
+  flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-top: 1px; padding: 0;
+  border: none; border-radius: 7px; background: transparent; color: var(--accent-strong); cursor: pointer;
+}
+.collapsible > button:hover { background: var(--accent-soft); }
+.collapsible > button::before {
+  content: ""; width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent currentColor; transition: transform 0.15s;
+}
+.collapsible.is-open > button::before { transform: rotate(90deg); }
+.collapsible > div { flex: 1; min-width: 0; }
+.collapsible summary { display: block; list-style: none; font-weight: 650; }
+.collapsible summary::-webkit-details-marker { display: none; }
+.collapsible [data-type="detailsContent"] { margin-top: 0.6em; }
+.collapsible [data-type="detailsContent"] > * + * { margin-top: 0.7em; }
+.prose-read .collapsible summary { cursor: pointer; }
+.prose-read .collapsible:not(.is-open) summary::after { content: " · click to expand"; font-weight: 400; font-size: 0.85em; color: var(--muted); }

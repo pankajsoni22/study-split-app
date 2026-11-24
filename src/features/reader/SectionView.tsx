@@ -13,5 +13,11 @@ export default function SectionView({ nodes }: { nodes: DocNode[] }) {
     content: { type: 'doc', content: nodes.length ? nodes : [{ type: 'paragraph' }] },
     editorProps: { attributes: { class: 'prose prose-read' } }
   }, [nodes]);
-  return <EditorContent editor={editor} />;
+  // Readers can click a collapsible's title (not just its small arrow) to expand or collapse it.
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const summary = (e.target as HTMLElement).closest('.collapsible summary');
+    if (!summary || (e.target as HTMLElement).closest('a')) return;
+    summary.closest('.collapsible')?.querySelector<HTMLButtonElement>(':scope > button')?.click();
+  };
+  return <div onClick={onClick}><EditorContent editor={editor} /></div>;
 }
