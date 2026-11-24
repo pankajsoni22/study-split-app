@@ -274,6 +274,10 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
   - If the server copy changed elsewhere in the meantime, saving shows the usual conflict choice.
 - **Leaving the editor** with unsaved changes opens a dialog: **Save & leave** · **Leave without saving** (kept on this
   device for next time) · **Stay**. Closing the tab shows the browser's own warning; the work is still kept on the device.
+- **Editor top bar** (revised 2026-11-24): title with a status line under it ("Published · Saved 3:06 PM"),
+  then View, Save, Publish and a ⋯ menu (Auto layout, editor layout, full screen for either side, Article settings).
+- **Full screen** for the writing or the drawing side: a button at the right end of each side's toolbar (or the ⋯ menu);
+  that side fills the window (browser full screen too), the other side stays loaded. Esc or the button returns.
 - **Publish** shows a 10-second notification with **Read article** and a countdown bar (hover pauses it), instead of a banner.
 - Optimistic concurrency: each save sends `expected_version`; the server rejects stale writes (protects against two open tabs).
 - **Publish** / **Publish update** is a separate primary button with a pre-flight checklist (title, slug, summary, tags, unlinked sections warning, image alt text).

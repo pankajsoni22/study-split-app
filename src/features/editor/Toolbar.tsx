@@ -8,7 +8,7 @@ import type { Visibility } from '../../domain/content.ts';
 import { CODE_LANGUAGES } from './extensions.ts';
 import { selectionContext } from './selection.ts';
 
-export default function Toolbar({ editor }: { editor: Editor }) {
+export default function Toolbar({ editor, trailing }: { editor: Editor; trailing?: React.ReactNode }) {
   const s = useEditorState({
     editor,
     selector: ({ editor: e }) => {
@@ -126,6 +126,7 @@ export default function Toolbar({ editor }: { editor: Editor }) {
         </div>
       </div>
 
+      {trailing && <div className="tb-trailing">{trailing}</div>}
     </div>
   );
 }
