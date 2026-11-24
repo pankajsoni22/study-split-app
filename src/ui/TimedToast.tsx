@@ -1,8 +1,8 @@
-import { X } from 'lucide-react';
+import { CircleCheck, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
- * Notification in the corner that closes itself after `seconds`. A bar shrinks to show the time left;
+ * Success notification at the top right (under the editor bar) that closes itself after `seconds`. A bar shrinks to show the time left;
  * hovering (or focusing) pauses it so there's time to click the action.
  */
 export default function TimedToast({ children, action, seconds = 10, onClose }: {
@@ -28,6 +28,7 @@ export default function TimedToast({ children, action, seconds = 10, onClose }: 
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
       <div className="timed-toast-body">
+        <CircleCheck size={22} className="timed-toast-icon" aria-hidden="true" />
         <span className="timed-toast-text">{children}</span>
         {action}
         <button type="button" className="icon-btn icon-btn-plain" onClick={onClose} aria-label="Close"><X size={16} aria-hidden="true" /></button>
