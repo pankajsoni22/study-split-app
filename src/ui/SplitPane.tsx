@@ -7,7 +7,7 @@ import { layoutById } from '../domain/layouts.ts';
  * While dragging, the split jumps between layouts; the choice is committed on release.
  * Keyboard: ←/→ move one layout, Home = the default. Double-click = the default.
  */
-export default function SplitPane({ left, right, layout, defaultLayout, onLayoutChange, leftLabel, rightLabel, notice }: {
+export default function SplitPane({ left, right, layout, defaultLayout, onLayoutChange, leftLabel, rightLabel, notice, focus = null }: {
   left: ReactNode;
   right: ReactNode;
   layout: LayoutId;
@@ -17,6 +17,8 @@ export default function SplitPane({ left, right, layout, defaultLayout, onLayout
   rightLabel: string;
   /** Short message shown on the divider (e.g. "Drawing · 40 : 60" after an automatic switch). */
   notice?: string | null;
+  /** Full screen for one side: it takes the whole width; the other side stays mounted (state kept) but hidden. */
+  focus?: 'left' | 'right' | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState<LayoutId | null>(null);
@@ -44,7 +46,8 @@ export default function SplitPane({ left, right, layout, defaultLayout, onLayout
   };
 
   return (
-    <div ref={rootRef} className={`split${preview ? ' is-dragging' : ''}`} style={{ gridTemplateColumns: `${shown.text}fr 10px ${1 - shown.text}fr` }}>
+    <div ref={rootRef} className={`split${preview ? ' is-dragging' : ''}${focus ? ` is-focus-${focus}` : ''}`}
+      style={{ gridTemplateColumns: focus === 'left' ? '1fr 0 0' : focus === 'right' ? '0 0 1fr' : `${shown.text}fr 10px ${1 - shown.text}fr` }}>
       <section className="split-pane split-left" aria-label={leftLabel}>{left}</section>
       <div className="split-spine" role="separator" aria-orientation="vertical" aria-label="Layout (text : drawing)"
         aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(shown.text * 100)} aria-valuetext={shown.id.replace('-', ' : ')}

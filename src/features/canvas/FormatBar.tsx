@@ -8,7 +8,9 @@ import { FILL_COLORS, FONT_SIZES, FONTS, STROKE_COLORS, summarize, type StyleKey
  * Study Split's drawing format bar (replaces Excalidraw's floating properties panel, which covered the slide).
  * With a selection it restyles the selection; with nothing selected it sets the style of the next shapes.
  */
-export default function FormatBar({ api, slideId, nativeOpen, onToggleNative }: {
+export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, trailing }: {
+  /** Shown at the right end of the bar (e.g. the full-screen button). */
+  trailing?: React.ReactNode;
   api: ExcalidrawImperativeAPI | null;
   /** Current slide: shapes from the pack are inserted in its middle. */
   slideId: string | null;
@@ -35,7 +37,7 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative }: 
     return () => { unsubscribe(); cancelAnimationFrame(raf); };
   }, [api]);
 
-  if (!api || !s) return <div className="format-bar is-empty" aria-hidden="true" />;
+  if (!api || !s) return <div className="format-bar is-empty">{trailing && <div className="tb-trailing">{trailing}</div>}</div>;
   const set = (key: StyleKey) => (value: StyleValue) => applyStyle(api, key, value);
   const v = s.values;
 
@@ -112,6 +114,7 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative }: 
       <IconBtn label={nativeOpen ? 'Hide all options' : 'More options (opacity, arrowheads, links…)'} onClick={onToggleNative} pressed={nativeOpen}>
         <SlidersHorizontal size={16} />
       </IconBtn>
+      {trailing}
     </div>
   );
 }

@@ -7,7 +7,9 @@ import { selectionContext, type CurrentSection } from './selection.ts';
 import Toolbar from './Toolbar.tsx';
 
 /** Rich-text side of the editor. Reports content changes and which section the cursor is in. */
-export default function TextEditor({ initialDoc, onReady, onChange, onActiveSection }: {
+export default function TextEditor({ initialDoc, onReady, onChange, onActiveSection, trailing }: {
+  /** Shown at the right end of the formatting toolbar (e.g. the full-screen button). */
+  trailing?: React.ReactNode;
   initialDoc: Doc;
   onReady: (editor: Editor) => void;
   onChange: (doc: Doc) => void;
@@ -39,7 +41,7 @@ export default function TextEditor({ initialDoc, onReady, onChange, onActiveSect
   if (!editor) return null;
   return (
     <div className="text-editor">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} trailing={trailing} />
       <EditorContent editor={editor} className="editor-scroll" />
     </div>
   );

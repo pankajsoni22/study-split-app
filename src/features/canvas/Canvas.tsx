@@ -71,9 +71,22 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const ro = new ResizeObserver(() => { if (userMoved.current) placePaper(); else fit(); });
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      // Decide now (Excalidraw's own resize handling may scroll), then wait until Excalidraw has taken the new size,
+      // otherwise the fit uses the old width (e.g. entering full screen left the slide in the corner).
+      const keepView = userMoved.current;
+      let tries = 0;
+      cancelAnimationFrame(frame);
+      const step = () => {
+        const a = apiRef.current;
+        if (a && Math.abs(a.getAppState().width - host.clientWidth) > 1 && tries++ < 20) { frame = requestAnimationFrame(step); return; }
+        if (keepView) placePaper(); else fit();
+      };
+      frame = requestAnimationFrame(step);
+    });
     ro.observe(host);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); cancelAnimationFrame(frame); };
   }, [fit, placePaper]);
 
   // Keyboard (canvas focused, not typing in a text box):

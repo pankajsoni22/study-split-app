@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, ExternalLink, Loader2, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, Ellipsis, ExternalLink, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -9,6 +9,7 @@ import { readJson, writeJson } from '../../lib/storage.ts';
 import Dialog from '../../ui/Dialog.tsx';
 import TimedToast from '../../ui/TimedToast.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
+import MenuButton from '../../ui/MenuButton.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
@@ -24,6 +25,7 @@ import TextEditor from './TextEditor.tsx';
 import type { CurrentSection } from './selection.ts';
 import { useDraftSession, type SaveState } from './useDraftSession.ts';
 import { useEditorView } from './useEditorView.ts';
+import { useFullscreenPane } from './useFullscreenPane.ts';
 
 const Canvas = lazy(() => import('../canvas/Canvas.tsx'));
 
@@ -227,6 +229,7 @@ export default function EditorPage() {
 
   const backTo = '/me/articles';
   const [leaveAsk, setLeaveAsk] = useState(false);
+  const fullscreen = useFullscreenPane();
   const leave = (e: React.MouseEvent) => {
     if (session.saveState === 'saved') return;
     e.preventDefault();
@@ -251,39 +254,34 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="editor-page">
+    <div className={`editor-page${fullscreen.pane ? ` is-fullscreen is-fullscreen-${fullscreen.pane}` : ''}`}>
       <header className="editor-bar">
         <Link to={backTo} className="icon-btn icon-btn-plain" onClick={leave} aria-label="Back to my articles" title="My articles">
           <ArrowLeft size={18} />
         </Link>
         <Logo size={26} className="editor-logo" />
-        <input className="bar-title-input" value={session.meta.title} placeholder="Article title" aria-label="Article title"
-          maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })}
-          onFocus={() => editorView.activity('write')} />
-        <span className={`badge ${session.status === 'published' ? 'badge-good' : 'badge-pending'}`}>{session.status}</span>
-        <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} fromDevice={session.fromDevice} />
-        {session.saveState === 'dirty' && (
-          <button type="button" className="link-button discard-link" title="Throw away the unsaved changes and go back to the saved version"
-            onClick={() => { if (window.confirm('Discard your unsaved changes and go back to the saved version?')) void session.discardChanges(); }}>
-            Discard
-          </button>
-        )}
+        <div className="bar-titles">
+          <input className="bar-title-input" value={session.meta.title} placeholder="Article title" aria-label="Article title"
+            maxLength={160} title={session.meta.title} onChange={e => session.setMeta({ title: e.target.value })}
+            onFocus={() => editorView.activity('write')} />
+          <div className="bar-meta">
+            <span className={`bar-status is-${session.status}`}>{session.status === 'published' ? 'Published' : 'Draft'}</span>
+            <span className="bar-meta-sep" aria-hidden="true">·</span>
+            <SaveIndicator state={session.saveState} lastSavedAt={session.lastSavedAt} fromDevice={session.fromDevice} />
+            {session.saveState === 'dirty' && (
+              <button type="button" className="link-button discard-link" title="Throw away the unsaved changes and go back to the saved version"
+                onClick={() => { if (window.confirm('Discard your unsaved changes and go back to the saved version?')) void session.discardChanges(); }}>
+                Discard
+              </button>
+            )}
+          </div>
+        </div>
         <span className="editor-bar-spacer" />
-        <button type="button" className={`btn btn-ghost btn-sm auto-toggle${editorView.auto ? ' is-on' : ''}`} aria-pressed={editorView.auto}
-          onClick={editorView.toggleAuto}
-          title={'Auto layout: more room for text while you write (60:40), more room for the canvas while you draw (40:60).\n'
-            + 'Picking a layout yourself turns it off.'}>
-          <Sparkles size={14} aria-hidden="true" /> Auto
-        </button>
-        <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
         {session.status === 'published' && (
           <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
             <ExternalLink size={15} aria-hidden="true" /> View
           </a>
         )}
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSettingsOpen(true)}>
-          <Settings2 size={15} aria-hidden="true" /> Settings
-        </button>
         <button type="button" className="btn btn-ghost btn-sm" disabled={session.saveState === 'saved' || session.saveState === 'saving'}
           onClick={() => void session.save()} title="Save (Ctrl+S)">
           {session.saveState === 'saving' ? <Loader2 size={15} className="spin-icon" aria-hidden="true" /> : <CloudUpload size={15} aria-hidden="true" />}
@@ -296,6 +294,33 @@ export default function EditorPage() {
           <Upload size={15} aria-hidden="true" />
           {session.publishing ? 'Publishing…' : session.status === 'published' ? 'Publish update' : 'Publish'}
         </button>
+        <MenuButton label="More options" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+          {close => (
+            <>
+              <button type="button" role="menuitemcheckbox" aria-checked={editorView.auto} className="menu-item" onClick={editorView.toggleAuto}
+                title={'More room for text while you write (60:40), more room for the canvas while you draw (40:60).\nPicking a layout yourself turns it off.'}>
+                <Sparkles size={16} aria-hidden="true" />
+                <span className="menu-item-text">Auto layout<small>Resize for writing or drawing</small></span>
+                <span className={`switch${editorView.auto ? ' is-on' : ''}`} aria-hidden="true" />
+              </button>
+              <div className="menu-section">
+                <span className="menu-label">Editor layout (text : drawing)</span>
+                <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
+              </div>
+              <div className="menu-sep" role="separator" />
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('text'); }}>
+                <PanelLeft size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: writing</span>
+              </button>
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('canvas'); }}>
+                <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
+              </button>
+              <div className="menu-sep" role="separator" />
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
+                <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
+              </button>
+            </>
+          )}
+        </MenuButton>
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}
       </header>
 
@@ -323,15 +348,18 @@ export default function EditorPage() {
 
       <SplitPane layout={viewLayout} defaultLayout={articleLayout} onLayoutChange={editorView.pick} notice={editorView.notice}
         leftLabel="Text" rightLabel="Slides"
+        focus={fullscreen.pane === 'text' ? 'left' : fullscreen.pane === 'canvas' ? 'right' : null}
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
-            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} />
+            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection}
+              trailing={<FullscreenButton on={fullscreen.pane === 'text'} what="writing" onClick={() => fullscreen.toggle('text')} />} />
           </div>
         )}
         right={(
           <div className="slide-pane">
             <div className="canvas-zone" onPointerUpCapture={() => editorView.activity('draw')}>
-              <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)} />
+              <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)}
+                trailing={<FullscreenButton on={fullscreen.pane === 'canvas'} what="drawing" onClick={() => fullscreen.toggle('canvas')} />} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
                   onApi={onCanvasApi} onSceneChange={onCanvasChange} />
@@ -441,6 +469,16 @@ function TrashedNotice({ articleId, title, deletedAt }: { articleId: string; tit
         </div>
       </main>
     </div>
+  );
+}
+
+/** Enter / leave full screen for one side of the editor. */
+function FullscreenButton({ on, what, onClick }: { on: boolean; what: string; onClick: () => void }) {
+  const label = on ? 'Exit full screen (Esc)' : `Full screen: ${what}`;
+  return (
+    <button type="button" className={`tb-btn fullscreen-btn${on ? ' is-on' : ''}`} aria-label={label} title={label} aria-pressed={on} onClick={onClick}>
+      {on ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+    </button>
   );
 }
 

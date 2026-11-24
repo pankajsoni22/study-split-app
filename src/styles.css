@@ -976,3 +976,51 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .canvas-host .excalidraw .Island { border: 1px solid var(--border-strong); box-shadow: var(--shadow-md); }
 .canvas-host .excalidraw .dropdown-menu-container,
 .canvas-host .excalidraw .popover { border: 1px solid var(--border-strong); box-shadow: var(--shadow-lg); }
+
+/* ---- Editor top bar: title with a status line under it; actions; ⋯ menu ---- */
+.bar-titles { display: flex; flex-direction: column; min-width: 0; flex: 1 1 260px; max-width: 560px; }
+.bar-titles .bar-title-input { flex: none; max-width: none; min-height: 30px; padding: 2px 8px; }
+.bar-meta { display: flex; align-items: center; gap: 6px; padding: 0 9px; min-height: 18px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.bar-meta .save-indicator { font-size: 12.5px; gap: 6px; }
+.bar-meta .save-indicator .dot { width: 7px; height: 7px; }
+.bar-meta .discard-link { font-size: 12px; }
+.bar-status { font-weight: 600; }
+.bar-status.is-published { color: var(--good); }
+.bar-status.is-draft { color: var(--marker); }
+.bar-meta-sep { opacity: 0.6; }
+
+.menu-wrap { position: relative; }
+.icon-btn.is-open { background: var(--surface-2); color: var(--text); }
+.menu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; width: 290px; padding: 6px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow-lg);
+  animation: toast-down 0.12s ease-out;
+}
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--surface-2); color: var(--text); }
+.menu-item > svg { flex: none; color: var(--muted); }
+.menu-item-text { flex: 1; display: flex; flex-direction: column; font-weight: 600; }
+.menu-item-text small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.menu-section { padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.menu-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.switch { flex: none; position: relative; width: 32px; height: 18px; border-radius: 999px; background: var(--border-strong); transition: background 0.15s; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.switch.is-on { background: var(--accent); }
+.switch.is-on::after { transform: translateX(14px); }
+
+/* ---- Full screen for one side ---- */
+.tb-trailing { margin-left: auto; display: flex; align-items: center; }
+.toolbar .tb-trailing { padding-left: 6px; }
+.fullscreen-btn.is-on { background: var(--accent); color: #fff; }
+.format-bar.is-empty { display: flex; justify-content: flex-end; }
+.split.is-focus-left, .split.is-focus-right { transition: none; }
+.split.is-focus-left > .split-spine, .split.is-focus-right > .split-spine { visibility: hidden; border: 0; }
+.split.is-focus-left > .split-right, .split.is-focus-right > .split-left { visibility: hidden; }
+.editor-page.is-fullscreen .editor-bar, .editor-page.is-fullscreen-text .slide-strip.is-docked { display: none; }
+.editor-page.is-fullscreen .timed-toast { top: 12px; }
+/* Writing full screen: keep a comfortable reading width */
+.editor-page.is-fullscreen-text .prose-edit { max-width: 880px; margin-inline: auto; padding-top: 32px; }
