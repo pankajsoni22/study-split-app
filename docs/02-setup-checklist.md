@@ -90,10 +90,12 @@ where id = (select id from auth.users where email = 'YOUR_GMAIL@gmail.com');
 
 **Second keep-alive pinger.** GitHub turns off scheduled jobs after 60 days without commits, so add a second one.
 
-- [ ] At <https://cron-job.org>, create a job that runs **every 3 days** with these settings:
-  - Method: **POST**
-  - URL: `https://<your-ref>.supabase.co/rest/v1/rpc/ping`
-  - Headers: `apikey: <anon key>` and `Content-Type: application/json`
+- [ ] At <https://cron-job.org>, create a job that runs **every day** (any time) with these settings:
+  - Method: **GET**, and leave the request body **empty**
+  - URL: `https://zomiawpvdgazykrwkgjl.supabase.co/rest/v1/rpc/ping`
+  - Header: `apikey` = the publishable key (`VITE_SUPABASE_ANON_KEY` in `.env.local`, starts `sb_publishable_`)
+  - **Test run** must show **200** and `"ok:1"`. A **400 "Bad request"** means the body isn't valid JSON (e.g. backticks
+    or curly quotes pasted in): use GET with no body. **401** means the key is wrong.
 
 **Weekly encrypted backups.** Supabase Free has no automatic backups.
 
@@ -101,7 +103,14 @@ where id = (select id from auth.users where email = 'YOUR_GMAIL@gmail.com');
   Keep that key file private and copy it somewhere safe off this machine. Without it, backups can't be read.
 - [ ] In GitHub, add the **variable** `BACKUP_AGE_RECIPIENT` with the `age1…` public key that the keygen command printed.
 - [ ] Add the **secret** `SUPABASE_DB_URL` with the *Session pooler* connection string from Supabase → **Connect**, with your database password filled in.
-- [ ] Test it: **Actions → Backup database → Run workflow**.
+  Common mistakes (the workflow's first step now names each one in plain words):
+  - `[YOUR-PASSWORD]` replaced but the **square brackets left** in;
+  - a password with symbols: `@` must be written `%40`, `#` → `%23`, `/` → `%2F`, `:` → `%3A`, `?` → `%3F`.
+    Easiest: reset the password to letters and numbers only (Project Settings → Database);
+  - the **Direct connection** string (`db.<ref>.supabase.co`, IPv6-only, which GitHub can't reach) or the
+    **Transaction** pooler (port 6543). Use the **Session** pooler (port 5432, user `postgres.<ref>`).
+- [ ] Test it: **Actions → Backup database → Run workflow**. If it fails, open the run: the red annotation at the
+  top says what to fix. (A yellow "Node.js 20 is deprecated" note was only a warning, and is gone since 2026-11-25.)
 - [ ] To restore a backup: `age -d -i ~/study-split-backup.key study-split-db-DATE.tar.gz.age | tar -xz`
 
 ---
