@@ -195,6 +195,14 @@ Optional; the SQL Editor keeps working. This replaces copy-paste with a checked,
 
 Never point `db:prod` at a local URL; the script refuses. Keep the file out of chats, screenshots and commits.
 
+**Status (2026-11-25):** `.env.prod-db.local` exists and `npm run db:prod -- status` connects. The **baseline has
+not been run yet**, so production's "Remote" column is still empty. Run the baseline command above once before
+the first `push`.
+
+**CLI upgrade note:** Supabase CLI 3.x warns that `--db-url` will be replaced by `--remote=<db-url>` in v4. The
+project pins 3.4.0 (`package.json` and `.github/workflows/backup.yml`). When upgrading to v4, change the flag in
+`scripts/db-prod.mjs` and the backup workflow.
+
 ---
 
 ## 8. Local services and ports
@@ -278,5 +286,5 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
-| 2026-11-25 | Production Postgres verified as 17.12 (matches local). |
+| 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
