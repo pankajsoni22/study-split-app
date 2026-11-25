@@ -233,8 +233,8 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 ## 10. Local vs. production differences
 
 - **Postgres version:** local is **17** (`db.major_version` in `supabase/config.jsonc`). It must match
-  production. Check with `show server_version;` in the production SQL Editor and update the config if it
-  differs.
+  production, which was **verified as 17.12 on 2026-11-25**. If Supabase upgrades production, check with
+  `show server_version;` in the SQL Editor and update the config.
 - **Content-Security-Policy** is added only in production builds (`vite.config.ts`). Something that works on the
   dev server can still be blocked live. `npm run build && npm run preview` tests the production bundle.
 - **E-mail sign-in:** enabled locally (for the test users). In **production it must be OFF** (Google only). See
@@ -278,4 +278,5 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-25 | Production Postgres verified as 17.12 (matches local). |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
