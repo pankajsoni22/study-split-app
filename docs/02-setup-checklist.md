@@ -47,14 +47,22 @@ The live origin is already registered. Only local development needs adding.
 - [ ] **Client secret:** Study Split never uses it, because it signs in with ID tokens. Leave it empty if the form allows that.
   If the form insists, go to the Google client page, click **Add secret**, and paste the new one. Never commit it.
 - [ ] Leave **Skip nonce check** turned **off**, then save.
+- [ ] **Turn e-mail sign-in OFF** (added 2026-11-25): **Authentication → Sign In / Providers → Email** → disable it and save.
+  Supabase enables it by default, which lets anyone create an account through the API with an e-mail and password,
+  bypassing Google. Study Split is Google-only in production. (Local development uses e-mail sign-in for its test
+  users; that's the separate local database, unaffected by this switch.)
+  *Status 2026-11-25: still ON in production. Check: `/auth/v1/settings` shows `"email": false` once done.*
 
 ## 4. Run the app locally (about 3 min)
 
-- [ ] Open `.env.local`, which already exists, and fill in the two empty values from step 1:
+- [ ] Open `.env.local`, which already exists, and fill in the two empty values from step 1. These are the **hosted**
+  (production) values; `npm run dev:prod` and builds use them:
   - `VITE_SUPABASE_URL=https://<your-ref>.supabase.co`
   - `VITE_SUPABASE_ANON_KEY=<anon / publishable key>`
-- [ ] Run `npm run dev` and open <http://localhost:5173/study-split-app/>.
-- [ ] Sign in with Google, then accept or change your username.
+- [ ] For day-to-day development use the **local** database (added 2026-11-25): `npm run setup` once, then
+  `npm run dev`. The full guide is [04-local-development.md](04-local-development.md).
+- [ ] To work against production data instead: `npm run dev:prod`, open <http://localhost:5173/study-split-app/>, sign in
+  with Google, then accept or change your username.
 
 ## 5. Make yourself admin (1 min)
 

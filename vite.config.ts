@@ -54,6 +54,9 @@ export default defineConfig(({ mode }) => {
     base: env.VITE_BASE_PATH || '/study-split-app/',
     plugins: [react(), contentSecurityPolicy(env.VITE_SUPABASE_URL ?? ''), spaFallback()],
     server: { port: 5173, strictPort: true },
+    // Pre-bundle the dependencies of every page (incl. lazy ones like the editor) when the dev server starts.
+    // Otherwise Vite finds them on first visit and re-bundles mid-session ("Failed to fetch dynamically imported module").
+    optimizeDeps: { entries: ['index.html', 'src/**/*.tsx'] },
     preview: { port: 4173, strictPort: true },
     build: {
       rollupOptions: {

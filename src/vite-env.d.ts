@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
+  /** Local development only (written by `npm run setup`): show test-user sign-in buttons. */
+  readonly VITE_DEV_QUICK_SIGNIN?: string;
 }
 
 interface ImportMeta {

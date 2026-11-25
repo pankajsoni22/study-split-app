@@ -13,6 +13,8 @@ export interface AuthService {
   onChange(listener: (session: AuthSession | null) => void): () => void;
   /** Exchanges a Google ID token (from Google Identity Services) for an app session. */
   signInWithGoogleIdToken(idToken: string, rawNonce: string): Promise<void>;
+  /** LOCAL DEVELOPMENT ONLY: e-mail + password sign-in for the seeded test users (see supabase/seed.sql). */
+  signInWithPassword(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
