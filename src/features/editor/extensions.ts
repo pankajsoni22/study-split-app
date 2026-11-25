@@ -1,6 +1,7 @@
 import { Extension, type AnyExtension } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { DetailsContent, DetailsSummary } from '@tiptap/extension-details';
+import { TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
@@ -18,7 +19,7 @@ export const CODE_LANGUAGES = [
   ['bash', 'Shell'], ['json', 'JSON'], ['yaml', 'YAML'], ['xml', 'HTML/XML'], ['css', 'CSS']
 ] as const;
 
-const BLOCK_TYPES = ['paragraph', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule', 'callout', 'details'];
+const BLOCK_TYPES = ['paragraph', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule', 'callout', 'details', 'table'];
 
 /**
  * Study Split's document attributes (docs §12.1):
@@ -100,6 +101,9 @@ export function buildExtensions({ editable }: { editable: boolean }): AnyExtensi
     Collapsible.configure({ persist: editable, openWithoutDelay: true, HTMLAttributes: { class: 'collapsible' } }),
     DetailsSummary,
     DetailsContent,
+    // Tables (added 2026-11-25): first row is a header row by default. Writers can resize columns; readers get a
+    // wrapper that scrolls sideways on narrow screens instead of squeezing the columns.
+    TableKit.configure({ table: { resizable: editable, renderWrapper: true, HTMLAttributes: { class: 'ss-table' } } }),
     StudySplitAttrs,
     ...(editable ? [Placeholder.configure({
       includeChildren: true,

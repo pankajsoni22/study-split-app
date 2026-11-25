@@ -21,6 +21,7 @@ one command to set up and a flag to choose local or production data.
 | Wipe local data and rebuild it (migrations + sample data) | `npm run db:reset` |
 | Create a new migration file | `npm run db:new <short_name>` |
 | Regenerate sample data after editing it | `npm run db:seed` (then `npm run db:reset`) |
+| Update the sample articles in the local database **without** a reset | `npm run db:refresh-samples` (or `-- consistent-hashing` for one) |
 | Apply new migrations to **production** | `npm run db:prod -- push` (see [§7](#7-applying-migrations-to-production)) |
 | Production backups: download, check, restore, capacity | `docs/02-setup-checklist.md` step 7 |
 | Checks before pushing | `npm run lint && npm test && npm run test:db && npm run build` |
@@ -30,7 +31,7 @@ one command to set up and a flag to choose local or production data.
 | Button | Username | Role | Owns |
 |---|---|---|---|
 | Admin | `dev-admin` | admin | "Welcome to Study Split" (published) |
-| Writer | `dev-writer` | writer | URL Shortener (published), Consistent Hashing (draft), Old notes (in Trash) |
+| Writer | `dev-writer` | writer | URL Shortener (published), **Consistent Hashing** (draft; complete 11-section article with drawings and tables), Old notes (in Trash) |
 | Reader | `dev-reader` | reader | nothing; can read published articles only |
 
 ---
@@ -131,17 +132,27 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
 
 ## 5. Sample data (seed)
 
-- **Source of truth:** `scripts/build-seed.mjs`. It holds the users and articles as JavaScript (TipTap
-  documents plus Excalidraw slides), so the JSON is always valid.
+- **Source of truth:** `scripts/seed/`, as JavaScript, so the documents and drawings are always valid:
+  - `data.mjs`: test users, the short sample articles, and `buildArticle()`, which turns an article definition into a
+    TipTap document plus Excalidraw slides (one frame per H2 section, stable ids);
+  - `draw.mjs`: helpers for the **text** (`P`, `H3`, `UL`, `OL`, `NOTE` highlight box, `MORE` collapsible, `CODE`,
+    `TABLE`, with **bold**/`code`/*italic* inline) and the **drawings** (`box`, `rect`, `ellipse`, `text`, `arrow`,
+    `line`, `arc`, ring `node`/`key`, colour tones `C.teal` …). Coordinates are relative to the slide (40:60 slides are
+    1600 × 1200);
+  - one file per long article, e.g. `consistent-hashing.mjs` (each section has `title`, `body` and a `draw(k)` function).
 - **Generated file:** `supabase/seed.sql`, committed. **Don't edit it by hand.**
-- **Loaded:** on the first `supabase start`, and on every `npm run db:reset`.
-- **To change the sample data:** edit `scripts/build-seed.mjs`, run `npm run db:reset` (it regenerates and
-  reloads), then commit both files.
+- **Loaded:** on the first `supabase start`, and on every `npm run db:reset` (which wipes everything else locally).
+- **To change a sample article:** edit `scripts/seed/…`, then
+  - `npm run db:refresh-samples` updates the sample articles' text, slides and metadata **in place**. Other local data
+    stays; local edits to those sample articles are overwritten. Use `npm run db:refresh-samples -- consistent-hashing`
+    for just one. Then reload the editor.
+  - Commit `scripts/seed/` and `supabase/seed.sql` together.
+- **Check drawings visually:** open the article in the editor and click each section heading. The slide you get is
+  exactly what readers see. Keep text ≥ 24 px, and remember that the hand-drawn font has no `¼ ½ ¾`-style
+  characters (write `1/4`).
 - **Test password:** `study-split-dev`. Fixed user IDs: `00000000-0000-4000-a000-00000000000{1,2,3}`.
 - **When the schema changes**, for example a new required column, update the seed in the same branch, or
   `db:reset` fails.
-
----
 
 ## 6. Changing the database (migration workflow)
 
@@ -262,7 +273,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 | A table | RLS **and** grants, seed rows, PGlite test |
 | A Supabase feature (edge function, storage use, realtime) | Enable it in `supabase/config.jsonc`, note it in §1 and §10 |
 | An npm script | Quick reference (§0) |
-| A test user or sample article | `scripts/build-seed.mjs` → `npm run db:reset` → commit both files; table in §0 |
+| A test user or sample article | `scripts/seed/` → `npm run db:refresh-samples` (or `db:reset`) → commit `scripts/seed/` and `seed.sql`; table in §0 |
 
 ---
 
@@ -272,7 +283,9 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 |---|---|
 | `supabase/config.jsonc` | Local stack settings: ports, enabled services, Auth (site URL, Google provider) |
 | `supabase/seed.sql` | Generated sample data (don't edit) |
-| `scripts/build-seed.mjs` | Sample data source → `seed.sql` |
+| `scripts/seed/` | Sample data source: users, articles, drawing and text helpers |
+| `scripts/build-seed.mjs` | `scripts/seed/` → `supabase/seed.sql` |
+| `scripts/db-refresh-samples.mjs` | `npm run db:refresh-samples`: update sample articles in place |
 | `scripts/dev-setup.mjs` | `npm run setup` |
 | `scripts/dev-check.mjs` | Runs before `npm run dev` (local-only guard) |
 | `scripts/db-studio.mjs` | `npm run db:studio` |
@@ -287,6 +300,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-25 | Seed split into `scripts/seed/` (drawing + text helpers, one file per long article); `npm run db:refresh-samples`; complete Consistent Hashing sample article. |
 | 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |

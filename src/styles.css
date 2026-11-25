@@ -1035,3 +1035,33 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .dev-signin { width: 100%; padding: 12px; border: 1px dashed var(--border-strong); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
 .dev-signin-title { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .dev-signin-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- Tables (editor + reader) ---- */
+.prose .tableWrapper { overflow-x: auto; margin-top: 0.85em; }
+.prose .tableWrapper + * { margin-top: 0.85em; }
+.prose table.ss-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 0.93em; line-height: 1.5; }
+.prose table.ss-table th, .prose table.ss-table td {
+  border: 1px solid var(--border-strong); padding: 7px 11px; vertical-align: top; text-align: left; min-width: 90px; position: relative;
+}
+.prose table.ss-table th { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); font-weight: 650; color: var(--text); }
+.prose table.ss-table tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.prose table.ss-table p { margin: 0; }
+.prose table.ss-table p + p { margin-top: 0.4em; }
+/* editing aids: selected cells, column resize handle */
+.prose-edit table.ss-table .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 16%, transparent); pointer-events: none; }
+.prose-edit table.ss-table .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--accent); pointer-events: none; }
+.prose-edit.resize-cursor, .prose-edit .resize-cursor { cursor: col-resize; }
+/* Brief/Detail tags on tables: the tag sits on the scroll wrapper (a tag on <table> itself is clipped by it) */
+.prose-edit table[data-visibility] { box-shadow: none; background: transparent; padding: 0; }
+.prose-edit table[data-visibility]::after { content: none; }
+.prose-edit .tableWrapper:has(> table[data-visibility]) { position: relative; padding-top: 26px; }
+.prose-edit .tableWrapper:has(> table[data-visibility])::after {
+  position: absolute; right: 0; top: 2px; padding: 1px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; pointer-events: none;
+}
+.prose-edit .tableWrapper:has(> table[data-visibility="detail"])::after { content: "Detail"; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--border-strong); }
+.prose-edit .tableWrapper:has(> table[data-visibility="brief"]) { background: var(--marker-soft); border-radius: 8px; padding: 26px 10px 8px; }
+.prose-edit .tableWrapper:has(> table[data-visibility="brief"])::after { content: "Brief"; background: var(--marker); color: #3b2a07; right: 8px; }
+/* The article must take the page's width, not its content's: otherwise a wide table or code block (whose minimum
+   width is wider than a phone) widens the whole page. With this, it scrolls inside its own box instead. */
+.reader-article { min-width: 0; width: 100%; align-self: stretch; }
