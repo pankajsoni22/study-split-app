@@ -46,6 +46,11 @@ jobs:
             || fail "SUPABASE_DB_URL has an invalid port. If the password has symbols (# / : ?), encode them or reset it to letters and numbers."
           [[ "$host" != db.*.supabase.co ]] || fail "SUPABASE_DB_URL is the 'Direct connection' (IPv6 only; GitHub can't reach it). Use Supabase → Connect → Session pooler instead."
           [[ "$port" != 6543 ]] || fail "SUPABASE_DB_URL uses port 6543 (Transaction pooler). Use the Session pooler string (port 5432)."
+          user=$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["SUPABASE_DB_URL"]).username or "")')
+          if [[ "$host" == *.pooler.supabase.com && "$user" != postgres.* ]]; then
+            fail "The user name in SUPABASE_DB_URL is '$user'. On the Session pooler it must be postgres.<project-ref> (e.g. postgres.zomiawpvdgazykrwkgjl). Copy the string again from Supabase → Connect → Session pooler."
+          fi
+          echo "User: $user"
           echo "Connecting to $host:$port …"
           if ! out=$(psql "$url" -tAc 'select 1' 2>&1); then
             out=$(echo "$out" | tr '\n' ' ' | cut -c1-300)
