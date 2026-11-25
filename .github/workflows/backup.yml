@@ -34,6 +34,9 @@ jobs:
         run: |
           # Plain-language errors (shown as annotations). The password itself is never printed.
           fail() { echo "::error title=Backup setup::$1"; exit 1; }
+          # Ignore spaces / line breaks pasted around the values (e.g. a trailing \r\n from copying a whole line).
+          AGE_RECIPIENT="${AGE_RECIPIENT//[$'\r\n\t ']/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//[$'\r\n']/}"; SUPABASE_DB_URL="${SUPABASE_DB_URL#"${SUPABASE_DB_URL%%[![:space:]]*}"}"; SUPABASE_DB_URL="${SUPABASE_DB_URL%"${SUPABASE_DB_URL##*[![:space:]]}"}"
           test -n "$AGE_RECIPIENT"   || fail "The BACKUP_AGE_RECIPIENT variable is missing (Settings → Secrets and variables → Actions → Variables)."
           [[ "$AGE_RECIPIENT" == age1* ]] || fail "BACKUP_AGE_RECIPIENT must be the public key starting with age1… (not the AGE-SECRET-KEY line)."
           if ! err=$(printf 'test' | age -r "$AGE_RECIPIENT" 2>&1 >/dev/null); then
@@ -76,6 +79,9 @@ jobs:
         run: |
           # Any failing command is reported by name as an annotation (secrets are masked by GitHub).
           trap 'echo "::error title=Backup dump::Failed (exit $?) at: $BASH_COMMAND"' ERR
+          # Ignore spaces / line breaks pasted around the values (e.g. a trailing \r\n from copying a whole line).
+          AGE_RECIPIENT="${AGE_RECIPIENT//[$'\r\n\t ']/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//[$'\r\n']/}"; SUPABASE_DB_URL="${SUPABASE_DB_URL#"${SUPABASE_DB_URL%%[![:space:]]*}"}"; SUPABASE_DB_URL="${SUPABASE_DB_URL%"${SUPABASE_DB_URL##*[![:space:]]}"}"
           umask 077
           mkdir -p backup
           dump() {
