@@ -14,9 +14,9 @@ if (/127\.0\.0\.1|localhost/.test(dbUrl)) fail(`${FILE} points at a local databa
 
 async function confirm(what) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await rl.question(`\n${c.red(c.bold('PRODUCTION'))}: ${what}\nType ${c.bold('yes, production')} to continue: `);
+  const answer = await rl.question(`\n${c.red(c.bold('PRODUCTION'))}: ${what}\nType exactly ${c.bold('"yes, production"')} (without the quotes) to continue: `);
   rl.close();
-  if (answer.trim() !== 'yes, production') fail('Cancelled — nothing was changed.');
+  if (answer.trim() !== 'yes, production') fail('Cancelled — nothing was changed. (The answer must be exactly: yes, production)');
 }
 
 console.log(c.dim('\nMigrations (Local = files in supabase/migrations, Remote = recorded on production):\n'));

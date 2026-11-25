@@ -1,6 +1,7 @@
 # Weekly database backup (Supabase Free has no automatic backups).
 # The dump is ENCRYPTED with age before upload: artifacts of a public repo can be downloaded by anyone
 # signed in to GitHub. Only the holder of the age private key can read it. Kept for 90 days.
+# Setup and restore: docs/02-setup-checklist.md step 7.
 name: Backup database
 
 on:
@@ -11,31 +12,95 @@ on:
 permissions:
   contents: read
 
+env:
+  # Same Supabase CLI version as package.json (run with npx: no extra action, no Node 20 warning).
+  SUPABASE_CLI: supabase@3.4.0
+
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v7
         with:
-          version: latest
+          node-version: lts/*
+
       - name: Install age
         run: sudo apt-get update -qq && sudo apt-get install -y -qq age
-      - name: Dump and encrypt
+
+      - name: Check settings and connection
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}          # Session pooler connection string (secret)
           AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}           # age public key, e.g. age1…
         run: |
-          test -n "$SUPABASE_DB_URL" || { echo "::error::Set the SUPABASE_DB_URL secret"; exit 1; }
-          test -n "$AGE_RECIPIENT"   || { echo "::error::Set the BACKUP_AGE_RECIPIENT variable"; exit 1; }
+          # Plain-language errors (shown as annotations). The password itself is never printed.
+          fail() { echo "::error title=Backup setup::$1"; exit 1; }
+          # Ignore spaces / line breaks pasted around the values (e.g. a trailing \r\n from copying a whole line).
+          AGE_RECIPIENT="${AGE_RECIPIENT//[$'\r\n\t ']/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//[$'\r\n']/}"; SUPABASE_DB_URL="${SUPABASE_DB_URL#"${SUPABASE_DB_URL%%[![:space:]]*}"}"; SUPABASE_DB_URL="${SUPABASE_DB_URL%"${SUPABASE_DB_URL##*[![:space:]]}"}"
+          test -n "$AGE_RECIPIENT"   || fail "The BACKUP_AGE_RECIPIENT variable is missing (Settings → Secrets and variables → Actions → Variables)."
+          [[ "$AGE_RECIPIENT" == age1* ]] || fail "BACKUP_AGE_RECIPIENT must be the public key starting with age1… (not the AGE-SECRET-KEY line)."
+          if ! err=$(printf 'test' | age -r "$AGE_RECIPIENT" 2>&1 >/dev/null); then
+            fail "BACKUP_AGE_RECIPIENT is not a valid age public key (it should be one word: age1 followed by 58 letters/digits, nothing before or after). age says: $(echo "$err" | tr '\n' ' ' | cut -c1-200)"
+          fi
+          echo "age key OK"
+          test -n "$SUPABASE_DB_URL" || fail "The SUPABASE_DB_URL secret is missing (Settings → Secrets and variables → Actions → Secrets)."
+          url="$SUPABASE_DB_URL"
+          [[ "$url" =~ ^postgres(ql)?:// ]] || fail "SUPABASE_DB_URL must start with postgresql:// (copy the URI from Supabase → Connect → Session pooler)."
+          [[ "$url" != *YOUR-PASSWORD* && "$url" != *"["* && "$url" != *"]"* ]] || fail "SUPABASE_DB_URL still contains [YOUR-PASSWORD] or square brackets. Replace [YOUR-PASSWORD], brackets included, with the database password."
+          [[ "$url" != *" "* ]] || fail "SUPABASE_DB_URL contains a space. Paste it again without spaces or line breaks."
+          after_scheme="${url#*://}"; userinfo="${after_scheme%@*}"
+          [[ "$userinfo" != *"@"* ]] || fail "The database password contains '@'. Write it as %40 in SUPABASE_DB_URL (or reset the password to letters and numbers only)."
+          host=$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["SUPABASE_DB_URL"]).hostname or "")' 2>/dev/null) \
+            || fail "SUPABASE_DB_URL can't be read as an address. If the password has symbols (# / : ? %), encode them (# → %23, / → %2F, : → %3A, ? → %3F, % → %25) or reset it to letters and numbers."
+          port=$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["SUPABASE_DB_URL"]).port or 5432)' 2>/dev/null) \
+            || fail "SUPABASE_DB_URL has an invalid port. If the password has symbols (# / : ?), encode them or reset it to letters and numbers."
+          [[ "$host" != db.*.supabase.co ]] || fail "SUPABASE_DB_URL is the 'Direct connection' (IPv6 only; GitHub can't reach it). Use Supabase → Connect → Session pooler instead."
+          [[ "$port" != 6543 ]] || fail "SUPABASE_DB_URL uses port 6543 (Transaction pooler). Use the Session pooler string (port 5432)."
+          user=$(python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["SUPABASE_DB_URL"]).username or "")')
+          if [[ "$host" == *.pooler.supabase.com && "$user" != postgres.* ]]; then
+            fail "The user name in SUPABASE_DB_URL is '$user'. On the Session pooler it must be postgres.<project-ref> (e.g. postgres.zomiawpvdgazykrwkgjl). Copy the string again from Supabase → Connect → Session pooler."
+          fi
+          echo "User: $user"
+          echo "Connecting to $host:$port …"
+          if ! out=$(psql "$url" -tAc 'select 1' 2>&1); then
+            out=$(echo "$out" | tr '\n' ' ' | cut -c1-300)
+            case "$out" in
+              *"password authentication failed"*) fail "Wrong database password in SUPABASE_DB_URL. (Reset it in Supabase → Project Settings → Database if unsure.) Details: $out";;
+              *"Tenant or user not found"*)       fail "The user name in SUPABASE_DB_URL doesn't match this pooler; for the Session pooler it must be postgres.<project-ref>. Copy the string again from Connect. Details: $out";;
+              *)                                  fail "Could not connect with SUPABASE_DB_URL. Details: $out";;
+            esac
+          fi
+          echo "Connection OK"
+
+      - name: Dump and encrypt
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          # Any failing command is reported by name as an annotation (secrets are masked by GitHub).
+          trap 'echo "::error title=Backup dump::Failed (exit $?) at: $BASH_COMMAND"' ERR
+          # Ignore spaces / line breaks pasted around the values (e.g. a trailing \r\n from copying a whole line).
+          AGE_RECIPIENT="${AGE_RECIPIENT//[$'\r\n\t ']/}"
+          SUPABASE_DB_URL="${SUPABASE_DB_URL//[$'\r\n']/}"; SUPABASE_DB_URL="${SUPABASE_DB_URL#"${SUPABASE_DB_URL%%[![:space:]]*}"}"; SUPABASE_DB_URL="${SUPABASE_DB_URL%"${SUPABASE_DB_URL##*[![:space:]]}"}"
           umask 077
           mkdir -p backup
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
-          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          dump() {
+            if ! out=$(npx --yes "$SUPABASE_CLI" db dump --db-url "$SUPABASE_DB_URL" "$@" < /dev/null 2>&1); then
+              echo "$out"
+              echo "::error title=Backup dump::supabase db dump $* failed: $(echo "$out" | tail -5 | tr '\n' ' ' | cut -c1-400)"
+              exit 1
+            fi
+          }
+          dump -f backup/roles.sql --role-only
+          dump -f backup/schema.sql
+          dump -f backup/data.sql --use-copy --data-only
           stamp=$(date -u +%Y-%m-%d)
+          ls -la backup
           tar -czf - backup | age -r "$AGE_RECIPIENT" -o "study-split-db-$stamp.tar.gz.age"
           rm -rf backup
-      - uses: actions/upload-artifact@v4
+          ls -la study-split-db-*.tar.gz.age
+
+      - uses: actions/upload-artifact@v7
         with:
           name: db-backup
           path: study-split-db-*.tar.gz.age

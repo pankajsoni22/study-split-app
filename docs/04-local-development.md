@@ -22,6 +22,7 @@ one command to set up and a flag to choose local or production data.
 | Create a new migration file | `npm run db:new <short_name>` |
 | Regenerate sample data after editing it | `npm run db:seed` (then `npm run db:reset`) |
 | Apply new migrations to **production** | `npm run db:prod -- push` (see [§7](#7-applying-migrations-to-production)) |
+| Production backups: download, check, restore, capacity | `docs/02-setup-checklist.md` step 7 |
 | Checks before pushing | `npm run lint && npm test && npm run test:db && npm run build` |
 
 **Test users** (local only, password `study-split-dev`). The sign-in page has a button for each:
@@ -195,6 +196,14 @@ Optional; the SQL Editor keeps working. This replaces copy-paste with a checked,
 
 Never point `db:prod` at a local URL; the script refuses. Keep the file out of chats, screenshots and commits.
 
+**Status (2026-11-25):** `.env.prod-db.local` exists and `npm run db:prod -- status` connects. The **baseline has
+not been run yet**, so production's "Remote" column is still empty. Run the baseline command above once before
+the first `push`.
+
+**CLI upgrade note:** Supabase CLI 3.x warns that `--db-url` will be replaced by `--remote=<db-url>` in v4. The
+project pins 3.4.0 (`package.json` and `.github/workflows/backup.yml`). When upgrading to v4, change the flag in
+`scripts/db-prod.mjs` and the backup workflow.
+
 ---
 
 ## 8. Local services and ports
@@ -233,8 +242,8 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 ## 10. Local vs. production differences
 
 - **Postgres version:** local is **17** (`db.major_version` in `supabase/config.jsonc`). It must match
-  production. Check with `show server_version;` in the production SQL Editor and update the config if it
-  differs.
+  production, which was **verified as 17.12 on 2026-11-25**. If Supabase upgrades production, check with
+  `show server_version;` in the SQL Editor and update the config.
 - **Content-Security-Policy** is added only in production builds (`vite.config.ts`). Something that works on the
   dev server can still be blocked live. `npm run build && npm run preview` tests the production bundle.
 - **E-mail sign-in:** enabled locally (for the test users). In **production it must be OFF** (Google only). See
@@ -278,4 +287,6 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
+| 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
