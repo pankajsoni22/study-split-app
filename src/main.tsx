@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './app/App.tsx';
 import SetupNeededPage from './app/SetupNeededPage.tsx';
-import { missingConfig } from './config.ts';
+import { devBackend, missingConfig } from './config.ts';
+import DevBadge from './dev/DevBadge.tsx';
 import { AuthProvider } from './features/auth/AuthProvider.tsx';
 import '@fontsource-variable/inter';
 import './styles.css';
@@ -28,6 +29,7 @@ createRoot(root).render(
         <AuthProvider>
           <App />
         </AuthProvider>
+        {devBackend && <DevBadge backend={devBackend} />}
       </BrowserRouter>
     )}
   </StrictMode>

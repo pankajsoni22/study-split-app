@@ -1024,3 +1024,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .editor-page.is-fullscreen .timed-toast { top: 12px; }
 /* Writing full screen: keep a comfortable reading width */
 .editor-page.is-fullscreen-text .prose-edit { max-width: 880px; margin-inline: auto; padding-top: 32px; }
+
+/* ---- Local development only (src/dev/; never rendered in production builds) ---- */
+.dev-badge {
+  position: fixed; left: 10px; bottom: 10px; z-index: 90; padding: 3px 8px; border-radius: 6px; pointer-events: none;   /* never blocks clicks */
+  font: 700 10.5px/1.4 var(--font-mono, monospace); letter-spacing: 0.06em; color: #fff; opacity: 0.85; cursor: default;
+}
+.dev-badge.is-local { background: #0f766e; }
+.dev-badge.is-hosted { background: #dc2626; box-shadow: 0 0 0 3px color-mix(in srgb, #dc2626 30%, transparent); opacity: 1; }
+.dev-signin { width: 100%; padding: 12px; border: 1px dashed var(--border-strong); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+.dev-signin-title { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.dev-signin-buttons { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -44,6 +44,10 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
         const { error } = await sb.auth.signInWithIdToken({ provider: 'google', token: idToken, nonce: rawNonce });
         if (error) throw toAppError(error);
       },
+      async signInWithPassword(email, password) {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw toAppError(error);
+      },
       async signOut() {
         const { error } = await sb.auth.signOut();
         if (error) throw toAppError(error);

@@ -1,6 +1,8 @@
 import { BookOpenText, Columns2, PenTool, Repeat } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { devQuickSignIn } from '../../config.ts';
+import DevQuickSignIn from '../../dev/DevQuickSignIn.tsx';
 import Brand from '../../ui/Brand.tsx';
 import GoogleSignInButton from './GoogleSignInButton.tsx';
 import { useAuth } from './useAuth.ts';
@@ -46,6 +48,7 @@ export default function SignInPage() {
             ? <div className="spinner" role="status" aria-label="Signing in" />
             : <GoogleSignInButton />}
           {error && <p className="error-text" role="alert">{error}</p>}
+          {devQuickSignIn && status !== 'signingIn' && <DevQuickSignIn />}
           <Link to="/" className="auth-back">← Keep reading without signing in</Link>
         </div>
       </main>

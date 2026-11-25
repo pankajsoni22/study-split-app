@@ -4,6 +4,8 @@ Write study notes and engineering articles with **text on the left and hand-draw
 
 - Design & requirements: [`docs/01-product-and-architecture.md`](docs/01-product-and-architecture.md)
 - **Setup checklist (start here):** [`docs/02-setup-checklist.md`](docs/02-setup-checklist.md)
+- **Local development (UI + local database in Docker):** [`docs/04-local-development.md`](docs/04-local-development.md)
+- Admin SQL scripts: [`docs/03-admin-scripts.md`](docs/03-admin-scripts.md)
 - Live site: `https://pankajsoni22.github.io/study-split-app/`
 
 | Layer | Tech |
@@ -28,6 +30,9 @@ src/
   ui/             Logo, Brand, Avatar, states, theme switch
   lib/            storage, theme, formatting, view counter
 supabase/migrations/   SQL schema, RLS policies, RPC functions
+supabase/config.jsonc  local Supabase stack (npm run setup); seed.sql = generated sample data
+scripts/               setup / dev-check / seed / db-prod helpers (docs/04-local-development.md)
+src/dev/               dev-server-only UI (test-user sign-in, LOCAL/PROD badge)
 public/                favicon.svg (the logo), PNG icons, manifest, theme-init.js
 ```
 
@@ -48,10 +53,14 @@ public/                favicon.svg (the logo), PNG icons, manifest, theme-init.j
 
 ### 3. Run locally
 ```bash
-cp .env.example .env.local     # fill in the three values
+cp .env.example .env.local     # hosted values (used by dev:prod and builds)
 npm install
-npm run dev                    # http://localhost:5173/study-split-app/
+npm run setup                  # needs Docker: local database + sample data + test users
+npm run dev                    # http://localhost:5173/study-split-app/  (LOCAL database)
+npm run dev:prod               # same UI on the production database (red PROD DATA badge)
 ```
+Everything else (test users, migrations, pushing to production, troubleshooting) is in
+[`docs/04-local-development.md`](docs/04-local-development.md).
 
 ### 4. Make yourself admin
 Sign in once (this creates your profile as a *reader*), then run in the Supabase SQL Editor:
