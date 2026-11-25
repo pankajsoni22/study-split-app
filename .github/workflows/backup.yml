@@ -24,6 +24,9 @@ jobs:
         with:
           node-version: lts/*
 
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
       - name: Check settings and connection
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}          # Session pooler connection string (secret)
@@ -33,6 +36,10 @@ jobs:
           fail() { echo "::error title=Backup setup::$1"; exit 1; }
           test -n "$AGE_RECIPIENT"   || fail "The BACKUP_AGE_RECIPIENT variable is missing (Settings → Secrets and variables → Actions → Variables)."
           [[ "$AGE_RECIPIENT" == age1* ]] || fail "BACKUP_AGE_RECIPIENT must be the public key starting with age1… (not the AGE-SECRET-KEY line)."
+          if ! err=$(printf 'test' | age -r "$AGE_RECIPIENT" 2>&1 >/dev/null); then
+            fail "BACKUP_AGE_RECIPIENT is not a valid age public key (it should be one word: age1 followed by 58 letters/digits, nothing before or after). age says: $(echo "$err" | tr '\n' ' ' | cut -c1-200)"
+          fi
+          echo "age key OK"
           test -n "$SUPABASE_DB_URL" || fail "The SUPABASE_DB_URL secret is missing (Settings → Secrets and variables → Actions → Secrets)."
           url="$SUPABASE_DB_URL"
           [[ "$url" =~ ^postgres(ql)?:// ]] || fail "SUPABASE_DB_URL must start with postgresql:// (copy the URI from Supabase → Connect → Session pooler)."
@@ -62,14 +69,13 @@ jobs:
           fi
           echo "Connection OK"
 
-      - name: Install age
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
-
       - name: Dump and encrypt
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
         run: |
+          # Any failing command is reported by name as an annotation (secrets are masked by GitHub).
+          trap 'echo "::error title=Backup dump::Failed (exit $?) at: $BASH_COMMAND"' ERR
           umask 077
           mkdir -p backup
           dump() {
@@ -83,6 +89,7 @@ jobs:
           dump -f backup/schema.sql
           dump -f backup/data.sql --use-copy --data-only
           stamp=$(date -u +%Y-%m-%d)
+          ls -la backup
           tar -czf - backup | age -r "$AGE_RECIPIENT" -o "study-split-db-$stamp.tar.gz.age"
           rm -rf backup
           ls -la study-split-db-*.tar.gz.age
