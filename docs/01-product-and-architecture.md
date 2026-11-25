@@ -229,6 +229,18 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - **Quotes** have a teal left line and a faint tint.
 - The reader no longer shows the amber "current section" line (removed on request).
 
+### 6.2b Tables (decided 2026-11-25)
+
+- **Insert:** toolbar ▦ inserts a 3 × 3 table whose first row is a header. Tab / Shift+Tab move between cells.
+- **While the cursor is in a table** the toolbar adds: add row below, add column right, delete row, delete column,
+  header row on/off, delete table. Delete row/column act on the row/column of the cursor. Writers can drag column
+  edges to resize.
+- **Brief/Detail flags** work on a whole table (the tag shows above it).
+- **Readers:** a header tint and zebra rows. A table wider than the screen **scrolls sideways inside its own box**
+  (the page never scrolls sideways).
+- Built on `@tiptap/extension-table` (TableKit), same version as the other TipTap packages. Cells hold paragraphs
+  with bold, italic, code and links.
+
 ### 6.3 Canvas
 
 - Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, frames, laser pointer, lock, grouping, export.

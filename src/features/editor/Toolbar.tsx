@@ -1,7 +1,8 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
-  Bold, Code, Heading2, Heading3, Highlighter, Italic, Link2, List, ListCollapse, ListOrdered, Pilcrow, Quote, SquareCode, X
+  BetweenHorizontalEnd, BetweenVerticalEnd, Bold, Code, Columns3, Grid2x2X, Heading2, Heading3, Highlighter, Italic, Link2, List,
+  ListCollapse, ListOrdered, PanelTop, Pilcrow, Quote, Rows3, SquareCode, Table2, X
 } from 'lucide-react';
 import { CALLOUT_TONES, type CalloutTone } from './callout.ts';
 import type { Visibility } from '../../domain/content.ts';
@@ -23,6 +24,7 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
         inCallout: e.isActive('callout'),
         tone: (e.getAttributes('callout').tone as CalloutTone | undefined) ?? 'mint',
         inDetails: e.isActive('details'),
+        inTable: e.isActive('table'),
         detailsTone: (e.getAttributes('details').tone as CalloutTone | null | undefined) ?? null
       };
     }
@@ -110,6 +112,21 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
               ))}
             </span>
             {btn(false, 'Remove collapsible (keeps the text)', () => chain().unsetDetails().run(), X)}
+          </>
+        )}
+      </div>
+
+      <div className="tb-group">
+        {btn(s.inTable, s.inTable ? 'Table (edit it with the buttons next to this one)' : 'Insert a table (3 × 3, first row is the header)',
+          () => { if (!s.inTable) chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }, Table2)}
+        {s.inTable && (
+          <>
+            {btn(false, 'Add a row below', () => chain().addRowAfter().run(), BetweenHorizontalEnd)}
+            {btn(false, 'Add a column to the right', () => chain().addColumnAfter().run(), BetweenVerticalEnd)}
+            {btn(false, 'Delete this row', () => chain().deleteRow().run(), Rows3)}
+            {btn(false, 'Delete this column', () => chain().deleteColumn().run(), Columns3)}
+            {btn(false, 'Header row on / off', () => chain().toggleHeaderRow().run(), PanelTop)}
+            {btn(false, 'Delete the table', () => chain().deleteTable().run(), Grid2x2X)}
           </>
         )}
       </div>
