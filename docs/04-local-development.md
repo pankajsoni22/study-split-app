@@ -22,6 +22,7 @@ one command to set up and a flag to choose local or production data.
 | Create a new migration file | `npm run db:new <short_name>` |
 | Regenerate sample data after editing it | `npm run db:seed` (then `npm run db:reset`) |
 | Apply new migrations to **production** | `npm run db:prod -- push` (see [§7](#7-applying-migrations-to-production)) |
+| Production backups: download, check, restore, capacity | `docs/02-setup-checklist.md` step 7 |
 | Checks before pushing | `npm run lint && npm test && npm run test:db && npm run build` |
 
 **Test users** (local only, password `study-split-dev`). The sign-in page has a button for each:
@@ -286,5 +287,6 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
