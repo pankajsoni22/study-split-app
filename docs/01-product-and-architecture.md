@@ -221,7 +221,11 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 
 - Block-based rich text: headings, lists, checklists, quotes, tables, callouts, TL;DR, Q&A, images (paste / drag-drop), links, code, code-tabs.
 - `/` slash menu for inserting blocks; Markdown shortcuts (`##`, `-`, ```` ``` ````, `>`).
-- **Toolbar (compact, 2026-11-26):** **Style ▾** (text, new split, sub-heading, lists, quote, code) · bold, italic, code, link · **Insert ▾** (table, highlight box, collapsible, divider) · options for the block the cursor is in (box/collapsible colours, code language, table controls) · full screen.
+- **Toolbar (compact, 2026-11-26):** **Style ▾** (text, new split, sub-heading) · bold, italic, code, link · bulleted list,
+  numbered list, quote, code block · **Insert ▾** (table, highlight, collapsible, divider) · options for the block the
+  cursor is in (Highlight / Collapsible colours, code language, Table controls) · full screen.
+- **Heading colours (2026-11-26):** split headings (H2) in brand teal, sub-headings (H3) in brand amber, with light
+  and dark values (`--heading-split`, `--heading-sub`), in the editor and every reading mode.
 - Per-section menu: **Link to frame…** (pick existing frame, or *Create frame here* which adds a new frame on the canvas next to the last one).
 
 ### 6.2a Highlight boxes, collapsibles, quotes (decided 2026-11-24)

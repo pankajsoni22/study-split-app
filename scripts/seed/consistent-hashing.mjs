@@ -42,7 +42,7 @@ export const consistentHashing = {
         P('The rule works until **N changes**. You add a server because traffic grew, or you lose one because it crashed.'),
         P('Suddenly almost every key maps to a different server. The caches are effectively empty, every request falls through to the database at the same moment, and the database can fall over. This is called a **cache stampede**.'),
         H3('In the drawing'),
-        P('The slide takes 8 keys, **k1 to k8**, whose hashes are 10 to 17. The `% 3` column shows their server with 3 servers (S0–S2), and the `% 4` column shows it after adding a fourth server (S3).'),
+        P('The drawing takes 8 keys, **k1 to k8**, whose hashes are 10 to 17. The `% 3` column shows their server with 3 servers (S0–S2), and the `% 4` column shows it after adding a fourth server (S3).'),
         P('The red rows are the keys that changed server: **5 of the 8 keys moved**, even though we only added one server.'),
         NOTE('red', 'With `% N`, going from N to N+1 servers moves about **N/(N+1)** of all keys: 75% when growing from 3 to 4 servers, and 99% when growing from 100 to 101.'),
         TABLE(['Servers (before → after)', 'Keys moved with `% N`', 'Keys moved with consistent hashing'], [
@@ -55,7 +55,7 @@ export const consistentHashing = {
           'For uniformly random hashes that happens for N out of every N·(N+1) values, so with probability **1/(N+1)**. The fraction that moves is therefore **1 − 1/(N+1) = N/(N+1)**.'
         ]),
         H3('What we want instead'),
-        P('When a server joins or leaves, **only the keys that must move should move**. That is about **K/N** keys (K keys, N servers): exactly the new server\'s fair share, shown in the green box on the slide.'),
+        P('When a server joins or leaves, **only the keys that must move should move**. That is about **K/N** keys (K keys, N servers): exactly the new server\'s fair share, shown in the green box in the drawing.'),
         P('Consistent hashing guarantees this. It was introduced by Karger et al. at MIT in 1997 for web caching, and became the basis of Akamai\'s CDN.')
       ],
       draw(k) {
@@ -80,7 +80,7 @@ export const consistentHashing = {
         P('Consistent hashing starts with one simple picture: the **hash ring**.'),
         H3('Bend the hash space into a circle'),
         P('Take the output range of a hash function, for example **0 to 2³²−1**, and bend it into a circle. After the largest value comes 0 again.'),
-        P('To keep numbers readable, the slide shows positions as **fractions of the ring**: 0 at the top, then 1/4, 1/2 and 3/4 going clockwise.'),
+        P('To keep numbers readable, the drawing shows positions as **fractions of the ring**: 0 at the top, then 1/4, 1/2 and 3/4 going clockwise.'),
         H3('Put servers and keys on the same ring'),
         P('Now hash **servers and keys with the same function**, so both land somewhere on the ring.'),
         UL([
@@ -311,7 +311,7 @@ for s in ("cache-a", "cache-b", "cache-c"):
     ring.add(s)
 print(ring.get("user:42"))`),
         H3('Cost'),
-        P('The blue box at the bottom of the slide sums up the cost of each operation:'),
+        P('The blue box at the bottom of the drawing sums up the cost of each operation:'),
         TABLE(['Operation', 'Cost', 'Notes'], [
           ['Lookup', '`O(log(N·V))`', 'Binary search over N servers × V vnodes'],
           ['Add / remove a server', '`O(V · log(N·V))`', 'Plus moving ~K/N keys of data'],
@@ -353,7 +353,7 @@ print(ring.get("user:42"))`),
         NOTE('red', 'Replication factor 3 survives losing any 2 of the 3 servers, but only if they are really different machines, ideally in different racks or availability zones.'),
         H3('Quorums'),
         P('With **N** replicas, a write waits for **W** acknowledgements and a read asks **R** replicas.'),
-        P('If **R + W > N**, every read overlaps the latest write, so reads see the newest value. The slide uses N = 3, W = 2, R = 2. Lowering W or R trades consistency for speed and availability.'),
+        P('If **R + W > N**, every read overlaps the latest write, so reads see the newest value. The drawing uses N = 3, W = 2, R = 2. Lowering W or R trades consistency for speed and availability.'),
         MORE('sky', 'Sloppy quorum, hinted handoff and zones', [
           'Writing to the next healthy server while a replica is down is called a **sloppy quorum**. Handing the data back later is **hinted handoff**. Together they keep writes succeeding during short outages.',
           'Rack and zone awareness (e.g. Cassandra\'s NetworkTopologyStrategy) keeps walking the ring until the replicas are in different racks or zones.'
@@ -381,7 +381,7 @@ print(ring.get("user:42"))`),
       title: 'Hot keys and uneven load',
       body: [
         P('Consistent hashing balances **keys**, not **traffic**. One very popular key, such as a celebrity\'s profile or a viral post, still lives on one server and can overload it.'),
-        P('There are four common fixes. The slide shows them in the same order as below.'),
+        P('There are four common fixes. The drawing shows them in the same order as below.'),
         H3('1. Bounded loads'),
         P('Cap every server at **(1+ε) × the average load**. If a key\'s owner is already full, keep walking clockwise to the next server that has room.'),
         P('**In the drawing:** server **B** has reached the dashed **cap** line, so the next key goes on to **C**.'),
@@ -430,7 +430,7 @@ print(ring.get("user:42"))`),
     {
       title: 'Alternatives',
       body: [
-        P('The ring with virtual nodes is not the only way to move few keys when servers change. Each card on the slide is one alternative, in the same order as below.'),
+        P('The ring with virtual nodes is not the only way to move few keys when servers change. Each card in the drawing is one alternative, in the same order as below.'),
         H3('Ring + virtual nodes'),
         P('Everything described so far: binary search on a ring, and any server can join or leave at any time. It is the default for caches and storage clusters (Cassandra, Dynamo).'),
         H3('Rendezvous hashing (HRW)'),
@@ -515,7 +515,7 @@ print(ring.get("user:42"))`),
     {
       title: 'Interview cheat sheet',
       body: [
-        P('In an interview, explain consistent hashing in these **eight steps**. Each card on the slide is one step.'),
+        P('In an interview, explain consistent hashing in these **eight steps**. Each card in the drawing is one step.'),
         OL([
           '**Problem:** `hash % N` remaps ~N/(N+1) of keys when N changes, causing a cache stampede.',
           '**Ring:** hash servers and keys onto the same circle (0…2³²−1, wrapping around).',

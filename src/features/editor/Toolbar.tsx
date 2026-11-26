@@ -10,18 +10,14 @@ import { CODE_LANGUAGES } from './extensions.ts';
 
 /**
  * Formatting toolbar (compact layout, decided 2026-11-26): one row with
- *   [Style ▾]  B I <> link  [+ Insert ▾]  …controls for the block the cursor is in…   (full screen)
+ *   [Style ▾: text / new split / sub-heading]  B I <> link  • 1. ❝ {}  [+ Insert ▾]  …block options…   (full screen)
  * Colour pickers, code language and table controls appear only inside that kind of block.
  */
-type StyleKey = 'text' | 'split' | 'sub' | 'bullet' | 'ordered' | 'quote' | 'code';
+type StyleKey = 'text' | 'split' | 'sub';
 const STYLES: { key: StyleKey; label: string; hint: string; Icon: typeof Bold; shortcut?: string }[] = [
   { key: 'text', label: 'Text', hint: 'A normal paragraph', Icon: Pilcrow, shortcut: 'Ctrl+Alt+0' },
   { key: 'split', label: 'New split', hint: 'Starts a split: text + its drawing', Icon: Heading2, shortcut: 'Ctrl+Alt+2' },
-  { key: 'sub', label: 'Sub-heading', hint: 'A heading inside this split', Icon: Heading3, shortcut: 'Ctrl+Alt+3' },
-  { key: 'bullet', label: 'Bulleted list', hint: '', Icon: List, shortcut: 'Ctrl+Shift+8' },
-  { key: 'ordered', label: 'Numbered list', hint: '', Icon: ListOrdered, shortcut: 'Ctrl+Shift+7' },
-  { key: 'quote', label: 'Quote', hint: '', Icon: Quote, shortcut: 'Ctrl+Shift+B' },
-  { key: 'code', label: 'Code block', hint: '', Icon: SquareCode, shortcut: 'Ctrl+Alt+C' }
+  { key: 'sub', label: 'Sub-heading', hint: 'A heading inside this split', Icon: Heading3, shortcut: 'Ctrl+Alt+3' }
 ];
 
 export default function Toolbar({ editor, trailing }: { editor: Editor; trailing?: React.ReactNode }) {
@@ -29,9 +25,8 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
     editor,
     selector: ({ editor: e }) => ({
       bold: e.isActive('bold'), italic: e.isActive('italic'), code: e.isActive('code'), link: e.isActive('link'),
-      style: (e.isActive('heading', { level: 2 }) ? 'split' : e.isActive('heading', { level: 3 }) ? 'sub'
-        : e.isActive('codeBlock') ? 'code' : e.isActive('bulletList') ? 'bullet' : e.isActive('orderedList') ? 'ordered'
-        : e.isActive('blockquote') ? 'quote' : 'text'),
+      style: (e.isActive('heading', { level: 2 }) ? 'split' : e.isActive('heading', { level: 3 }) ? 'sub' : 'text'),
+      bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), quote: e.isActive('blockquote'), codeBlock: e.isActive('codeBlock'),
       language: (e.getAttributes('codeBlock').language as string | undefined) ?? 'plaintext',
       inCallout: e.isActive('callout'),
       tone: (e.getAttributes('callout').tone as CalloutTone | undefined) ?? 'mint',
@@ -61,11 +56,7 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
     const c = chain();
     if (key === 'text') c.setParagraph().run();
     else if (key === 'split') c.setHeading({ level: 2 }).run();
-    else if (key === 'sub') c.setHeading({ level: 3 }).run();
-    else if (key === 'bullet') { if (!editor.isActive('bulletList')) c.toggleBulletList().run(); }
-    else if (key === 'ordered') { if (!editor.isActive('orderedList')) c.toggleOrderedList().run(); }
-    else if (key === 'quote') { if (!editor.isActive('blockquote')) c.toggleBlockquote().run(); }
-    else if (key === 'code') { if (!editor.isActive('codeBlock')) c.toggleCodeBlock().run(); }
+    else c.setHeading({ level: 3 }).run();
   }
 
   function toggleLink() {
@@ -103,20 +94,27 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
         {btn(s.link, s.link ? 'Remove link' : 'Add link', toggleLink, Link2)}
       </div>
 
+      <div className="tb-group">
+        {btn(s.bullet, 'Bulleted list', () => chain().toggleBulletList().run(), List, 'Ctrl+Shift+8')}
+        {btn(s.ordered, 'Numbered list', () => chain().toggleOrderedList().run(), ListOrdered, 'Ctrl+Shift+7')}
+        {btn(s.quote, 'Quote', () => chain().toggleBlockquote().run(), Quote, 'Ctrl+Shift+B')}
+        {btn(s.codeBlock, 'Code block', () => chain().toggleCodeBlock().run(), SquareCode, 'Ctrl+Alt+C')}
+      </div>
+
       <MenuButton label="Insert" align="left" buttonClassName="tb-style tb-insert"
         trigger={<><Plus size={16} aria-hidden="true" /><span className="tb-style-label">Insert</span><ChevronDown size={14} aria-hidden="true" /></>}>
         {close => [
           item('Table', Table2, () => { chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); close(); }, { hint: '3 × 3, first row is the header' }),
-          item('Highlight box', Highlighter, () => { if (!s.inCallout) chain().setCallout(s.tone).run(); close(); }, { hint: 'Soft background around the block' }),
+          item('Highlight', Highlighter, () => { if (!s.inCallout) chain().setCallout(s.tone).run(); close(); }, { hint: 'Soft background around the block' }),
           item('Collapsible', ListCollapse, () => { if (!s.inDetails) chain().setDetails().updateAttributes('details', { open: true }).run(); close(); },
             { hint: 'Readers click its title to expand it' }),
           item('Divider', Minus, () => { chain().setHorizontalRule().run(); close(); }, { hint: 'A thin line between parts' })
         ]}
       </MenuButton>
 
-      {(s.style === 'code' || s.inCallout || s.inDetails || s.inTable) && (
+      {(s.codeBlock || s.inCallout || s.inDetails || s.inTable) && (
         <div className="tb-context" aria-label="Options for this block">
-          {s.style === 'code' && (
+          {s.codeBlock && (
             <select className="tb-select" aria-label="Code language" value={s.language}
               onChange={e => chain().updateAttributes('codeBlock', { language: e.target.value }).run()}>
               {CODE_LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -124,9 +122,9 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
           )}
           {s.inCallout && (
             <span className="tb-context-part">
-              <span className="tb-label">Box</span>
+              <span className="tb-label">Highlight</span>
               {tones(s.tone, t => { if (t) chain().updateAttributes('callout', { tone: t }).run(); }, 'Highlight colour', false)}
-              {btn(false, 'Remove the highlight box (keeps the text)', () => chain().unsetCallout().run(), X)}
+              {btn(false, 'Remove the highlight (keeps the text)', () => chain().unsetCallout().run(), X)}
             </span>
           )}
           {s.inDetails && (
