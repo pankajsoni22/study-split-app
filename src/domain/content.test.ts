@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ensureSectionIds, readingMinutes, splitSections, type Doc } from './content.ts';
+import { ensureSectionIds, ensureTrailingParagraph, readingMinutes, splitSections, type Doc } from './content.ts';
 import { slugify, tagSlug } from './slug.ts';
 import { buildTemplateDoc, TEMPLATES } from './templates.ts';
 
@@ -56,5 +56,14 @@ describe('highlight boxes and collapsibles', () => {
 
   it('counts text inside boxes and collapsibles for reading time', () => {
     expect(readingMinutes({ type: 'doc', content: [box(), fold] })).toBe(3);
+  });
+});
+
+describe('ensureTrailingParagraph', () => {
+  it('adds an empty paragraph after a final box/table, and leaves paragraph endings alone', () => {
+    const boxEnd: Doc = { type: 'doc', content: [p('a'), { type: 'callout', attrs: {}, content: [p('b')] }] };
+    expect(ensureTrailingParagraph(boxEnd).content.map(n => n.type)).toEqual(['paragraph', 'callout', 'paragraph']);
+    const ok: Doc = { type: 'doc', content: [p('a')] };
+    expect(ensureTrailingParagraph(ok)).toBe(ok);
   });
 });

@@ -1,4 +1,5 @@
-import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, SendToBack, SlidersHorizontal, Trash2, Type, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, Eye, Layers, SendToBack, SlidersHorizontal, Trash2, Type, X } from 'lucide-react';
+import MenuButton from '../../ui/MenuButton.tsx';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { applyStyle, deleteSelection, moveSelection, type ExcalidrawImperativeAPI } from './excalidraw.ts';
 import ShapesPanel from './ShapesPanel.tsx';
@@ -8,7 +9,9 @@ import { ARROWHEADS, FILL_COLORS, FONT_SIZES, FONTS, STROKE_COLORS, summarize, t
  * Study Split's drawing format bar (replaces Excalidraw's floating properties panel, which covered the slide).
  * With a selection it restyles the selection; with nothing selected it sets the style of the next shapes.
  */
-export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, trailing }: {
+export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, trailing, unfold }: {
+  /** Unfold on: which step the cursor's paragraph is, and how to (re)assign the selected parts. */
+  unfold?: { step: number | null; assign: (where: 'current' | 'start') => void };
   /** Shown at the right end of the bar (e.g. the full-screen button). */
   trailing?: React.ReactNode;
   api: ExcalidrawImperativeAPI | null;
@@ -113,6 +116,27 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
         </Pop>
       )}
 
+      {s.count > 0 && unfold && (
+        <MenuButton label="Unfold: when these parts appear" align="left" buttonClassName="tb-style fb-unfold-btn"
+          trigger={<><Layers size={15} aria-hidden="true" /><span className="tb-style-label">Step</span><ChevronDown size={12} aria-hidden="true" className="fb-chev" /></>}>
+          {close => (
+            <>
+              <button type="button" role="menuitem" className="menu-item" disabled={unfold.step === null}
+                onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('current'); close(); }}>
+                <Layers size={16} aria-hidden="true" />
+                <span className="menu-item-text">
+                  {unfold.step === null ? 'Show with a paragraph' : `Show with paragraph ${unfold.step}`}
+                  <small>{unfold.step === null ? 'Put the cursor in a paragraph first' : 'The paragraph your cursor is in'}</small>
+                </span>
+              </button>
+              <button type="button" role="menuitem" className="menu-item" onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('start'); close(); }}>
+                <Eye size={16} aria-hidden="true" />
+                <span className="menu-item-text">Always visible<small>Shown from the first paragraph</small></span>
+              </button>
+            </>
+          )}
+        </MenuButton>
+      )}
       {s.count > 0 && (
         <>
           <span className="fb-sep" aria-hidden="true" />

@@ -1147,3 +1147,46 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .style-opacity input[type="range"] { flex: 1; min-height: 0; padding: 0; border: none; background: transparent; accent-color: var(--accent); box-shadow: none; }
 .style-opacity output { width: 44px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .style-actions { display: flex; align-items: center; gap: 6px; }
+
+/* ---- Unfold (experimental) ---- */
+.menu-tag { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--accent-strong); background: var(--accent-soft); vertical-align: 1px; }
+/* editor: step badge in the margin for paragraphs that have drawings; teal edge on the paragraph new drawings join */
+.prose-edit .unfold-has { position: relative; }
+.prose-edit .unfold-has::before {
+  content: attr(data-unfold-step); position: absolute; left: -24px; top: 0.25em; display: grid; place-items: center;
+  width: 17px; height: 17px; border-radius: 50%; font: 700 10.5px/1 var(--font); color: #fff; background: var(--accent);
+}
+.prose-edit .unfold-target { box-shadow: -12px 0 0 -9px var(--accent); }
+/* reader: Unfold switch */
+.unfold-toggle { gap: 6px; }
+.unfold-toggle.is-on { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+/* reader: the paragraph being read. Text blocks get a soft teal wash and a slim bar; boxed blocks a teal ring.
+   Every block gets the same side padding in Unfold mode, so nothing shifts when the highlight moves. */
+.is-unfolding .ProseMirror > :is(p, ul, ol, h3, blockquote) {
+  position: relative; margin-inline: -12px; padding-inline: 12px; border-radius: 10px;
+  transition: background-color 0.35s ease;
+}
+.is-unfolding .ProseMirror > :is(ul, ol) { padding-left: calc(1.4em + 12px); }
+.is-unfolding .ProseMirror > .is-unfold-current:is(p, ul, ol, h3, blockquote) {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 4%, transparent));
+}
+.is-unfolding .ProseMirror > .is-unfold-current:is(p, ul, ol, h3, blockquote)::before {
+  content: ""; position: absolute; left: 0; top: 0.4em; bottom: 0.4em; width: 3px; border-radius: 3px; background: var(--accent);
+  animation: unfold-bar 0.35s ease-out;
+}
+.is-unfolding .ProseMirror > :is(.callout, .collapsible, pre, .tableWrapper) { transition: box-shadow 0.35s ease; }
+.is-unfolding .ProseMirror > .is-unfold-current:is(.callout, .collapsible, pre, .tableWrapper) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent), 0 6px 18px -10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+@keyframes unfold-bar { from { transform: scaleY(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+/* drawing: this step's new parts fade in with a teal glow that settles */
+.slide-image-svg.is-fresh { position: absolute; inset: 0; animation: unfold-glow 1.6s ease-out both; }
+@keyframes unfold-glow {
+  0% { opacity: 0; filter: drop-shadow(0 0 0 transparent); }
+  22% { opacity: 1; filter: drop-shadow(0 0 7px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
+  100% { opacity: 1; filter: drop-shadow(0 0 0 transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-image-svg.is-fresh, .is-unfolding .ProseMirror > .is-unfold-current::before { animation: none; }
+}

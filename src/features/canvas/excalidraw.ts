@@ -1,5 +1,6 @@
 // The only module that imports Excalidraw. It is loaded lazily (editor and reader routes only),
 // so the home page never downloads it.
+import { UNFOLD_KEY } from '../../domain/unfold.ts';
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import {
@@ -87,19 +88,40 @@ type ExportToSvg = (opts: {
   appState: { exportBackground: boolean; exportWithDarkMode: boolean };
 }) => Promise<SVGSVGElement>;
 
-export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean): Promise<SVGSVGElement | null> {
+export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean, only?: ReadonlySet<string>): Promise<SVGSVGElement | null> {
   // restoreElements fills defaults/repairs bindings (same as Excalidraw does when loading), so older or
   // partial scenes export correctly.
   const elements = restoreElements(scene.elements as never, null, { repairBindings: true }) as unknown as Element[];
   const frame = elements.find(e => e.id === frameId);
   if (!frame || frame.type !== 'frame') return Promise.resolve(null);
+  // `only` (Unfold): export just these parts; the frame keeps the picture's size and position identical.
+  const picked = only ? elements.filter(e => e.id === frameId || only.has(e.id)) : elements;
   return (exportToSvg as unknown as ExportToSvg)({
-    elements,
+    elements: picked,
     files: scene.files as never,
     appState: { exportBackground: false, exportWithDarkMode: dark },
     exportingFrame: frame,
     exportPadding: 0
   });
+}
+
+// ---------------------------------------------------------------- Unfold (experimental; see domain/unfold.ts)
+
+/** Sets (blockId) or clears (null) the Unfold paragraph of these elements. Bookkeeping: not an undo step. */
+export function tagElements(api: ExcalidrawImperativeAPI, ids: Iterable<string>, blockId: string | null) {
+  const wanted = new Set(ids);
+  if (!wanted.size) return;
+  const all = api.getSceneElementsIncludingDeleted();
+  let changed = false;
+  const elements = all.map(e => {
+    if (!wanted.has(e.id)) return e;
+    const data = { ...(e.customData ?? {}) } as Record<string, unknown>;
+    if ((data[UNFOLD_KEY] ?? null) === blockId) return e;
+    if (blockId) data[UNFOLD_KEY] = blockId; else delete data[UNFOLD_KEY];
+    changed = true;
+    return newElementWith(e, { customData: data });
+  });
+  if (changed) api.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
 }
 
 // ---------------------------------------------------------------- Format bar (see format.ts)

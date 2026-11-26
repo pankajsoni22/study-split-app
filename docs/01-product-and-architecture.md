@@ -110,6 +110,22 @@ All modes render from the same article data. The mode switcher sits in the top b
 - Removed: there is one version of every article. Existing flags were stripped by `20261126000000_remove_brief.sql`
   (nothing deleted).
 
+### 4.1b Unfold (EXPERIMENTAL, branch `experimental`, 2026-11-26)
+
+The drawing **builds up as you read**: each paragraph is a step that adds its part of the split's drawing.
+- **Writer:** ⋯ menu → **Unfold** (per article, stored in the canvas JSON as `unfold: true`). While on, whatever is
+  drawn while the cursor is in a paragraph belongs to that paragraph (`element.customData.unfold = blockId`). Paragraphs
+  with drawings show a numbered step badge in the margin; the paragraph new drawings will join has a teal edge. Drawing
+  bar **Step ▾** reassigns selected parts: "Show with paragraph N" or "Always visible".
+- **Reader:** an **Unfold** switch (only on articles that use it; on by default, remembered). **Split** view: the
+  paragraph at the reading line is highlighted (teal wash + bar; boxed blocks get a teal ring) and the drawing shows
+  everything up to it; this step's new parts fade in with a teal glow. **Present** view: → / ← step paragraph by
+  paragraph before changing split. **Article** view shows finished drawings.
+- **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
+  and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
+- Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),
+  `ReaderPage` (Split + Present). Sample: Consistent Hashing splits 1, 3, 4, 5 (`k.step(...)` in the seed kit).
+
 ### 4.1a Navigation in Article mode (2026-11-26)
 
 - The scrolling area spans the window, so the scroll bar sits at the window edge.

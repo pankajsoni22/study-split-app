@@ -147,6 +147,9 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
     stays; local edits to those sample articles are overwritten. Use `npm run db:refresh-samples -- consistent-hashing`
     for just one. Then reload the editor.
   - Commit `scripts/seed/` and `supabase/seed.sql` together.
+- **Unfold in sample articles (experimental branch):** set `unfold: true` on the article and call
+  `k.step('start of a paragraph')` in a `draw(k)` function: everything drawn after it appears with that paragraph
+  (`k.step(null)` = always visible). Unknown text throws, so typos are caught by `npm run db:seed`.
 - **Writing style for sample articles:** one idea per paragraph, short sub-headings (H3), and in every split an
   **"In the drawing"** paragraph that walks through the drawing using the same names and numbers as the drawing.
 - **Check drawings visually:** open the article in the editor and click each split heading. The drawing you get is

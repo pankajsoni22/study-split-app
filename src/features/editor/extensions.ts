@@ -7,8 +7,10 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { common, createLowlight } from 'lowlight';
 import { newSectionId } from '../../domain/content.ts';
+import { newBlockId } from '../../domain/unfold.ts';
 import { Callout } from './callout.ts';
 import { Collapsible } from './collapsible.ts';
+import { UnfoldMarks } from './unfoldMarks.ts';
 
 export const lowlight = createLowlight(common);
 
@@ -22,12 +24,24 @@ export const CODE_LANGUAGES = [
 /**
  * Study Split's document attributes (docs §12.1):
  * - H2 headings: sectionId + frameId (section ↔ canvas frame link: one "split")
+ * - other top-level blocks: blockId (Unfold: drawings can belong to a paragraph; see domain/unfold.ts)
  * Plus a guard that keeps sectionIds unique when a heading is split or pasted twice.
  */
 const StudySplitAttrs = Extension.create({
   name: 'studySplitAttrs',
   addGlobalAttributes() {
     return [
+      {
+        types: ['paragraph', 'heading', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule', 'callout', 'details', 'table'],
+        attributes: {
+          blockId: {
+            default: null,
+            keepOnSplit: false,
+            parseHTML: el => el.getAttribute('data-block-id'),
+            renderHTML: attrs => (attrs.blockId ? { 'data-block-id': String(attrs.blockId) } : {})
+          }
+        }
+      },
       {
         types: ['heading'],
         attributes: {
@@ -53,10 +67,22 @@ const StudySplitAttrs = Extension.create({
       appendTransaction: (transactions, _old, state) => {
         if (!transactions.some(t => t.docChanged)) return null;
         const seen = new Set<string>();
+        const seenBlocks = new Set<string>();
         let tr = state.tr;
         let changed = false;
         state.doc.forEach((node, pos) => {
-          if (node.type.name !== 'heading' || node.attrs.level !== 2) return;
+          if (node.type.name !== 'heading' || node.attrs.level !== 2) {
+            // Every other top-level block keeps a unique blockId (new paragraphs, splits and pastes get a fresh one).
+            const bid = node.attrs.blockId as string | null | undefined;
+            if (node.attrs.blockId === undefined) return;   // node type without the attribute
+            if (!bid || seenBlocks.has(bid)) {
+              const fresh = newBlockId();
+              seenBlocks.add(fresh);
+              tr = tr.setNodeMarkup(pos, undefined, { ...node.attrs, blockId: fresh });
+              changed = true;
+            } else seenBlocks.add(bid);
+            return;
+          }
           const id = node.attrs.sectionId as string | null;
           if (!id || seen.has(id)) {
             const fresh = newSectionId();
@@ -91,6 +117,7 @@ export function buildExtensions({ editable }: { editable: boolean }): AnyExtensi
     // wrapper that scrolls sideways on narrow screens instead of squeezing the columns.
     TableKit.configure({ table: { resizable: editable, renderWrapper: true, HTMLAttributes: { class: 'ss-table' } } }),
     StudySplitAttrs,
+    ...(editable ? [UnfoldMarks] : []),
     ...(editable ? [Placeholder.configure({
       includeChildren: true,
       placeholder: ({ node }) => (node.type.name === 'heading' ? 'Section title'

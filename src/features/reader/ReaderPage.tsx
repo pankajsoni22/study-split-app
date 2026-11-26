@@ -1,7 +1,8 @@
-import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, ListTree, PenLine, Presentation } from 'lucide-react';
+import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, ListTree, PenLine, Presentation } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { splitSections, type Section } from '../../domain/content.ts';
+import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
 import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
 import { getServices } from '../../data/services.ts';
@@ -22,7 +23,7 @@ import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
 
 type Mode = 'flow' | 'present' | 'article';
-interface ReadPrefs { mode?: Mode; sectionId?: string; step?: number; layout?: LayoutId }
+interface ReadPrefs { mode?: Mode; sectionId?: string; step?: number; layout?: LayoutId; unfold?: boolean }
 
 /** The slide shown with a section: its own, else the closest earlier one, else the first slide. */
 function slideFor(sections: Section[], index: number): Section | null {
@@ -69,6 +70,9 @@ function Reader({ article }: { article: PublishedArticle }) {
 
   const mode: Mode = narrow && prefs.mode !== 'present' ? 'article' : (prefs.mode ?? 'flow');
   const sections = useMemo<Section[]>(() => splitSections(article.doc), [article.doc]);
+  // Unfold (experimental): offered when the writer built the drawings paragraph by paragraph; on by default.
+  const canUnfold = useMemo(() => usesUnfold(article.canvas), [article.canvas]);
+  const unfold = canUnfold && prefs.unfold !== false && mode !== 'article';
   const [views, setViews] = useState(article.views);
   const authorLayout = layoutById(article.canvas.layout).id;
   const layout = layoutById(prefs.layout ?? authorLayout).id;
@@ -106,6 +110,13 @@ function Reader({ article }: { article: PublishedArticle }) {
             )}
           </MenuButton>
         )}
+        {canUnfold && mode !== 'article' && (
+          <button type="button" className={`btn btn-ghost btn-sm unfold-toggle${unfold ? ' is-on' : ''}`} aria-pressed={unfold}
+            title={unfold ? 'Unfold is on: each drawing builds up as you read. Click to show whole drawings.' : 'Unfold: build each drawing up paragraph by paragraph'}
+            onClick={() => setPrefs({ unfold: !unfold })}>
+            <Layers size={15} aria-hidden="true" /><span className="hide-narrow">Unfold</span>
+          </button>
+        )}
         <div className="segmented segmented-sm" role="radiogroup" aria-label="Reading mode">
           {!narrow && <ModeButton current={mode} value="flow" label="Split" Icon={Columns2} onPick={m => setPrefs({ mode: m })} />}
           <ModeButton current={mode} value="present" label="Present" Icon={Presentation} onPick={m => setPrefs({ mode: m })} />
@@ -119,8 +130,8 @@ function Reader({ article }: { article: PublishedArticle }) {
           <Link className="btn btn-ghost btn-sm" to={`/write/${article.id}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
         )}
       </header>
-      {mode === 'flow' && <FlowMode article={article} sections={sections} views={views} prefs={prefs} setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} />}
-      {mode === 'present' && <PresentMode article={article} sections={sections} prefs={prefs} setPrefs={setPrefs} narrow={narrow} layout={layout} authorLayout={authorLayout} />}
+      {mode === 'flow' && <FlowMode article={article} sections={sections} views={views} prefs={prefs} setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} unfold={unfold} />}
+      {mode === 'present' && <PresentMode article={article} sections={sections} prefs={prefs} setPrefs={setPrefs} narrow={narrow} layout={layout} authorLayout={authorLayout} unfold={unfold} />}
       {mode === 'article' && (
         <ArticleMode article={article} sections={sections} views={views}
           onOpen={narrow ? undefined : sectionId => setPrefs({ mode: 'flow', sectionId })} />
@@ -158,9 +169,9 @@ function ArticleHeader({ article, views }: { article: PublishedArticle; views: n
 }
 
 // ---------------------------------------------------------------- Flow (split, synced)
-function FlowMode({ article, sections, views, prefs, setPrefs, layout, authorLayout }: {
+function FlowMode({ article, sections, views, prefs, setPrefs, layout, authorLayout, unfold }: {
   article: PublishedArticle; sections: Section[]; views: number; prefs: ReadPrefs; setPrefs: (p: ReadPrefs) => void;
-  layout: LayoutId; authorLayout: LayoutId;
+  layout: LayoutId; authorLayout: LayoutId; unfold: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<string | null>(prefs.sectionId ?? sections[0]?.id ?? null);
@@ -192,11 +203,48 @@ function FlowMode({ article, sections, views, prefs, setPrefs, layout, authorLay
     return () => window.clearTimeout(t);
   }, [active, setPrefs]);
 
-  const slide = slideFor(sections, Math.max(0, sections.findIndex(s => s.id === active)));
+  // Unfold: the paragraph at the reading line (38% down the text pane) is the current step.
+  const [step, setStep] = useState<{ sectionId: string; index: number } | null>(null);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    if (!unfold) { root.querySelectorAll('.is-unfold-current').forEach(el => el.classList.remove('is-unfold-current')); return; }
+    let raf = 0;
+    const measure = () => {
+      const box = root.getBoundingClientRect();
+      const line = box.top + box.height * 0.38;
+      const secs = [...root.querySelectorAll<HTMLElement>('[data-reader-section]')];
+      const sec = secs.filter(el => el.getBoundingClientRect().top <= line).pop() ?? secs[0];
+      if (!sec) return;
+      const blocks = [...sec.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')];
+      const current = blocks.filter(el => el.getBoundingClientRect().top <= line).pop() ?? null;
+      root.querySelectorAll('.is-unfold-current').forEach(el => { if (el !== current) el.classList.remove('is-unfold-current'); });
+      current?.classList.add('is-unfold-current');
+      const id = current?.getAttribute('data-block-id') ?? current?.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
+      const section = sections.find(x => x.id === sec.getAttribute('data-reader-section'));
+      const index = id && section ? stepIds(section.nodes).indexOf(id) : -1;
+      const sectionId = sec.getAttribute('data-reader-section') ?? '';
+      setStep(prev => (prev?.sectionId === sectionId && prev.index === index ? prev : { sectionId, index }));
+    };
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+    measure();
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+  }, [unfold, sections]);
+
+  const activeIndex = Math.max(0, sections.findIndex(s => s.id === (unfold && step ? step.sectionId : active)));
+  const slide = slideFor(sections, activeIndex);
+  const parts = useMemo(() => {
+    if (!unfold || !slide?.frameId) return undefined;
+    // The split has its own drawing: build it up to the current step. (A split without one shows the earlier drawing whole.)
+    const own = sections[activeIndex]?.frameId === slide.frameId;
+    const at = own && step ? step.index : Number.MAX_SAFE_INTEGER;
+    return visibleAt(article.canvas.elements, slide.frameId, stepIds(slide.nodes), at);
+  }, [unfold, slide, sections, activeIndex, step, article.canvas.elements]);
   return (
     <SplitPane layout={layout} defaultLayout={authorLayout} onLayoutChange={l => setPrefs({ layout: l })} leftLabel="Article text" rightLabel="Drawing"
       left={(
-        <div ref={scrollRef} className="reader-scroll" id="main">
+        <div ref={scrollRef} className={`reader-scroll${unfold ? ' is-unfolding' : ''}`} id="main">
           <div className="reader-column">
             <ArticleHeader article={article} views={views} />
             {sections.map(s => (
@@ -207,24 +255,42 @@ function FlowMode({ article, sections, views, prefs, setPrefs, layout, authorLay
           </div>
         </div>
       )}
-      right={<SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} />}
+      right={<SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} only={parts?.visible} fresh={parts?.fresh} />}
     />
   );
 }
 
 // ---------------------------------------------------------------- Present (one section per step)
-function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, authorLayout }: {
+function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, authorLayout, unfold }: {
   article: PublishedArticle; sections: Section[]; prefs: ReadPrefs; setPrefs: (p: ReadPrefs) => void; narrow: boolean;
-  layout: LayoutId; authorLayout: LayoutId;
+  layout: LayoutId; authorLayout: LayoutId; unfold: boolean;
 }) {
   const step = Math.min(Math.max(prefs.step ?? 0, 0), Math.max(sections.length - 1, 0));
-  const go = useCallback((n: number) => setPrefs({ step: Math.min(Math.max(n, 0), sections.length - 1) }), [sections.length, setPrefs]);
   const section = sections[step];
+  // Unfold: inside a split, → reveals the next paragraph (and its drawing parts) before moving to the next split.
+  const steps = useMemo(() => (section && unfold ? stepIds(section.nodes) : []), [section, unfold]);
+  const [sub, setSub] = useState<{ section: number; index: number }>({ section: step, index: -1 });
+  const subIndex = sub.section === step ? sub.index : -1;
+  const goSection = useCallback((n: number, at: 'start' | 'end' = 'start') => {
+    const target = Math.min(Math.max(n, 0), sections.length - 1);
+    setPrefs({ step: target });
+    const count = unfold && sections[target] ? stepIds(sections[target].nodes).length : 0;
+    setSub({ section: target, index: at === 'end' ? count - 1 : -1 });
+  }, [sections, setPrefs, unfold]);
+  const next = useCallback(() => {
+    if (unfold && subIndex < steps.length - 1) setSub({ section: step, index: subIndex + 1 });
+    else if (step < sections.length - 1) goSection(step + 1);
+  }, [goSection, sections.length, step, steps.length, subIndex, unfold]);
+  const prev = useCallback(() => {
+    if (unfold && subIndex > -1) setSub({ section: step, index: subIndex - 1 });
+    else if (step > 0) goSection(step - 1, 'end');
+  }, [goSection, step, subIndex, unfold]);
+  const go = goSection;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(step + 1); }
-      if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(step - 1); }
+      if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); next(); }
+      if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); prev(); }
       if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
         if (document.fullscreenElement) void document.exitFullscreen();
         else void document.documentElement.requestFullscreen?.();
@@ -232,17 +298,33 @@ function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, autho
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, step]);
+  }, [next, prev]);
+
+  // Highlight the revealed paragraph in the text.
+  const textRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = textRef.current;
+    if (!root) return;
+    root.querySelectorAll('.is-unfold-current').forEach(el => el.classList.remove('is-unfold-current'));
+    const id = unfold ? steps[subIndex] : undefined;
+    if (!id) return;
+    const el = root.querySelector(`[data-block-id="${CSS.escape(id)}"]`);
+    (el?.closest('.tableWrapper') ?? el)?.classList.add('is-unfold-current');
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [unfold, steps, subIndex, section]);
 
 
   const text = (
-    <div className="present-text" id="main">
+    <div ref={textRef} className={`present-text${unfold ? ' is-unfolding' : ''}`} id="main">
       {step === 0 && <p className="present-kicker">{article.title}</p>}
       {section ? <SectionView key={section.id} nodes={section.nodes} /> : <p className="muted">This article is empty.</p>}
     </div>
   );
   const slide = slideFor(sections, step);
-  const canvas = <SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} />;
+  const parts = unfold && slide?.frameId
+    ? visibleAt(article.canvas.elements, slide.frameId, stepIds(slide.nodes), section?.frameId === slide.frameId ? subIndex : Number.MAX_SAFE_INTEGER)
+    : undefined;
+  const canvas = <SlideStage scene={article.canvas} frameId={slide?.frameId ?? null} label={slide?.title ?? ''} only={parts?.visible} fresh={parts?.fresh} />;
   return (
     <div className="present">
       {narrow
@@ -250,7 +332,7 @@ function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, autho
         : <SplitPane layout={layout} defaultLayout={authorLayout} onLayoutChange={l => setPrefs({ layout: l })}
             leftLabel="Current split" rightLabel="Drawing" left={text} right={canvas} />}
       <nav className="present-nav" aria-label="Splits">
-        <button type="button" className="icon-btn" onClick={() => go(step - 1)} disabled={step === 0} aria-label="Previous split"><ChevronLeft size={20} /></button>
+        <button type="button" className="icon-btn" onClick={prev} disabled={step === 0 && subIndex <= -1} aria-label="Previous"><ChevronLeft size={20} /></button>
         <ol className="present-dots">
           {sections.map((s, i) => (
             <li key={s.id}>
@@ -259,7 +341,7 @@ function PresentMode({ article, sections, prefs, setPrefs, narrow, layout, autho
           ))}
         </ol>
         <span className="present-count">{sections.length ? step + 1 : 0} / {sections.length}</span>
-        <button type="button" className="icon-btn" onClick={() => go(step + 1)} disabled={step >= sections.length - 1} aria-label="Next split"><ChevronRight size={20} /></button>
+        <button type="button" className="icon-btn" onClick={next} disabled={step >= sections.length - 1 && (!unfold || subIndex >= steps.length - 1)} aria-label="Next"><ChevronRight size={20} /></button>
       </nav>
     </div>
   );
