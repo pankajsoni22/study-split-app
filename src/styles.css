@@ -1190,3 +1190,7 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 @media (prefers-reduced-motion: reduce) {
   .slide-image-svg.is-fresh, .is-unfolding .ProseMirror > .is-unfold-current::before { animation: none; }
 }
+
+/* Step pop-up (Unfold): a small menu inside a format-bar pop-up */
+.fb-menu { display: flex; flex-direction: column; min-width: 250px; }
+.fb-menu .menu-item:disabled { opacity: 0.55; cursor: not-allowed; }

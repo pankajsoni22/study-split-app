@@ -1,5 +1,4 @@
 import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, Eye, Layers, SendToBack, SlidersHorizontal, Trash2, Type, X } from 'lucide-react';
-import MenuButton from '../../ui/MenuButton.tsx';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { applyStyle, deleteSelection, moveSelection, type ExcalidrawImperativeAPI } from './excalidraw.ts';
 import ShapesPanel from './ShapesPanel.tsx';
@@ -117,25 +116,24 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
       )}
 
       {s.count > 0 && unfold && (
-        <MenuButton label="Unfold: when these parts appear" align="left" buttonClassName="tb-style fb-unfold-btn"
-          trigger={<><Layers size={15} aria-hidden="true" /><span className="tb-style-label">Step</span><ChevronDown size={12} aria-hidden="true" className="fb-chev" /></>}>
+        <Pop label="Unfold: when these parts appear" caption="Step" trigger={<Layers size={15} aria-hidden="true" />}>
           {close => (
-            <>
-              <button type="button" role="menuitem" className="menu-item" disabled={unfold.step === null}
+            <div className="fb-menu">
+              <button type="button" className="menu-item" disabled={unfold.step === null}
                 onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('current'); close(); }}>
                 <Layers size={16} aria-hidden="true" />
                 <span className="menu-item-text">
                   {unfold.step === null ? 'Show with a paragraph' : `Show with paragraph ${unfold.step}`}
-                  <small>{unfold.step === null ? 'Put the cursor in a paragraph first' : 'The paragraph your cursor is in'}</small>
+                  <small>{unfold.step === null ? 'Click into a paragraph on the left first' : 'The paragraph your cursor is in'}</small>
                 </span>
               </button>
-              <button type="button" role="menuitem" className="menu-item" onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('start'); close(); }}>
+              <button type="button" className="menu-item" onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('start'); close(); }}>
                 <Eye size={16} aria-hidden="true" />
                 <span className="menu-item-text">Always visible<small>Shown from the first paragraph</small></span>
               </button>
-            </>
+            </div>
           )}
-        </MenuButton>
+        </Pop>
       )}
       {s.count > 0 && (
         <>
@@ -331,7 +329,7 @@ function Seg({ label, value, options, onPick, icons = false }: { label: string; 
 }
 
 /** Small button that opens a panel below it (flips left near the screen edge). Esc / click outside close it. */
-function Pop({ label, trigger, children, caption }: { label: string; trigger: ReactNode; children: ReactNode; caption?: string }) {
+function Pop({ label, trigger, children, caption }: { label: string; trigger: ReactNode; children: ReactNode | ((close: () => void) => ReactNode); caption?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
@@ -355,7 +353,7 @@ function Pop({ label, trigger, children, caption }: { label: string; trigger: Re
         aria-expanded={open} aria-haspopup="dialog" onMouseDown={e => e.preventDefault()} onClick={toggle}>
         {trigger}{caption && <span className="tb-style-label">{caption}</span>}<ChevronDown size={12} aria-hidden="true" className="fb-chev" />
       </button>
-      {open && <div className="fb-popover" style={pos} role="dialog" aria-label={label}>{children}</div>}
+      {open && <div className="fb-popover" style={pos} role="dialog" aria-label={label}>{typeof children === 'function' ? children(() => setOpen(false)) : children}</div>}
     </div>
   );
 }
