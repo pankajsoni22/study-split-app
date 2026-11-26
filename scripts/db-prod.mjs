@@ -31,7 +31,7 @@ if (cmd === 'baseline') {
   const unknown = versions.filter(v => !all.includes(v));
   if (unknown.length) fail(`Not migration versions in supabase/migrations: ${unknown.join(', ')}`);
   await confirm(`mark ${versions.length} migration(s) as already applied (nothing is run): ${versions.join(', ')}`);
-  supabase(['migration', 'repair', '--status', 'applied', ...versions, '--db-url', dbUrl]);
+  supabase(['migration', 'repair', '--status', 'applied', ...versions, '--db-url', dbUrl, '--yes']);   // --yes: confirmed above
   ok('Recorded. `npm run db:prod -- status` should now show them on both sides.');
 }
 
@@ -39,6 +39,6 @@ if (cmd === 'push') {
   console.log(c.dim('\nDry run — what would be applied:\n'));
   supabase(['db', 'push', '--dry-run', '--db-url', dbUrl]);
   await confirm('apply the pending migrations listed above');
-  supabase(['db', 'push', '--db-url', dbUrl]);
+  supabase(['db', 'push', '--db-url', dbUrl, '--yes']);   // --yes: confirmed above
   ok('Applied. The API reloads its schema cache automatically within a few seconds.');
 }

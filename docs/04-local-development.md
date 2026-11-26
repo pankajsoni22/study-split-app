@@ -216,9 +216,9 @@ The commands below are for running it yourself from the terminal.
 
 Never point `db:prod` at a local URL; the script refuses. Keep the file out of chats, screenshots and commits.
 
-**Status (2026-11-25):** `.env.prod-db.local` exists and `npm run db:prod -- status` connects. The **baseline has
-not been run yet**, so production's "Remote" column is still empty. Run the baseline command above once before
-the first `push`.
+**Status:** baselined on 2026-11-26 (the five hand-applied migrations are recorded), so the deploy workflow and
+`npm run db:prod -- push` apply only new migrations. The Supabase CLI refuses hosted changes from an agent without
+`--yes`; `db:prod` passes it only after you have typed `yes, production`.
 
 **CLI upgrade note:** Supabase CLI 3.x warns that `--db-url` will be replaced by `--remote=<db-url>` in v4. The
 project pins 3.4.0 (`package.json` and `.github/workflows/backup.yml`). When upgrading to v4, change the flag in
@@ -309,6 +309,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-26 | Production baselined; `db:prod` passes `--yes` after its own confirmation. |
 | 2026-11-26 | Deploy workflow applies migrations to production automatically (job **Migrate database**, before deploy); production must be baselined once. |
 | 2026-11-26 | Brief/Detailed removed (sample data, seed, migration `20261126000000_remove_brief.sql`; locally applied with `npx supabase migration up`). Slides are called **splits** in the app. |
 | 2026-11-26 | Consistent Hashing rewritten (article structure, "In the drawing" walkthroughs, slides 2/9/11 extended); writing-style rule. |
