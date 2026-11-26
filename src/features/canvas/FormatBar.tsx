@@ -56,10 +56,10 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
     <>
     <div ref={barRef} className={`format-bar${compact ? ' is-compact' : ''}`} role="toolbar" aria-label="Drawing style">
       <ShapesPanel api={api} slideId={slideId} />
-      <span className="fb-sep" aria-hidden="true" />
+      {s.kinds.any && <span className="fb-sep" aria-hidden="true" />}
 
       {s.kinds.stroke && (
-        <ColorPicker label={`Stroke colour (${scope})`} caption="Stroke" value={v.strokeColor} colors={STROKE_COLORS} onPick={set('strokeColor')} kind="stroke" />
+        <ColorPicker label={`${s.kinds.line ? 'Stroke colour' : 'Text colour'} (${scope})`} caption={s.kinds.line ? 'Stroke' : 'Colour'} value={v.strokeColor} colors={STROKE_COLORS} onPick={set('strokeColor')} kind="stroke" />
       )}
       {s.kinds.fill && (
         <ColorPicker label={`Fill (${scope})`} caption="Fill" value={v.backgroundColor} colors={FILL_COLORS} onPick={set('backgroundColor')} kind="fill"
@@ -71,7 +71,7 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
           )} />
       )}
 
-      {s.kinds.stroke && (
+      {s.kinds.line && (
         <Pop label={`Line (${scope})`} caption="Line" trigger={<>{lineIcon}</>}>
           <Row label="Width">
             <Seg label="Stroke width" value={v.strokeWidth} onPick={set('strokeWidth')} icons
@@ -94,10 +94,12 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
         </Pop>
       )}
 
-      <FontPicker
-        value={s.kinds.text ? v.fontFamily : s.defaults.fontFamily}
-        appliesTo={s.kinds.text ? scope : 'next text'}
-        onPick={set('fontFamily')} />
+      {s.kinds.font && (
+        <FontPicker
+          value={s.kinds.text ? v.fontFamily : s.defaults.fontFamily}
+          appliesTo={s.kinds.text ? scope : s.count ? 'labels' : 'next text'}
+          onPick={set('fontFamily')} />
+      )}
 
       {s.kinds.text && (
         <Pop label={`Text size and alignment (${scope})`} trigger={<span className="fb-aa">Aa</span>}>
@@ -120,14 +122,17 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
         </>
       )}
       <span className="fb-spacer" />
+      {(s.kinds.any || s.count > 0) && (
       <button type="button" className={`tb-style fb-style-toggle${nativeOpen ? ' is-open' : ''}`} aria-pressed={nativeOpen}
         title={nativeOpen ? 'Hide the Style panel' : 'Style panel: all options (opacity, arrowheads, layers…)'}
         onMouseDown={e => e.preventDefault()} onClick={onToggleNative}>
         <SlidersHorizontal size={16} aria-hidden="true" /><span className="tb-style-label">Style</span>
       </button>
+      )}
       {trailing}
     </div>
-    {nativeOpen && <StylePanel api={api} s={s} scope={scope} onClose={onToggleNative} />}
+    {/* The panel stays "open" but only shows while there is something to style (select something and it comes back). */}
+    {nativeOpen && (s.kinds.any || s.count > 0) && <StylePanel api={api} s={s} scope={scope} onClose={onToggleNative} />}
     </>
   );
 }
@@ -147,7 +152,7 @@ function StylePanel({ api, s, scope, onClose }: { api: ExcalidrawImperativeAPI; 
         <button type="button" className="tb-btn" aria-label="Close the Style panel" title="Close" onMouseDown={e => e.preventDefault()} onClick={onClose}><X size={16} /></button>
       </header>
       <div className="style-panel-body">
-        {s.kinds.stroke && <PanelRow label="Stroke"><Swatches value={v.strokeColor} colors={STROKE_COLORS} kind="stroke" onPick={set('strokeColor')} /></PanelRow>}
+        {s.kinds.stroke && <PanelRow label={s.kinds.line ? 'Stroke' : 'Colour'}><Swatches value={v.strokeColor} colors={STROKE_COLORS} kind="stroke" onPick={set('strokeColor')} /></PanelRow>}
         {s.kinds.fill && (
           <>
             <PanelRow label="Fill"><Swatches value={v.backgroundColor} colors={FILL_COLORS} kind="fill" onPick={set('backgroundColor')} /></PanelRow>
@@ -156,7 +161,7 @@ function StylePanel({ api, s, scope, onClose }: { api: ExcalidrawImperativeAPI; 
             </PanelRow>
           </>
         )}
-        {s.kinds.stroke && (
+        {s.kinds.line && (
           <>
             <PanelRow label="Width">
               <Seg label="Stroke width" value={v.strokeWidth} onPick={set('strokeWidth')} icons
@@ -190,11 +195,13 @@ function StylePanel({ api, s, scope, onClose }: { api: ExcalidrawImperativeAPI; 
             </PanelRow>
           </>
         )}
+        {s.kinds.font && (
+          <PanelRow label="Font">
+            <Seg label="Font" value={s.kinds.text ? v.fontFamily : s.defaults.fontFamily} onPick={set('fontFamily')} options={FONTS.map(f => [f.value, f.name])} />
+          </PanelRow>
+        )}
         {s.kinds.text && (
           <>
-            <PanelRow label="Font">
-              <Seg label="Font" value={v.fontFamily} onPick={set('fontFamily')} options={FONTS.map(f => [f.value, f.name])} />
-            </PanelRow>
             <PanelRow label="Size">
               <Seg label="Font size" value={v.fontSize} onPick={set('fontSize')} options={FONT_SIZES.map(f => [f.value, f.name])} />
             </PanelRow>

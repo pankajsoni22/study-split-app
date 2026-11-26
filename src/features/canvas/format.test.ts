@@ -26,7 +26,7 @@ describe('summarize', () => {
     expect(s.values.strokeWidth).toBe(2);
     expect(s.values.strokeColor).toBeUndefined();          // #000 vs teal: mixed
     expect(s.values.roundness).toBe('round');
-    expect(s.kinds).toEqual({ fill: true, edges: true, stroke: true, text: true, arrow: true });   // the label counts as text
+    expect(s.kinds).toEqual({ stroke: true, line: true, fill: true, edges: true, text: true, font: true, arrow: true, any: true });   // the label counts as text
   });
 });
 
@@ -73,5 +73,25 @@ describe('opacity and arrowheads (Style panel, 2026-11-26)', () => {
   it('defaults map a null arrowhead to "none"', () => {
     expect(summarize([], {}, { currentItemStartArrowhead: null, currentItemEndArrowhead: 'arrow', currentItemOpacity: 100 }).defaults)
       .toMatchObject({ startArrowhead: 'none', endArrowhead: 'arrow', opacity: 100 });
+  });
+});
+
+describe('only the controls that apply (2026-11-26)', () => {
+  const tool = (type: string) => summarize([], {}, { activeTool: { type } }).kinds;
+  it('select / hand tool with nothing selected: nothing to style', () => {
+    expect(tool('selection').any).toBe(false);
+    expect(tool('hand').any).toBe(false);
+  });
+  it('drawing tools show what the next shape can use', () => {
+    expect(tool('rectangle')).toMatchObject({ stroke: true, line: true, fill: true, edges: true, font: true, text: false, arrow: false });
+    expect(tool('ellipse')).toMatchObject({ fill: true, edges: false });
+    expect(tool('arrow')).toMatchObject({ stroke: true, line: true, fill: false, arrow: true, font: false });
+    expect(tool('freedraw')).toMatchObject({ stroke: true, line: true, fill: false, font: false });
+    expect(tool('text')).toMatchObject({ stroke: true, line: false, fill: false, text: true, font: true });
+  });
+  it('a selection shows what it can use', () => {
+    expect(summarize([arrow], { a: true }, {}).kinds).toMatchObject({ fill: false, edges: false, arrow: true, text: false, font: false });
+    expect(summarize([{ id: 'i', type: 'image' }], { i: true }, {}).kinds.any).toBe(false);
+    expect(summarize([{ id: 'x', type: 'text', strokeColor: '#000' }], { x: true }, {}).kinds).toMatchObject({ stroke: true, line: false, text: true, font: true });
   });
 });

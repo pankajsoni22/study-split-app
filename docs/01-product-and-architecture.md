@@ -266,6 +266,11 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
   pattern, width, line style, look, edges, arrow start/end heads, font/size/align for text, opacity (saved once you
   pause), and layer (front / back / delete). It styles the selection, or the next shapes when nothing is selected, and
   says which. Opens below Excalidraw's palette; ✕ or the Style button closes it.
+- **Only what applies (2026-11-26):** the format bar and the Style panel show only the options the selection can use,
+  or, with nothing selected, those of the active drawing tool (they then style the next shape). Select/hand tool with
+  nothing selected → only **Shapes**. Examples: circles have no Edges; arrows get arrowheads but no Fill or font; text
+  gets Colour, font, size and alignment; layer and delete appear only with a selection. An open Style panel hides
+  while there is nothing to style and comes back on the next selection.
 - **Labels in shapes** (2026-11-26): double-clicking anywhere inside a rectangle, ellipse or diamond adds (or edits) its
   centred label, which moves with the shape. Excalidraw does this only for **filled** shapes (an unfilled one is "hit"
   only on its outline), so for unfilled shapes the canvas selects the shape and triggers Excalidraw's own "edit label"

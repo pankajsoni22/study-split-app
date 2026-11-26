@@ -55,10 +55,30 @@ export interface El {
 
 const FILLABLE = new Set(['rectangle', 'ellipse', 'diamond']);
 const EDGED = new Set(['rectangle', 'diamond']);
-const LINEAR = new Set(['arrow', 'line']);
 const TEXT_KEYS = new Set<StyleKey>(['fontFamily', 'fontSize', 'textAlign']);
 
-export interface Kinds { fill: boolean; edges: boolean; stroke: boolean; text: boolean; arrow: boolean }
+/**
+ * Which controls make sense right now (2026-11-26: only these are shown). From the selection, or, with nothing
+ * selected, from the active drawing tool (then they set the style of the next shape). Select/hand tool and nothing
+ * selected → nothing to style.
+ */
+export interface Kinds {
+  /** Stroke / text colour. */
+  stroke: boolean;
+  /** Width, line style, look. */
+  line: boolean;
+  fill: boolean;
+  edges: boolean;
+  /** Text size and alignment. */
+  text: boolean;
+  /** Font: text, or shapes that can carry a label. */
+  font: boolean;
+  arrow: boolean;
+  /** Anything at all to style. */
+  any: boolean;
+}
+const NO_STYLE = new Set(['image', 'frame', 'embeddable', 'iframe']);
+const LINE_TOOLS = new Set(['rectangle', 'diamond', 'ellipse', 'arrow', 'line', 'freedraw']);
 export interface Summary {
   /** Number of selected elements (0 = the bar edits the defaults for new shapes). */
   count: number;
@@ -103,8 +123,12 @@ export function summarize(elements: readonly El[], selected: Record<string, bool
     return [k, ARROWHEAD_KEYS.has(k) ? (v ?? 'none') : v];
   })) as Partial<Record<StyleKey, StyleValue>>;
   if (sel.filter(e => selected[e.id]).length === 0) {
-    const tool = (appState.activeTool as { type?: string } | undefined)?.type;
-    return { count: 0, kinds: { fill: true, edges: true, stroke: true, text: tool === 'text', arrow: true }, values: defaults, defaults };
+    const tool = (appState.activeTool as { type?: string } | undefined)?.type ?? 'selection';
+    const kinds = withAny({
+      stroke: LINE_TOOLS.has(tool) || tool === 'text', line: LINE_TOOLS.has(tool), fill: FILLABLE.has(tool), edges: EDGED.has(tool),
+      text: tool === 'text', font: tool === 'text' || FILLABLE.has(tool), arrow: tool === 'arrow'
+    });
+    return { count: 0, kinds, values: defaults, defaults };
   }
   const values: Partial<Record<StyleKey, StyleValue>> = {};
   for (const k of keys) {
@@ -113,16 +137,22 @@ export function summarize(elements: readonly El[], selected: Record<string, bool
   }
   return {
     count: sel.filter(e => selected[e.id]).length,
-    kinds: {
+    kinds: withAny({
+      stroke: sel.some(e => !NO_STYLE.has(e.type)),
+      line: sel.some(e => !NO_STYLE.has(e.type) && e.type !== 'text'),
       fill: sel.some(e => FILLABLE.has(e.type)),
       edges: sel.some(e => EDGED.has(e.type)),
-      stroke: sel.some(e => e.type !== 'text' || LINEAR.has(e.type)),
       text: sel.some(e => e.type === 'text'),
+      font: sel.some(e => e.type === 'text' || FILLABLE.has(e.type)),
       arrow: sel.some(e => e.type === 'arrow')
-    },
+    }),
     values,
     defaults
   };
+}
+
+function withAny(k: Omit<Kinds, 'any'>): Kinds {
+  return { ...k, any: Object.values(k).some(Boolean) };
 }
 
 /** Patches to apply for one format-bar change: element id → partial element. */
