@@ -256,6 +256,10 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 
 - Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, frames, laser pointer, lock, grouping, export.
 - **Format bar** (top of the drawing side) replaces Excalidraw's floating properties panel; **More options** reopens it.
+- **Labels in shapes** (2026-11-26): double-clicking anywhere inside a rectangle, ellipse or diamond adds (or edits) its
+  centred label, which moves with the shape. Excalidraw does this only for **filled** shapes (an unfilled one is "hit"
+  only on its outline), so for unfilled shapes the canvas selects the shape and triggers Excalidraw's own "edit label"
+  (Enter). Double-clicking empty canvas still makes free text.
 - **Built-in shape pack** (decided 2026-11-22). A **Shapes** button in the format bar opens two tabs:
   - **System design:** client, user, service, server, load balancer, API gateway, database, cache, message queue,
     object storage, CDN.
