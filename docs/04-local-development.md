@@ -173,16 +173,23 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
 4. **Strict test:** `npm run test:db`. It runs the migrations in PGlite **without** Supabase's default grants,
    which catches missing grants. Add checks to `supabase/tests/db.test.mjs` for new rules.
 5. **Commit** the migration together with the app code that needs it.
-6. **Apply it to production BEFORE merging to main** ("make it live"). The live site deploys straight away and
-   will break if it expects a column that isn't there yet. Two ways:
-   - **SQL Editor** (as today): paste the file into the Supabase SQL Editor and run it.
-   - **Terminal:** `npm run db:prod -- push` (§7).
+6. **Production is automatic (since 2026-11-26):** merging to `main` runs the deploy workflow's **Migrate
+   database** job, which applies every new migration to production **before** the new site is published. If a
+   migration fails, the site is not deployed (red run in Actions, with the reason).
+   - **Rule:** a migration must keep the *currently live* site working, because it runs about a minute before the
+     new site goes up. Add before you remove: add columns/functions first, and drop old ones in a later release.
+   - Manual alternatives still work: the SQL Editor, or `npm run db:prod -- push` (§7). The workflow then sees
+     them as already applied only if they were recorded, so prefer the automatic path.
 
 ---
 
 ## 7. Applying migrations to production
 
-Optional; the SQL Editor keeps working. This replaces copy-paste with a checked, recorded push.
+Normally you do nothing: the deploy workflow applies them (§6, step 6). It uses the GitHub secret
+`SUPABASE_DB_URL` (the same one the backup uses) and the Supabase CLI pinned in the workflow. Sample data
+(`seed.sql`) is **never** sent to production; `db push` only applies migrations.
+
+The commands below are for running it yourself from the terminal.
 
 **One-time setup**
 1. Supabase dashboard → **Connect** (top bar) → **Session pooler** → copy the URI. It looks like
@@ -302,6 +309,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-26 | Deploy workflow applies migrations to production automatically (job **Migrate database**, before deploy); production must be baselined once. |
 | 2026-11-26 | Brief/Detailed removed (sample data, seed, migration `20261126000000_remove_brief.sql`; locally applied with `npx supabase migration up`). Slides are called **splits** in the app. |
 | 2026-11-26 | Consistent Hashing rewritten (article structure, "In the drawing" walkthroughs, slides 2/9/11 extended); writing-style rule. |
 | 2026-11-25 | Seed split into `scripts/seed/` (drawing + text helpers, one file per long article); `npm run db:refresh-samples`; complete Consistent Hashing sample article. |
