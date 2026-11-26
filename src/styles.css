@@ -502,13 +502,15 @@ body.is-resizing { cursor: col-resize; user-select: none; }
    ========================================================================== */
 .prose { font-size: 16.5px; line-height: 1.72; color: var(--text); overflow-wrap: anywhere; }
 .prose-edit { padding: 16px 28px 40vh; outline: none; min-height: 100%; }
-.prose > * + * { margin-top: 0.85em; }
-.prose p { margin: 0; }
+.prose :where(p, ul, ol, pre) { margin: 0; }     /* resets with zero weight, so the spacing rule below always wins */
+/* Space between blocks, like a normal article: a clear gap between paragraphs, lists, code, tables and boxes.
+   (Before 2026-11-26 a stronger `p { margin: 0 }` cancelled this, so paragraphs ran together.) */
+.prose > * + * { margin-top: 1.05em; }
 .prose h2 { font-size: 1.42rem; font-weight: 720; margin: 1.6em 0 0.2em; line-height: 1.3; letter-spacing: -0.015em; }
 .prose h3 { font-size: 1.14rem; font-weight: 680; margin: 1.3em 0 0.1em; }
 .prose > h2:first-child, .prose > h3:first-child { margin-top: 0.2em; }
-.prose ul, .prose ol { padding-left: 1.4em; margin: 0; }
-.prose li + li { margin-top: 0.25em; }
+.prose ul, .prose ol { padding-left: 1.4em; }
+.prose li + li { margin-top: 0.4em; }
 .prose li p { margin: 0; }
 .prose blockquote {
   margin: 0; padding: 6px 12px 6px 16px; border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0;
@@ -516,7 +518,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 }
 .prose a { color: var(--link); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
 .prose code { font-size: 0.88em; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
-.prose pre { margin: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: #0f1a1c; color: #e3ecea; overflow-x: auto; font-size: 13.5px; line-height: 1.6; }
+.prose pre { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: #0f1a1c; color: #e3ecea; overflow-x: auto; font-size: 13.5px; line-height: 1.6; }
 .prose pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
 .prose hr { border: none; border-top: 1px solid var(--border); margin: 1.6em 0; }
 .prose .is-empty::before { content: attr(data-placeholder); float: left; height: 0; pointer-events: none; color: color-mix(in srgb, var(--muted) 70%, transparent); }
@@ -1037,8 +1039,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .dev-signin-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---- Tables (editor + reader) ---- */
-.prose .tableWrapper { overflow-x: auto; margin-top: 0.85em; }
-.prose .tableWrapper + * { margin-top: 0.85em; }
+.prose .tableWrapper { overflow-x: auto; }
 .prose table.ss-table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 0.93em; line-height: 1.5; }
 .prose table.ss-table th, .prose table.ss-table td {
   border: 1px solid var(--border-strong); padding: 7px 11px; vertical-align: top; text-align: left; min-width: 90px; position: relative;
@@ -1065,3 +1066,6 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 /* The article must take the page's width, not its content's: otherwise a wide table or code block (whose minimum
    width is wider than a phone) widens the whole page. With this, it scrolls inside its own box instead. */
 .reader-article { min-width: 0; width: 100%; align-self: stretch; }
+
+/* Several paragraphs inside a collapsible: same rhythm as inside a highlight box */
+.prose [data-type="detailsContent"] > * + * { margin-top: 0.75em; }

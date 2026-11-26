@@ -229,6 +229,12 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - **Quotes** have a teal left line and a faint tint.
 - The reader no longer shows the amber "current section" line (removed on request).
 
+### 6.2c Article spacing (fixed 2026-11-26)
+
+- Blocks in an article (paragraphs, lists, code, tables, boxes) are separated by a ~1 em gap, like a normal article;
+  list items by 0.4 em. Before this fix, a stronger `p { margin: 0 }` rule cancelled the gap, so paragraphs ran
+  together in the editor and the reader.
+
 ### 6.2b Tables (decided 2026-11-25)
 
 - **Insert:** toolbar ▦ inserts a 3 × 3 table whose first row is a header. Tab / Shift+Tab move between cells.

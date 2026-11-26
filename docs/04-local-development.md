@@ -147,6 +147,9 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
     stays; local edits to those sample articles are overwritten. Use `npm run db:refresh-samples -- consistent-hashing`
     for just one. Then reload the editor.
   - Commit `scripts/seed/` and `supabase/seed.sql` together.
+- **Writing style for sample articles:** one idea per paragraph, short sub-headings (H3), and in every section an
+  **"In the drawing"** paragraph that walks through the slide using the same names and numbers as the slide. Brief/Detailed
+  flags go on body blocks only (not headings), so a flagged lead-in is a bold paragraph.
 - **Check drawings visually:** open the article in the editor and click each section heading. The slide you get is
   exactly what readers see. Keep text ≥ 24 px, and remember that the hand-drawn font has no `¼ ½ ¾`-style
   characters (write `1/4`).
@@ -300,6 +303,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-26 | Consistent Hashing rewritten (article structure, "In the drawing" walkthroughs, slides 2/9/11 extended); writing-style rule. |
 | 2026-11-25 | Seed split into `scripts/seed/` (drawing + text helpers, one file per long article); `npm run db:refresh-samples`; complete Consistent Hashing sample article. |
 | 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
