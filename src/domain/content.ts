@@ -4,7 +4,7 @@
 // heading starts a new section (that keeps editing natural — Enter/Backspace work as usual).
 // The heading carries the section's identity and its canvas link:
 //   { type: 'heading', attrs: { level: 2, sectionId: 's_ab12', frameId: '<excalidraw frame id>' } }
-// Any block may carry attrs.visibility: 'always' (default) | 'detail' | 'brief'.
+// (Brief/Detailed reading levels were removed on 2026-11-26: every block is shown to every reader.)
 
 export interface DocNode {
   type: string;
@@ -18,9 +18,6 @@ export interface Doc extends DocNode {
   type: 'doc';
   content: DocNode[];
 }
-
-export type Visibility = 'always' | 'detail' | 'brief';
-export type ReadingLevel = 'detailed' | 'brief';
 
 export interface Section {
   /** Stable id; "intro" for content before the first H2. */
@@ -38,11 +35,6 @@ export function newSectionId(): string {
 }
 
 export const isSectionHeading = (n: DocNode) => n.type === 'heading' && n.attrs?.level === 2;
-
-export function visibilityOf(n: DocNode): Visibility {
-  const v = n.attrs?.visibility;
-  return v === 'detail' || v === 'brief' ? v : 'always';
-}
 
 /** Plain text of a node tree. */
 export function textOf(n: DocNode): string {
@@ -73,23 +65,9 @@ export function splitSections(doc: Doc): Section[] {
   return sections;
 }
 
-/** Drops blocks that don't belong to the chosen reading level (docs §4.1). Headings always stay. */
-export function filterForLevel(nodes: DocNode[], level: ReadingLevel): DocNode[] {
-  return nodes.filter(n => {
-    if (n.type === 'heading') return true;
-    const v = visibilityOf(n);
-    return v === 'always' || (level === 'detailed' ? v === 'detail' : v === 'brief');
-  });
-}
-
-/** True when the Brief/Detailed toggle should be offered (some block is not "always"). */
-export function hasBriefContent(doc: Doc): boolean {
-  return doc.content.some(n => visibilityOf(n) !== 'always');
-}
-
-/** ~220 words per minute on the detailed version, at least 1 minute when there is any text. */
+/** ~220 words per minute, at least 1 minute when there is any text. */
 export function readingMinutes(doc: Doc): number {
-  const words = filterForLevel(doc.content, 'detailed').map(textOf).join(' ').split(/\s+/).filter(Boolean).length;
+  const words = doc.content.map(textOf).join(' ').split(/\s+/).filter(Boolean).length;
   return words === 0 ? 0 : Math.max(1, Math.round(words / 220));
 }
 

@@ -12,7 +12,7 @@
 |---|---|---|
 | D1 | How text and drawing relate | **One canvas per article; each text section links to a *frame* (a region) of that canvas** |
 | D2 | Who can read | **Public by default**; writer can set *Unlisted* (link only) or *Private* (only me + admin) |
-| D3 | Brief vs Detailed | **Write once; mark blocks as `detail-only` or `brief-only`** |
+| D3 | ~~Brief vs Detailed~~ | **Removed 2026-11-26 (D15):** every reader sees the whole article |
 | D4 | Backend | **Supabase Free** (Postgres + Auth + Storage + Edge Functions) **+ keep-alive ping** |
 | D5 | Frontend hosting | **GitHub Pages** (static SPA) at `pankajsoni22.github.io/study-split-app/` |
 | D6 | Sign-in | **Google only** (Google Identity Services → Supabase `signInWithIdToken`) |
@@ -24,12 +24,13 @@
 | D12 | Drawing area | **Slides**: one slide fills the drawing side. Writers can zoom and pan while drawing (revised: a locked canvas was uncomfortable); switching slides re-fits; readers see fixed pictures |
 | D13 | Slide shape | **Follows the article layout** (3:5 … 16:10); readers' other layouts letterbox |
 | D14 | Slides per section | **Exactly one** (each H2 = one slide) |
+| D15 | Product naming and scope (2026-11-26) | A section + its drawing is a **split** (Split 1, Split 2…, "Fit split", Splits panel). Tagline **"Split Makes Learning Easy"**. **No Brief/Detailed**: removed from editor, reader, templates and database (migration `20261126000000_remove_brief.sql`; flags stripped, content kept) |
 
 ---
 
 ## 1. Vision
 
-A writing and reading platform for engineers where **every idea has a picture next to it**. Text flows on one side, a hand-drawn canvas lives on the other, and the two move together. It is equally a **publishing tool** (projects, system designs, interview experiences) and a **personal revision tool** (brief notes, FAQs, flashcards).
+A writing and reading platform for engineers where **every idea has a picture next to it**. Text flows on one side, a hand-drawn canvas lives on the other, and the two move together. It is equally a **publishing tool** (projects, system designs, interview experiences) and a **personal revision tool** (notes, FAQs, flashcards).
 
 **Design principles** (used to settle every future trade-off):
 
@@ -75,7 +76,6 @@ User ──owns──▶ Article
                  └── Canvas    (one Excalidraw scene with named Frames)
 
 Section ──linkedTo──▶ Frame   (0..1)
-Block.visibility ∈ { always, detail, brief }
 ```
 
 | Concept | Meaning |
@@ -103,14 +103,20 @@ All modes render from the same article data. The mode switcher sits in the top b
 | **Present** | Split Mode 1 | One section per step. `→ / Space` = next, `←` = previous, `F` = full screen. Optional sub-steps reveal blocks one by one. Progress dots at the bottom. | Explaining to others, mock interviews, self-revision |
 | **Article** | Merge Mode | Classic vertical article. Each section's frame is rendered inline (as a light SVG) right after its heading. Click a figure → opens full-screen canvas at that frame. | Mobile, printing, skimming |
 | **Canvas** *(new)* | — | Full-screen whiteboard. Section list becomes a floating "tour" panel; click a section → camera flies there, text shown in a side card. | Visual thinkers, big system diagrams |
-| **Revise** *(new, phase 2)* | — | Forces **Brief**, collapses everything into flash-cards: each Q&A block becomes a card (question → tap → answer). Tracks "known / review again" locally. | Interview revision, FAQs |
+| **Revise** *(new, phase 2)* | — | Collapses everything into flash-cards: each Q&A block becomes a card (question → tap → answer). Tracks "known / review again" locally. | Interview revision, FAQs |
 
-### 4.1 Brief / Detailed toggle (D3)
+### 4.1 Brief / Detailed toggle (removed 2026-11-26, D15)
 
-- Toggle appears **only** if the article contains at least one `detail` or `brief` block (`has_brief = true` computed on save).
-- **Detailed** shows `always` + `detail` blocks. **Brief** shows `always` + `brief` blocks (e.g. TL;DR, short notes).
-- Frames can also be marked detail-only; in Brief mode those sections skip the canvas jump.
-- Keyboard: `B` toggles. Reading position is preserved across the switch (anchored to the current section).
+- Removed: there is one version of every article. Existing flags were stripped by `20261126000000_remove_brief.sql`
+  (nothing deleted).
+
+### 4.1a Navigation in Article mode (2026-11-26)
+
+- The scrolling area spans the window, so the scroll bar sits at the window edge.
+- **Splits list** (wide screens): a sticky numbered list on the left; it highlights the split being read and jumps on
+  click.
+- **Contents** menu in the reader bar (every mode, phones too): jump to any split; in Present mode it opens that step.
+- A thin reading-progress line under the bar, a **Next split** link at the end of each split, and **Back to top**.
 
 ### 4.2 Layouts and slides (revised 2026-11-22, D11–D14)
 
@@ -171,7 +177,7 @@ shape follows the article layout:
 - **Code blocks:** syntax highlighting, copy button, filename label, line highlights, and **Code Tabs** (same snippet in Python / Java / C++ / Go — reader's last chosen language is remembered across articles).
 - Callouts (info / tip / warning / interview-tip), tables, KaTeX math (phase 2).
 - Light / dark / system theme; reading font size (S/M/L); optional serif reading font.
-- Command palette `Ctrl+K`: jump to section, switch mode, toggle brief, search.
+- Command palette `Ctrl+K`: jump to a split, switch mode, search.
 
 ---
 
@@ -215,7 +221,7 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 
 - Block-based rich text: headings, lists, checklists, quotes, tables, callouts, TL;DR, Q&A, images (paste / drag-drop), links, code, code-tabs.
 - `/` slash menu for inserting blocks; Markdown shortcuts (`##`, `-`, ```` ``` ````, `>`).
-- Per-block menu (⋮): **Visibility → Always / Detail only / Brief only**, duplicate, move, delete. Detail-only blocks show a subtle left dashed rule; brief-only blocks a "Brief" chip.
+- **Toolbar (compact, 2026-11-26):** **Style ▾** (text, new split, sub-heading, lists, quote, code) · bold, italic, code, link · **Insert ▾** (table, highlight box, collapsible, divider) · options for the block the cursor is in (box/collapsible colours, code language, table controls) · full screen.
 - Per-section menu: **Link to frame…** (pick existing frame, or *Create frame here* which adds a new frame on the canvas next to the last one).
 
 ### 6.2a Highlight boxes, collapsibles, quotes (decided 2026-11-24)
@@ -225,7 +231,7 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - **Collapsible:** a title plus hidden content (TipTap Details). It stays open while writing (its state is saved);
   **readers always start collapsed** and expand by clicking the title or the arrow. Use it for trade-offs or long
   explanations.
-- Both work with Brief/Detail flags. H2 section headings belong outside them.
+- H2 headings (splits) belong outside them.
 - **Quotes** have a teal left line and a faint tint.
 - The reader no longer shows the amber "current section" line (removed on request).
 
@@ -241,7 +247,6 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 - **While the cursor is in a table** the toolbar adds: add row below, add column right, delete row, delete column,
   header row on/off, delete table. Delete row/column act on the row/column of the cursor. Writers can drag column
   edges to resize.
-- **Brief/Detail flags** work on a whole table (the tag shows above it).
 - **Readers:** a header tint and zebra rows. A table wider than the screen **scrolls sideways inside its own box**
   (the page never scrolls sideways).
 - Built on `@tiptap/extension-table` (TableKit), same version as the other TipTap packages. Cells hold paragraphs
@@ -325,7 +330,6 @@ v1 templates ship as versioned JSON inside the frontend bundle (no DB call). Pha
 ### 6.7 PDF export (idea #6)
 
 - **Download PDF** uses a dedicated print stylesheet on the **Article** (merge) layout: frames rendered as crisp vector SVGs, code blocks wrapped, links printed with URLs, TOC on first page, author/date header, page numbers.
-- Respects the current **Brief / Detailed** choice ("Download brief notes" is a great revision handout).
 - Implementation: browser print engine (`window.print()` → *Save as PDF*). Free, vector-quality, selectable text.
 - Phase 3 (on cloud): one-click server-side PDF via headless Chromium if a "real download" without the print dialog is required.
 
@@ -337,8 +341,8 @@ Stored in `localStorage` (small, synchronous) — **no backend calls**.
 
 | Scope | Keys |
 |---|---|
-| Global | theme, reading font/size, default mode, default divider ratio, preferred code language, brief/detailed default |
-| Per article (`article:{id}`) | mode, divider ratio, brief/detailed, active section id + offset within it, canvas camera (x, y, zoom) if user panned away, present-mode step |
+| Global | theme, reading font/size, default mode, default divider ratio, preferred code language |
+| Per article (`article:{id}`) | mode, divider ratio, active section id + offset within it, canvas camera (x, y, zoom) if user panned away, present-mode step |
 
 - Position is anchored to **section id + offset**, not raw pixels, so it survives font-size changes, screen changes and article updates.
 - LRU cap of 200 articles; versioned key schema for safe future changes.
@@ -461,7 +465,7 @@ flowchart LR
 
 When a writer clicks **Publish**, *the writer's browser* (which already has Excalidraw and Shiki loaded) produces:
 
-1. `snapshot.json` — metadata + document JSON with **pre-highlighted code tokens**, computed reading time, section→frame map, `has_brief`.
+1. `snapshot.json` — metadata + document JSON with **pre-highlighted code tokens**, computed reading time, section→frame map.
 2. `canvas.svg` — the whole scene as one SVG, plus each frame's bounding box.
 3. `frames/{frameId}.svg` — one small SVG per frame (for Article mode, mobile, PDF, popups).
 
@@ -492,7 +496,7 @@ These are uploaded to a public Storage path that is **immutable and versioned** 
 src/
   app/                  # router, providers, layouts, error boundaries
   features/
-    reader/             # Flow, Present, Article, Canvas modes; TOC; brief toggle
+    reader/             # Flow, Present, Article, Canvas modes; contents / splits navigation
     editor/             # TipTap setup, custom nodes, canvas pane, save/publish
     canvas/             # SVG camera (reader) + Excalidraw wrapper (writer)
     link-preview/       # popup, internal/external renderers
@@ -500,7 +504,7 @@ src/
     auth/               # sign-in, username onboarding
     admin/              # users, roles, all-articles table
     export/             # print stylesheet, PDF flow
-  domain/               # pure TS: types, content schema, brief filter,
+  domain/               # pure TS: types, content schema,
                         # permissions, slug/username rules (100% unit-tested)
   data/
     ports/              # interfaces: ArticleRepo, AuthService, FileStore,
@@ -564,7 +568,6 @@ erDiagram
     text_array tags "GIN index"
     article_status status "draft|published|archived"
     article_visibility visibility "public|unlisted|private"
-    bool has_brief
     int reading_minutes
     text template_key
     text cover_url
@@ -629,8 +632,6 @@ Rules live in `src/domain/content.ts`; editor attributes are in `src/features/ed
     { "type": "paragraph", "content": [ /* intro: content before the first H2 */ ] },
     { "type": "heading", "attrs": { "level": 2, "sectionId": "s_k3j9x2", "frameId": "<excalidraw frame id>" },
       "content": [{ "type": "text", "text": "High-level design" }] },
-    { "type": "paragraph", "attrs": { "visibility": "brief" },  "content": [ /* TL;DR, Brief mode only */ ] },
-    { "type": "paragraph", "attrs": { "visibility": "detail" }, "content": [ /* Detailed mode only */ ] },
     { "type": "codeBlock", "attrs": { "language": "python" },   "content": [ /* … */ ] }
   ]
 }
@@ -653,7 +654,7 @@ Code tabs (one snippet in several languages) are planned for 1c.
 | FR-04 | Create article from template gallery | Template pre-fills sections + named frames; all editable |
 | FR-05 | Split editor: TipTap left, Excalidraw right, adjustable divider | Divider 25–75%, double-click resets, persisted |
 | FR-06 | Link a section to a canvas frame | Selecting section in editor flies canvas to the frame |
-| FR-07 | Block visibility always / detail / brief | Brief toggle hidden when unused; correct filtering in all modes and PDF |
+| FR-07 | ~~Block visibility always / detail / brief~~ | Removed 2026-11-26 (D15) |
 | FR-08 | Code blocks & code tabs with highlighting and copy | ≥ 15 languages; reader's preferred language remembered |
 | FR-09 | Dirty indicator, Save button, Ctrl+S, progress bar | States per §6.4; button disabled when clean or saving |
 | FR-10 | Local autosave (no prompt) + leave dialog | Kill the tab mid-edit → reopening shows the work exactly where it was |
@@ -663,10 +664,10 @@ Code tabs (one snippet in several languages) are planned for 1c.
 | FR-14 | Tags (≤ 10), tag pages, featured tags | Normalised slugs; filter by tag on explore |
 | FR-15 | Reader modes: Flow, Present, Article | Section ↔ frame sync; keyboard navigation in Present |
 | FR-16 | Responsive layouts for large / medium / small | §4.3; no horizontal scroll at 360 px width |
-| FR-17 | Remember mode, divider, brief/detailed, position per article | Reopen article → same section, same mode, same ratio |
+| FR-17 | Remember mode, divider, position per article | Reopen article → same section, same mode, same ratio |
 | FR-18 | Internal link popup with text + "Drawings ▸" toggle | Esc closes; "Open full article" and "new tab" work |
 | FR-19 | External link popup: live iframe / reader view / card fallback | GitHub & Medium links show reader view, not a blank frame |
-| FR-20 | PDF export (print layout) respecting brief/detailed | Vector diagrams, page numbers, no cut-off code |
+| FR-20 | PDF export (print layout) | Vector diagrams, page numbers, no cut-off code |
 | FR-21 | Admin console: all articles any state, change roles, (un)feature tags | Admin can open any draft read-only and unpublish any article |
 | FR-22 | Profile page `/{username}` | Lists that user's public published articles |
 | FR-23 | Light / dark / system theme (canvas follows) | Persisted locally; no flash of wrong theme on load |

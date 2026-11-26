@@ -31,7 +31,7 @@ export default function SignInPage() {
           <ul className="auth-points">
             <li><Columns2 size={20} /> Text and diagrams side by side, scrolling together</li>
             <li><PenTool size={20} /> Hand-drawn canvas for every system design</li>
-            <li><Repeat size={20} /> Brief mode for quick revision before interviews</li>
+            <li><Repeat size={20} /> Present mode: walk through one split at a time</li>
             <li><BookOpenText size={20} /> Publish under your own @username</li>
           </ul>
         </div>

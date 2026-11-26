@@ -107,7 +107,6 @@ export interface PublishedArticle {
   summary: string | null;
   tags: string[];
   visibility: ArticleVisibility;
-  hasBrief: boolean;
   readingMinutes: number;
   publishedAt: string;
   updatedAt: string;

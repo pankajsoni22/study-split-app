@@ -532,19 +532,9 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .hljs-variable, .hljs-template-variable, .hljs-params { color: #e3ecea; }
 .hljs-meta, .hljs-deletion { color: #ff9b9b; }
 
-/* Brief / Detail markers — visible to writers only */
-.prose-edit [data-visibility] { position: relative; }
-.prose-edit [data-visibility]::after {
-  position: absolute; right: -4px; top: 2px; transform: translateX(100%); font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
-  padding: 1px 6px; border-radius: 999px; pointer-events: none; text-transform: uppercase;
-}
-.prose-edit [data-visibility="detail"] { box-shadow: -14px 0 0 -12px var(--border-strong); }
-.prose-edit [data-visibility="detail"]::after { content: "Detail"; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--border-strong); transform: none; right: 0; top: -18px; }
-.prose-edit [data-visibility="brief"] { background: var(--marker-soft); border-radius: 8px; padding: 6px 10px; }
-.prose-edit [data-visibility="brief"]::after { content: "Brief"; background: var(--marker); color: #3b2a07; transform: none; right: 6px; top: -9px; }
 .prose-edit { counter-reset: slide; }
 .prose-edit h2 { counter-increment: slide; }
-.prose-edit h2::after { content: "Slide " counter(slide); margin-left: 10px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); vertical-align: middle; letter-spacing: 0.02em; }
+.prose-edit h2::after { content: "Split " counter(slide); margin-left: 10px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); vertical-align: middle; letter-spacing: 0.02em; }
 
 /* =============================================================================
    Reader
@@ -1052,20 +1042,71 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .prose-edit table.ss-table .selectedCell::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--accent) 16%, transparent); pointer-events: none; }
 .prose-edit table.ss-table .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--accent); pointer-events: none; }
 .prose-edit.resize-cursor, .prose-edit .resize-cursor { cursor: col-resize; }
-/* Brief/Detail tags on tables: the tag sits on the scroll wrapper (a tag on <table> itself is clipped by it) */
-.prose-edit table[data-visibility] { box-shadow: none; background: transparent; padding: 0; }
-.prose-edit table[data-visibility]::after { content: none; }
-.prose-edit .tableWrapper:has(> table[data-visibility]) { position: relative; padding-top: 26px; }
-.prose-edit .tableWrapper:has(> table[data-visibility])::after {
-  position: absolute; right: 0; top: 2px; padding: 1px 7px; border-radius: 999px;
-  font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; pointer-events: none;
-}
-.prose-edit .tableWrapper:has(> table[data-visibility="detail"])::after { content: "Detail"; background: var(--surface-2); color: var(--muted); border: 1px dashed var(--border-strong); }
-.prose-edit .tableWrapper:has(> table[data-visibility="brief"]) { background: var(--marker-soft); border-radius: 8px; padding: 26px 10px 8px; }
-.prose-edit .tableWrapper:has(> table[data-visibility="brief"])::after { content: "Brief"; background: var(--marker); color: #3b2a07; right: 8px; }
 /* The article must take the page's width, not its content's: otherwise a wide table or code block (whose minimum
    width is wider than a phone) widens the whole page. With this, it scrolls inside its own box instead. */
 .reader-article { min-width: 0; width: 100%; align-self: stretch; }
 
 /* Several paragraphs inside a collapsible: same rhythm as inside a highlight box */
 .prose [data-type="detailsContent"] > * + * { margin-top: 0.75em; }
+
+/* ---- Compact formatting toolbar (2026-11-26): Style ▾ · B I <> link · Insert ▾ · block options ---- */
+/* wraps on narrow widths (no overflow: it would clip the Style / Insert menus) */
+.toolbar { flex-wrap: wrap; gap: 6px; padding: 6px 14px; position: relative; z-index: 20; }
+.tb-style {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.tb-style:hover, .tb-style.is-open { border-color: var(--border-strong); color: var(--text); }
+.tb-style-label { min-width: 0; }
+.menu-wrap .menu-panel.is-left { left: 0; right: auto; }
+.toolbar .menu-panel { width: 330px; }
+.menu-item.is-active { background: var(--accent-soft); color: var(--accent-strong); }
+.menu-item.is-active > svg { color: var(--accent-strong); }
+.menu-kbd { margin-left: auto; font: 600 10.5px/1 var(--font-mono, monospace); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 3px 5px; background: var(--surface-2); }
+.tb-context { display: flex; align-items: center; gap: 10px; padding-left: 10px; border-left: 1px solid var(--border); }
+.tb-context-part { display: inline-flex; align-items: center; gap: 2px; }
+.tb-context .tb-label { margin-right: 6px; }
+.toolbar .tb-group { flex: none; }
+
+/* ---- Article mode navigation (2026-11-26) ---- */
+/* The scrolling element is <main>: let it span the window so its scroll bar sits at the window edge
+   (the generic main { max-width: 1240px; margin: auto } put it in the middle of wide screens). */
+main.reader-article { max-width: none; margin: 0; padding: 0; position: relative; }
+.article-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 796px) minmax(0, 1fr); }
+.article-layout > .reader-column { grid-column: 2; width: 100%; }
+.article-toc {
+  grid-column: 1; justify-self: end; position: sticky; top: 0; align-self: start; width: 260px;
+  max-height: calc(100dvh - 60px); overflow-y: auto; padding: 36px 12px 24px 20px;
+}
+.article-toc-title { margin: 0 0 8px 10px; font-size: 11.5px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.article-toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.article-toc button {
+  display: flex; gap: 9px; width: 100%; padding: 6px 10px; border: none; border-left: 2px solid transparent; border-radius: 0 8px 8px 0;
+  background: transparent; color: var(--text-2); font: inherit; font-size: 13.5px; line-height: 1.35; text-align: left; cursor: pointer;
+}
+.article-toc button:hover { background: var(--surface-2); color: var(--text); }
+.article-toc button.is-on { border-left-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 650; }
+.contents-num { flex: none; min-width: 1.4em; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 650; }
+.article-toc button.is-on .contents-num { color: var(--accent-strong); }
+@media (max-width: 1099.98px) {
+  .article-layout { grid-template-columns: minmax(0, 1fr); }
+  .article-layout > .reader-column { grid-column: 1; }
+  .article-toc { display: none; }
+}
+.reading-progress { position: sticky; top: 0; z-index: 5; height: 3px; margin-bottom: -3px; }
+.reading-progress span { display: block; height: 100%; background: var(--accent); transform-origin: left; transition: transform 0.1s linear; }
+.next-split {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 22px; padding: 10px 14px; border: 1px dashed var(--border-strong);
+  border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: left;
+}
+.next-split span { flex: 1; color: var(--text-2); font-weight: 650; }
+.next-split:hover { border-color: var(--accent); color: var(--accent-strong); }
+.back-to-top {
+  position: fixed; right: 28px; bottom: 28px; z-index: 30; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--text); box-shadow: var(--shadow-md); cursor: pointer;
+}
+.back-to-top:hover { border-color: var(--accent); color: var(--accent-strong); }
+/* Contents menu in the reader bar */
+.reader-contents-btn { gap: 6px; }
+.contents-menu { list-style: none; margin: 0; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; }
+.reader-bar .menu-panel { width: 320px; }

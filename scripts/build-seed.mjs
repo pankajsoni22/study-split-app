@@ -14,7 +14,7 @@ export function articleContentSql(a, built) {
   return `update public.article_drafts set doc = ${j(built.doc)}, canvas = ${j(built.canvas)}, version = version + 1, updated_at = now()
 where article_id = (select id from public.articles where ${where(owner, a.slug)});
 update public.articles set title = ${q(a.title)}, summary = ${q(a.summary)}, tags = ${q(`{${a.tags.join(',')}}`)},
-  has_brief = ${built.hasBrief}, reading_minutes = ${built.readingMinutes}
+  reading_minutes = ${built.readingMinutes}
 where ${where(owner, a.slug)};
 `;
 }

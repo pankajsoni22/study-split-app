@@ -9,7 +9,7 @@ type Rect = { left: number; top: number; width: number; height: number };
 /**
  * Excalidraw focused on ONE slide: switching slides (or resizing the pane) fits that slide to the pane.
  * Zoom and pan work normally while drawing (revised 2026-11-22: a fully locked canvas was uncomfortable);
- * "Fit slide" or Shift+1 brings the whole slide back. Readers still see slides as fixed pictures.
+ * "Fit split" or Shift+1 brings the whole drawing back. Readers still see slides as fixed pictures.
  * `onSceneChange` fires only when elements really change, not on pointer moves or selection.
  */
 export default function Canvas({ initialScene, slideId, showNativeProps = false, onApi, onSceneChange }: {
@@ -117,8 +117,8 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
     <div ref={hostRef} className={`canvas-host dot-grid is-slide${showNativeProps ? ' show-native-props' : ''}`}>
       {paper && <div className="slide-paper" style={paper} aria-hidden="true" />}
       {slideId && (
-        <button type="button" className="btn btn-ghost btn-sm fit-slide" onClick={fit} title="Show the whole slide (Shift+1)">
-          <Maximize size={14} aria-hidden="true" /> Fit slide
+        <button type="button" className="btn btn-ghost btn-sm fit-slide" onClick={fit} title="Show this split's whole drawing (Shift+1)">
+          <Maximize size={14} aria-hidden="true" /> Fit split
         </button>
       )}
       <Excalidraw

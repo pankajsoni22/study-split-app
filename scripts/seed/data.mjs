@@ -22,7 +22,7 @@ function boxesSlide(boxes) {
   });
 }
 
-/** Turns an article definition into { doc, canvas, hasBrief, readingMinutes }. Ids are stable per article. */
+/** Turns an article definition into { doc, canvas, readingMinutes }. Ids are stable per article. */
 export function buildArticle(def) {
   let n = 0;
   const nextId = p => `${def.slug}-${p}-${(++n).toString(36)}`;
@@ -40,8 +40,7 @@ export function buildArticle(def) {
   });
   const textOf = node => node.text ?? (node.content ?? []).map(textOf).join(' ');
   const words = doc.content.map(textOf).join(' ').split(/\s+/).filter(Boolean).length;
-  const hasBrief = JSON.stringify(doc).includes('"visibility":"brief"') || JSON.stringify(doc).includes('"visibility":"detail"');
-  return { doc, canvas: { layout: def.layout, files: {}, elements }, hasBrief, readingMinutes: Math.max(1, Math.round(words / 220)) };
+  return { doc, canvas: { layout: def.layout, files: {}, elements }, readingMinutes: Math.max(1, Math.round(words / 220)) };
 }
 
 const teal = C.teal, amber = C.amber, sky = C.sky;
@@ -51,8 +50,8 @@ export const articles = [
     sections: [
       { title: 'Requirements', boxes: [{ ...teal, label: 'Shorten URL' }, { ...amber, label: 'Redirect fast' }], body: [
         P('Users submit a long URL and get a short alias; visiting the alias redirects to the original.'),
-        UL(['100M new URLs a month', 'Reads outnumber writes 100 : 1', 'Redirect under 50 ms'], 'brief'),
-        P('Non-goals for v1: custom domains, analytics dashboards and editing a link after it is created.', 'detail')] },
+        UL(['100M new URLs a month', 'Reads outnumber writes 100 : 1', 'Redirect under 50 ms']),
+        P('Non-goals for v1: custom domains, analytics dashboards and editing a link after it is created.')] },
       { title: 'High-level design', boxes: [{ ...sky, label: 'Client' }, { ...teal, label: 'API service' }, { ...amber, label: 'Key-value store' }], body: [
         P('Clients call a stateless API service behind a load balancer. Short codes map to long URLs in a key-value store.'),
         NOTE('mint', 'Key idea: generate IDs from a counter and encode them in base62 — 7 characters give 3.5 trillion codes.'),
@@ -67,6 +66,6 @@ export const articles = [
   { key: 'welcome', owner: 0, slug: 'welcome', title: 'Welcome to Study Split', state: 'published', layout: '50-50', tags: ['meta'],
     summary: 'What this site is and how articles work.',
     sections: [{ title: 'How it works', boxes: [{ ...teal, label: 'Text' }, { ...amber, label: 'Slides' }], body: [
-      P('Write on the left, draw on the right. Every H2 section gets its own slide.'),
-      P('Readers switch between Split, Present and Article modes, and between Brief and Detailed.', 'detail')] }] }
+      P('Write on the left, draw on the right. Every H2 heading starts a new split: a piece of text with its own drawing.'),
+      P('Readers switch between Split, Present and Article modes.')] }] }
 ];

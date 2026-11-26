@@ -124,19 +124,18 @@ export function rich(str) {
   if (last < str.length) out.push({ type: 'text', text: str.slice(last) });
   return out;
 }
-const vis = v => (v ? { attrs: { visibility: v } } : {});
-export const P = (t, v) => ({ type: 'paragraph', ...vis(v), content: rich(t) });
-export const H3 = (t, v) => ({ type: 'heading', attrs: { level: 3, ...(v ? { visibility: v } : {}) }, content: rich(t) });
-export const UL = (items, v) => ({ type: 'bulletList', ...vis(v), content: items.map(i => ({ type: 'listItem', content: [P(i)] })) });
-export const OL = (items, v) => ({ type: 'orderedList', ...vis(v), content: items.map(i => ({ type: 'listItem', content: [P(i)] })) });
-export const NOTE = (tone, t, v) => ({ type: 'callout', attrs: { tone, ...(v ? { visibility: v } : {}) }, content: [P(t)] });
-export const MORE = (tone, summary, paras, v) => ({ type: 'details', attrs: { tone, ...(v ? { visibility: v } : {}) }, content: [
+export const P = t => ({ type: 'paragraph', content: rich(t) });
+export const H3 = t => ({ type: 'heading', attrs: { level: 3 }, content: rich(t) });
+export const UL = items => ({ type: 'bulletList', content: items.map(i => ({ type: 'listItem', content: [P(i)] })) });
+export const OL = items => ({ type: 'orderedList', content: items.map(i => ({ type: 'listItem', content: [P(i)] })) });
+export const NOTE = (tone, t) => ({ type: 'callout', attrs: { tone }, content: [P(t)] });
+export const MORE = (tone, summary, paras) => ({ type: 'details', attrs: { tone }, content: [
   { type: 'detailsSummary', content: rich(summary) },
   { type: 'detailsContent', content: (Array.isArray(paras) ? paras : [paras]).map(x => (typeof x === 'string' ? P(x) : x)) }] });
-export const CODE = (language, code, v) => ({ type: 'codeBlock', attrs: { language, ...(v ? { visibility: v } : {}) }, content: [{ type: 'text', text: code }] });
+export const CODE = (language, code) => ({ type: 'codeBlock', attrs: { language }, content: [{ type: 'text', text: code }] });
 /** Table: first row is the header. Cells accept **bold** / `code` / *italic*. */
-export const TABLE = (header, rows, v) => ({
-  type: 'table', ...vis(v),
+export const TABLE = (header, rows) => ({
+  type: 'table',
   content: [
     { type: 'tableRow', content: header.map(h => ({ type: 'tableHeader', content: [P(h)] })) },
     ...rows.map(r => ({ type: 'tableRow', content: r.map(c => ({ type: 'tableCell', content: [P(c)] })) }))

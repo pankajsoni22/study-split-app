@@ -347,7 +347,7 @@ export default function EditorPage() {
       )}
 
       <SplitPane layout={viewLayout} defaultLayout={articleLayout} onLayoutChange={editorView.pick} notice={editorView.notice}
-        leftLabel="Text" rightLabel="Slides"
+        leftLabel="Text" rightLabel="Drawing"
         focus={fullscreen.pane === 'text' ? 'left' : fullscreen.pane === 'canvas' ? 'right' : null}
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>

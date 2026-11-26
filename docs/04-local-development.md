@@ -134,23 +134,22 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
 
 - **Source of truth:** `scripts/seed/`, as JavaScript, so the documents and drawings are always valid:
   - `data.mjs`: test users, the short sample articles, and `buildArticle()`, which turns an article definition into a
-    TipTap document plus Excalidraw slides (one frame per H2 section, stable ids);
+    TipTap document plus Excalidraw drawings (one frame per split, i.e. per H2 section; stable ids);
   - `draw.mjs`: helpers for the **text** (`P`, `H3`, `UL`, `OL`, `NOTE` highlight box, `MORE` collapsible, `CODE`,
     `TABLE`, with **bold**/`code`/*italic* inline) and the **drawings** (`box`, `rect`, `ellipse`, `text`, `arrow`,
-    `line`, `arc`, ring `node`/`key`, colour tones `C.teal` …). Coordinates are relative to the slide (40:60 slides are
+    `line`, `arc`, ring `node`/`key`, colour tones `C.teal` …). Coordinates are relative to the split's drawing (40:60 drawings are
     1600 × 1200);
   - one file per long article, e.g. `consistent-hashing.mjs` (each section has `title`, `body` and a `draw(k)` function).
 - **Generated file:** `supabase/seed.sql`, committed. **Don't edit it by hand.**
 - **Loaded:** on the first `supabase start`, and on every `npm run db:reset` (which wipes everything else locally).
 - **To change a sample article:** edit `scripts/seed/…`, then
-  - `npm run db:refresh-samples` updates the sample articles' text, slides and metadata **in place**. Other local data
+  - `npm run db:refresh-samples` updates the sample articles' text, drawings and metadata **in place**. Other local data
     stays; local edits to those sample articles are overwritten. Use `npm run db:refresh-samples -- consistent-hashing`
     for just one. Then reload the editor.
   - Commit `scripts/seed/` and `supabase/seed.sql` together.
-- **Writing style for sample articles:** one idea per paragraph, short sub-headings (H3), and in every section an
-  **"In the drawing"** paragraph that walks through the slide using the same names and numbers as the slide. Brief/Detailed
-  flags go on body blocks only (not headings), so a flagged lead-in is a bold paragraph.
-- **Check drawings visually:** open the article in the editor and click each section heading. The slide you get is
+- **Writing style for sample articles:** one idea per paragraph, short sub-headings (H3), and in every split an
+  **"In the drawing"** paragraph that walks through the drawing using the same names and numbers as the drawing.
+- **Check drawings visually:** open the article in the editor and click each split heading. The drawing you get is
   exactly what readers see. Keep text ≥ 24 px, and remember that the hand-drawn font has no `¼ ½ ¾`-style
   characters (write `1/4`).
 - **Test password:** `study-split-dev`. Fixed user IDs: `00000000-0000-4000-a000-00000000000{1,2,3}`.
@@ -303,6 +302,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-26 | Brief/Detailed removed (sample data, seed, migration `20261126000000_remove_brief.sql`; locally applied with `npx supabase migration up`). Slides are called **splits** in the app. |
 | 2026-11-26 | Consistent Hashing rewritten (article structure, "In the drawing" walkthroughs, slides 2/9/11 extended); writing-style rule. |
 | 2026-11-25 | Seed split into `scripts/seed/` (drawing + text helpers, one file per long article); `npm run db:refresh-samples`; complete Consistent Hashing sample article. |
 | 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |

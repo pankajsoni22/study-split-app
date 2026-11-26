@@ -1,7 +1,7 @@
 // Sample article: "Consistent Hashing" (complete system-design write-up with one slide per section).
 // Used by scripts/build-seed.mjs and scripts/db-refresh-samples.mjs. Layout 40:60 → slides are 1600 × 1200.
 // Writing rule for this article: one idea per paragraph, and every section has an "In the drawing" paragraph that
-// walks through its slide using the same names and numbers as the slide.
+// walks through its split's drawing using the same names and numbers as the drawing.
 import { C, CODE, H3, MORE, NOTE, OL, P, TABLE, UL, polar } from './draw.mjs';
 
 const W = 1600;
@@ -26,8 +26,6 @@ function ring(k, cx, cy, r, { ticks = false } = {}) {
 function owners(k, cx, cy, r, arcs, sw = 12) {
   arcs.forEach(([a, b, tone]) => k.arc(cx, cy, r, a + 2, b - 2, { stroke: tone.stroke, sw }));
 }
-// Brief/Detailed flags exist on body blocks only (not headings), so flagged lead-ins are bold paragraphs.
-const quick = items => [P('**Quick revision**', 'brief'), UL(items, 'brief')];
 
 export const consistentHashing = {
   key: 'hash', owner: 1, slug: 'consistent-hashing', title: 'Consistent Hashing', state: 'draft', layout: '40-60',
@@ -55,11 +53,10 @@ export const consistentHashing = {
         MORE('sky', 'Why does modulo move N/(N+1) of the keys?', [
           'A key stays on the same server only if `h % N == h % (N+1)`.',
           'For uniformly random hashes that happens for N out of every N·(N+1) values, so with probability **1/(N+1)**. The fraction that moves is therefore **1 − 1/(N+1) = N/(N+1)**.'
-        ], 'detail'),
+        ]),
         H3('What we want instead'),
         P('When a server joins or leaves, **only the keys that must move should move**. That is about **K/N** keys (K keys, N servers): exactly the new server\'s fair share, shown in the green box on the slide.'),
-        P('Consistent hashing guarantees this. It was introduced by Karger et al. at MIT in 1997 for web caching, and became the basis of Akamai\'s CDN.', 'detail'),
-        ...quick(['`hash(key) % N` remaps ~N/(N+1) of keys whenever N changes', 'Result: cold caches and a database stampede', 'Goal: move only ~K/N keys on any change'])
+        P('Consistent hashing guarantees this. It was introduced by Karger et al. at MIT in 1997 for web caching, and became the basis of Akamai\'s CDN.')
       ],
       draw(k) {
         title(k, 'hash(key) % N: what happens when N changes?', 'Same 8 keys, 3 servers → 4 servers');
@@ -98,8 +95,7 @@ export const consistentHashing = {
           'It must spread values **uniformly**, and give the **same result on every machine and in every language**, because all clients must agree.',
           'Common choices are **MurmurHash3** or **xxHash** (fast, not cryptographic), or the first bytes of **MD5** (used by the classic memcached *ketama* library).',
           'Never use a language\'s built-in `hashCode()` or `hash()`: it can differ between processes, versions or platforms.'
-        ], 'detail'),
-        ...quick(['Hash space 0…2³²−1 wraps around into a ring', 'Servers and keys use the same, stable hash function'])
+        ])
       ],
       draw(k) {
         title(k, 'Bend the hash space into a ring');
@@ -135,8 +131,7 @@ export const consistentHashing = {
         P('Key **k3** sits between B and C. Walking clockwise from k3, the first server we reach is C, so **C owns k3** (the dashed arrow).'),
         P('Keys **k4** and **k5** sit after C. Walking clockwise passes the top of the ring (0) and reaches **A**: that is the wrap-around in step 3.'),
         NOTE('mint', 'Every client that knows the same server list computes the same answer **without asking anyone**. No central router is needed.'),
-        P('This is why memcached client libraries could shard data on their own: each client simply carries the ring.', 'detail'),
-        ...quick(['Owner = first server clockwise from the key; wrap around at the end', 'Each server owns the arc (previous server, itself]'])
+        P('This is why memcached client libraries could shard data on their own: each client simply carries the ring.')
       ],
       draw(k) {
         title(k, 'Walk clockwise to the first server');
@@ -173,13 +168,12 @@ export const consistentHashing = {
         P('Only **k1** falls in D\'s new arc, so only k1 moves from B to D. Keys k2 and k3 stay where they were.'),
         P('If D is removed again, k1 goes back to B, the next server clockwise.'),
         NOTE('mint', 'On average only **K/N keys move** (K keys, N servers). That is the minimum possible: the new server has to get its fair share from somewhere.'),
-        P('**The catch:** a new server relieves only **one** neighbour, and a removed server dumps its whole load on **one** neighbour. With few servers that is very uneven. Virtual nodes, in the next section, fix it.', 'detail'),
+        P('**The catch:** a new server relieves only **one** neighbour, and a removed server dumps its whole load on **one** neighbour. With few servers that is very uneven. Virtual nodes, in the next section, fix it.'),
         MORE('sky', 'Worked example: 4 servers, 1 million keys, add a 5th', [
           '**Modulo:** about 800,000 keys move (4/5 of them), and the cache hit rate collapses.',
           '**Ring:** about 200,000 keys move (1/5), all taken from one neighbour.',
           '**Ring with virtual nodes:** still about 200,000 keys, but about 50,000 come from each of the four old servers, so the load stays even.'
-        ]),
-        ...quick(['Add: the new server takes keys only from its clockwise neighbour', 'Remove: its keys go to the next server clockwise', 'Only ~K/N keys move'])
+        ])
       ],
       draw(k) {
         title(k, 'Only the neighbouring arc moves');
@@ -227,10 +221,9 @@ export const consistentHashing = {
         MORE('sky', 'How uneven is it without virtual nodes?', [
           'With one random position per server, the largest arc is about **(ln N)/N** of the ring, roughly ln N times the fair share. With 10 servers, the busiest one typically gets more than twice the average load.',
           'With 100–200 vnodes per server, the busiest server is usually within about 10% of the average.'
-        ], 'detail'),
-        P('The cost is small: the lookup table grows to N × V entries (100 servers × 200 vnodes = 20,000 numbers), and rebalancing moves many small ranges instead of one big one.', 'detail'),
-        P('Cassandra used 256 vnodes per node for years, then lowered the default to 16 together with a smarter token-allocation algorithm.', 'detail'),
-        ...quick(['Each server gets many positions: A#1, A#2, … (typically 100–256)', 'Evens out load, spreads joins and failures over all servers, enables weights'])
+        ]),
+        P('The cost is small: the lookup table grows to N × V entries (100 servers × 200 vnodes = 20,000 numbers), and rebalancing moves many small ranges instead of one big one.'),
+        P('Cassandra used 256 vnodes per node for years, then lowered the default to 16 together with a smarter token-allocation algorithm.')
       ],
       draw(k) {
         title(k, 'One position per server vs. virtual nodes');
@@ -328,8 +321,7 @@ print(ring.get("user:42"))`),
           '**Rebuild, don\'t mutate.** Build a new sorted array on each membership change and swap it in atomically, so lookups never take a lock.',
           '**Agree on membership.** The server list comes from a coordination service (ZooKeeper, etcd, Consul) or a gossip protocol (Cassandra, Dynamo). Clients with different lists disagree about owners.',
           '**Token collisions** between two servers are astronomically rare with 64-bit hashes. Break ties by server id if you want to be strict.'
-        ], 'detail'),
-        ...quick(['Sorted array of (token, server) + binary search', 'Lookup O(log(N·V)); wrap to index 0 past the end'])
+        ])
       ],
       draw(k) {
         title(k, 'The ring in memory: a sorted array');
@@ -365,8 +357,7 @@ print(ring.get("user:42"))`),
         MORE('sky', 'Sloppy quorum, hinted handoff and zones', [
           'Writing to the next healthy server while a replica is down is called a **sloppy quorum**. Handing the data back later is **hinted handoff**. Together they keep writes succeeding during short outages.',
           'Rack and zone awareness (e.g. Cassandra\'s NetworkTopologyStrategy) keeps walking the ring until the replicas are in different racks or zones.'
-        ], 'detail'),
-        ...quick(['Replicas = owner + next R−1 distinct physical servers clockwise', 'Skip vnodes of servers already chosen; spread over racks and zones', 'R + W > N → reads see the latest write'])
+        ])
       ],
       draw(k) {
         title(k, 'Replicas: walk on to the next distinct servers');
@@ -410,8 +401,7 @@ print(ring.get("user:42"))`),
         MORE('sky', 'Where bounded loads come from', [
           'Proposed by Mirrokni, Thorup and Zadimoghaddam (Google, 2017). Each server accepts at most ⌈(1+ε) · average⌉ requests.',
           'It keeps most of consistent hashing\'s stability while guaranteeing that no server is overloaded. Vimeo used it for video caching, and HAProxy supports it as `hash-balance-factor`.'
-        ], 'detail'),
-        ...quick(['Balances keys, not traffic: one hot key can still overload a server', 'Fixes: bounded loads (1+ε), hot-key splitting, weights, near caches'])
+        ])
       ],
       draw(k) {
         title(k, 'Balanced keys ≠ balanced traffic');
@@ -461,8 +451,7 @@ print(ring.get("user:42"))`),
           ['Maglev', '`O(1)`', 'Fixed table', 'Near perfect', 'Any; a few % of keys move', 'Packet load balancers'],
           ['Range sharding', '`O(log S)` (metadata)', 'Range table', 'Managed by splits', 'Move ranges explicitly', 'Ordered keys and range scans']
         ]),
-        NOTE('mint', 'Rule of thumb: **ring + vnodes** for dynamic clusters, **rendezvous** for small server sets, **jump hash** for fixed numbered shards, **Maglev** for packet load balancing, and **ranges** when you need ordered scans.'),
-        ...quick(['Rendezvous: highest hash(key, server) wins, O(N), no ring', 'Jump hash: no memory, perfect balance, add/remove only at the end', 'Maglev: O(1) table for load balancers; ranges for ordered scans'])
+        NOTE('mint', 'Rule of thumb: **ring + vnodes** for dynamic clusters, **rendezvous** for small server sets, **jump hash** for fixed numbered shards, **Maglev** for packet load balancing, and **ranges** when you need ordered scans.')
       ],
       draw(k) {
         title(k, 'Same goal, different trade-offs');
@@ -501,8 +490,7 @@ print(ring.get("user:42"))`),
           ['Chat and gaming backends (e.g. Discord)', 'Route all events of one channel, room or user to the same process']
         ]),
         NOTE('red', 'Interview trap: **Redis Cluster does not use a hash ring.** It uses **16,384 fixed hash slots** (`CRC16(key) mod 16384`) assigned to nodes, and moves whole slots when the cluster changes. Same goal, different mechanism.'),
-        P('Where the ring lives varies: **in the client library** (ketama, token-aware Cassandra drivers), **in a proxy** in front of the caches (twemproxy, mcrouter, Envoy), or **inside the database** itself (Cassandra, Dynamo).', 'detail'),
-        ...quick(['Dynamo/DynamoDB, Cassandra, memcached clients, Nginx/Envoy/HAProxy, CDNs', 'Redis Cluster uses 16,384 hash slots instead (common trap)'])
+        P('Where the ring lives varies: **in the client library** (ketama, token-aware Cassandra drivers), **in a proxy** in front of the caches (twemproxy, mcrouter, Envoy), or **inside the database** itself (Cassandra, Dynamo).')
       ],
       draw(k) {
         title(k, 'A cache tier with a consistent-hash router');
@@ -543,7 +531,7 @@ print(ring.get("user:42"))`),
           'Consistent hashing puts servers and keys on the same hash ring and gives each key to the next server clockwise, so a change only moves the keys in one arc, about K/N of them.',
           'Real systems give each server many virtual nodes to even out the load, replicate each key to the next few distinct servers, and handle hot keys separately, because the ring balances keys, not traffic. Dynamo, Cassandra and memcached clients all work this way."'
         ]),
-        P('**Questions you may get**', 'detail'),
+        H3('Questions you may get'),
         TABLE(['Question', 'Short answer'], [
           ['How many keys move when a node joins?', '~K/N (its fair share), from its ring neighbours, or from all nodes with vnodes'],
           ['Why virtual nodes?', 'Even load, smooth scaling, failure spread, weights'],
@@ -551,8 +539,7 @@ print(ring.get("user:42"))`),
           ['How do replicas work?', 'Next distinct physical nodes clockwise; quorum R + W > N'],
           ['One key is extremely hot. Now what?', 'Bounded loads, split the key, cache it near clients'],
           ['Does Redis Cluster use this?', 'No: 16,384 hash slots']
-        ], 'detail'),
-        ...quick(['Modulo → ring → clockwise owner → K/N moves → vnodes → replicas → hot keys → alternatives'])
+        ])
       ],
       draw(k) {
         title(k, 'Consistent hashing in 8 steps');

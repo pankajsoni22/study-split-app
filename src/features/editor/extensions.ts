@@ -19,29 +19,15 @@ export const CODE_LANGUAGES = [
   ['bash', 'Shell'], ['json', 'JSON'], ['yaml', 'YAML'], ['xml', 'HTML/XML'], ['css', 'CSS']
 ] as const;
 
-const BLOCK_TYPES = ['paragraph', 'bulletList', 'orderedList', 'blockquote', 'codeBlock', 'horizontalRule', 'callout', 'details', 'table'];
-
 /**
  * Study Split's document attributes (docs §12.1):
- * - every block: visibility = always | detail | brief  (Brief/Detailed reading levels)
- * - H2 headings: sectionId + frameId (section ↔ canvas frame link)
+ * - H2 headings: sectionId + frameId (section ↔ canvas frame link: one "split")
  * Plus a guard that keeps sectionIds unique when a heading is split or pasted twice.
  */
 const StudySplitAttrs = Extension.create({
   name: 'studySplitAttrs',
   addGlobalAttributes() {
     return [
-      {
-        types: BLOCK_TYPES,
-        attributes: {
-          visibility: {
-            default: null,
-            keepOnSplit: true,
-            parseHTML: el => el.getAttribute('data-visibility'),
-            renderHTML: attrs => (attrs.visibility === 'detail' || attrs.visibility === 'brief' ? { 'data-visibility': String(attrs.visibility) } : {})
-          }
-        }
-      },
       {
         types: ['heading'],
         attributes: {

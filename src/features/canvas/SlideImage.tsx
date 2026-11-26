@@ -45,7 +45,7 @@ export default function SlideImage({ scene, frameId, label, stamp = 0, className
 
   if (missing || !size) return null;
   return (
-    <div className={`slide-image ${className}`} role="img" aria-label={`Slide: ${label}`}
+    <div className={`slide-image ${className}`} role="img" aria-label={`Drawing: ${label}`}
       style={{ aspectRatio: `${size.width} / ${size.height}`, ['--ar' as string]: size.width / size.height }}>
       <div ref={ref} className="slide-image-svg" />
     </div>

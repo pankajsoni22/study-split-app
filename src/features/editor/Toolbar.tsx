@@ -1,33 +1,44 @@
 import type { Editor } from '@tiptap/core';
 import { useEditorState } from '@tiptap/react';
 import {
-  BetweenHorizontalEnd, BetweenVerticalEnd, Bold, Code, Columns3, Grid2x2X, Heading2, Heading3, Highlighter, Italic, Link2, List,
-  ListCollapse, ListOrdered, PanelTop, Pilcrow, Quote, Rows3, SquareCode, Table2, X
+  BetweenHorizontalEnd, BetweenVerticalEnd, Bold, ChevronDown, Code, Columns3, Grid2x2X, Heading2, Heading3, Highlighter, Italic,
+  Link2, List, ListCollapse, ListOrdered, Minus, PanelTop, Pilcrow, Plus, Quote, Rows3, SquareCode, Table2, X
 } from 'lucide-react';
+import MenuButton from '../../ui/MenuButton.tsx';
 import { CALLOUT_TONES, type CalloutTone } from './callout.ts';
-import type { Visibility } from '../../domain/content.ts';
 import { CODE_LANGUAGES } from './extensions.ts';
-import { selectionContext } from './selection.ts';
+
+/**
+ * Formatting toolbar (compact layout, decided 2026-11-26): one row with
+ *   [Style ▾]  B I <> link  [+ Insert ▾]  …controls for the block the cursor is in…   (full screen)
+ * Colour pickers, code language and table controls appear only inside that kind of block.
+ */
+type StyleKey = 'text' | 'split' | 'sub' | 'bullet' | 'ordered' | 'quote' | 'code';
+const STYLES: { key: StyleKey; label: string; hint: string; Icon: typeof Bold; shortcut?: string }[] = [
+  { key: 'text', label: 'Text', hint: 'A normal paragraph', Icon: Pilcrow, shortcut: 'Ctrl+Alt+0' },
+  { key: 'split', label: 'New split', hint: 'Starts a split: text + its drawing', Icon: Heading2, shortcut: 'Ctrl+Alt+2' },
+  { key: 'sub', label: 'Sub-heading', hint: 'A heading inside this split', Icon: Heading3, shortcut: 'Ctrl+Alt+3' },
+  { key: 'bullet', label: 'Bulleted list', hint: '', Icon: List, shortcut: 'Ctrl+Shift+8' },
+  { key: 'ordered', label: 'Numbered list', hint: '', Icon: ListOrdered, shortcut: 'Ctrl+Shift+7' },
+  { key: 'quote', label: 'Quote', hint: '', Icon: Quote, shortcut: 'Ctrl+Shift+B' },
+  { key: 'code', label: 'Code block', hint: '', Icon: SquareCode, shortcut: 'Ctrl+Alt+C' }
+];
 
 export default function Toolbar({ editor, trailing }: { editor: Editor; trailing?: React.ReactNode }) {
   const s = useEditorState({
     editor,
-    selector: ({ editor: e }) => {
-      const ctx = selectionContext(e);
-      return {
-        bold: e.isActive('bold'), italic: e.isActive('italic'), code: e.isActive('code'), link: e.isActive('link'),
-        h2: e.isActive('heading', { level: 2 }), h3: e.isActive('heading', { level: 3 }),
-        bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), quote: e.isActive('blockquote'),
-        codeBlock: e.isActive('codeBlock'), language: (e.getAttributes('codeBlock').language as string | undefined) ?? 'plaintext',
-        blockType: ctx.block?.type.name ?? null,
-        visibility: ((ctx.block?.attrs.visibility as Visibility | null) ?? 'always'),
-        inCallout: e.isActive('callout'),
-        tone: (e.getAttributes('callout').tone as CalloutTone | undefined) ?? 'mint',
-        inDetails: e.isActive('details'),
-        inTable: e.isActive('table'),
-        detailsTone: (e.getAttributes('details').tone as CalloutTone | null | undefined) ?? null
-      };
-    }
+    selector: ({ editor: e }) => ({
+      bold: e.isActive('bold'), italic: e.isActive('italic'), code: e.isActive('code'), link: e.isActive('link'),
+      style: (e.isActive('heading', { level: 2 }) ? 'split' : e.isActive('heading', { level: 3 }) ? 'sub'
+        : e.isActive('codeBlock') ? 'code' : e.isActive('bulletList') ? 'bullet' : e.isActive('orderedList') ? 'ordered'
+        : e.isActive('blockquote') ? 'quote' : 'text'),
+      language: (e.getAttributes('codeBlock').language as string | undefined) ?? 'plaintext',
+      inCallout: e.isActive('callout'),
+      tone: (e.getAttributes('callout').tone as CalloutTone | undefined) ?? 'mint',
+      inDetails: e.isActive('details'),
+      detailsTone: (e.getAttributes('details').tone as CalloutTone | null | undefined) ?? null,
+      inTable: e.isActive('table')
+    })
   });
 
   const chain = () => editor.chain().focus();
@@ -37,14 +48,24 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
       <Icon size={17} aria-hidden="true" />
     </button>
   );
+  const item = (label: string, Icon: typeof Bold, onClick: () => void, { active = false, hint = '', shortcut = '' } = {}) => (
+    <button key={label} type="button" role="menuitem" className={`menu-item${active ? ' is-active' : ''}`}
+      onMouseDown={e => e.preventDefault()} onClick={onClick} title={shortcut ? `${label} (${shortcut})` : label}>
+      <Icon size={16} aria-hidden="true" />
+      <span className="menu-item-text">{label}{hint && <small>{hint}</small>}</span>
+      {shortcut && <kbd className="menu-kbd">{shortcut}</kbd>}
+    </button>
+  );
 
-  function setVisibility(v: Visibility) {
-    const { blockPos, block } = selectionContext(editor);
-    if (blockPos === null || !block || block.type.name === 'heading') return;
-    editor.chain().focus().command(({ tr }) => {
-      tr.setNodeMarkup(blockPos, undefined, { ...block.attrs, visibility: v === 'always' ? null : v });
-      return true;
-    }).run();
+  function setStyle(key: StyleKey) {
+    const c = chain();
+    if (key === 'text') c.setParagraph().run();
+    else if (key === 'split') c.setHeading({ level: 2 }).run();
+    else if (key === 'sub') c.setHeading({ level: 3 }).run();
+    else if (key === 'bullet') { if (!editor.isActive('bulletList')) c.toggleBulletList().run(); }
+    else if (key === 'ordered') { if (!editor.isActive('orderedList')) c.toggleOrderedList().run(); }
+    else if (key === 'quote') { if (!editor.isActive('blockquote')) c.toggleBlockquote().run(); }
+    else if (key === 'code') { if (!editor.isActive('codeBlock')) c.toggleCodeBlock().run(); }
   }
 
   function toggleLink() {
@@ -53,95 +74,81 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
     if (url) chain().extendMarkRange('link').setLink({ href: url }).run();
   }
 
-  const canFlag = s.blockType !== null && s.blockType !== 'heading';
+  const current = STYLES.find(x => x.key === s.style) ?? STYLES[0]!;
+  const tones = (value: CalloutTone | null, onPick: (t: CalloutTone | null) => void, label: string, withNone: boolean) => (
+    <span className="tb-tones" role="radiogroup" aria-label={label}>
+      {withNone && (
+        <button type="button" role="radio" aria-checked={value === null} title="No colour" aria-label="No colour"
+          className={`tb-tone tone-none${value === null ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()} onClick={() => onPick(null)} />
+      )}
+      {CALLOUT_TONES.map(t => (
+        <button key={t.value} type="button" role="radio" aria-checked={value === t.value} title={t.name} aria-label={`${label}: ${t.name}`}
+          className={`tb-tone tone-${t.value}${value === t.value ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()} onClick={() => onPick(t.value)} />
+      ))}
+    </span>
+  );
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Formatting">
-      <div className="tb-group">
-        {btn(!s.h2 && !s.h3 && !s.codeBlock, 'Paragraph', () => chain().setParagraph().run(), Pilcrow)}
-        {btn(s.h2, 'New section with its own slide (H2)', () => chain().toggleHeading({ level: 2 }).run(), Heading2, 'Ctrl+Alt+2')}
-        {btn(s.h3, 'Sub-heading (H3)', () => chain().toggleHeading({ level: 3 }).run(), Heading3, 'Ctrl+Alt+3')}
-      </div>
+      <MenuButton label={`Text style: ${current.label}`} align="left" buttonClassName="tb-style"
+        trigger={<><current.Icon size={16} aria-hidden="true" /><span className="tb-style-label">{current.label}</span><ChevronDown size={14} aria-hidden="true" /></>}>
+        {close => STYLES.map(st => item(st.label, st.Icon, () => { setStyle(st.key); close(); },
+          { active: st.key === s.style, hint: st.hint, shortcut: st.shortcut }))}
+      </MenuButton>
+
       <div className="tb-group">
         {btn(s.bold, 'Bold', () => chain().toggleBold().run(), Bold, 'Ctrl+B')}
         {btn(s.italic, 'Italic', () => chain().toggleItalic().run(), Italic, 'Ctrl+I')}
         {btn(s.code, 'Inline code', () => chain().toggleCode().run(), Code, 'Ctrl+E')}
         {btn(s.link, s.link ? 'Remove link' : 'Add link', toggleLink, Link2)}
       </div>
-      <div className="tb-group">
-        {btn(s.bullet, 'Bulleted list', () => chain().toggleBulletList().run(), List)}
-        {btn(s.ordered, 'Numbered list', () => chain().toggleOrderedList().run(), ListOrdered)}
-        {btn(s.quote, 'Quote', () => chain().toggleBlockquote().run(), Quote)}
-        {btn(s.codeBlock, 'Code block', () => chain().toggleCodeBlock().run(), SquareCode, 'Ctrl+Alt+C')}
-        {s.codeBlock && (
-          <select className="tb-select" aria-label="Code language" value={s.language}
-            onChange={e => chain().updateAttributes('codeBlock', { language: e.target.value }).run()}>
-            {CODE_LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        )}
-      </div>
 
-      <div className="tb-group">
-        {btn(s.inCallout, s.inCallout ? 'Highlight box (choose a tone)' : 'Highlight box: soft background around the current block(s)',
-          () => { if (!s.inCallout) chain().setCallout(s.tone).run(); }, Highlighter)}
-        {s.inCallout && (
-          <>
-            <span className="tb-tones" role="radiogroup" aria-label="Highlight colour">
-              {CALLOUT_TONES.map(t => (
-                <button key={t.value} type="button" role="radio" aria-checked={s.tone === t.value} title={t.name} aria-label={`Highlight ${t.name}`}
-                  className={`tb-tone tone-${t.value}${s.tone === t.value ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
-                  onClick={() => chain().updateAttributes('callout', { tone: t.value }).run()} />
-              ))}
+      <MenuButton label="Insert" align="left" buttonClassName="tb-style tb-insert"
+        trigger={<><Plus size={16} aria-hidden="true" /><span className="tb-style-label">Insert</span><ChevronDown size={14} aria-hidden="true" /></>}>
+        {close => [
+          item('Table', Table2, () => { chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); close(); }, { hint: '3 × 3, first row is the header' }),
+          item('Highlight box', Highlighter, () => { if (!s.inCallout) chain().setCallout(s.tone).run(); close(); }, { hint: 'Soft background around the block' }),
+          item('Collapsible', ListCollapse, () => { if (!s.inDetails) chain().setDetails().updateAttributes('details', { open: true }).run(); close(); },
+            { hint: 'Readers click its title to expand it' }),
+          item('Divider', Minus, () => { chain().setHorizontalRule().run(); close(); }, { hint: 'A thin line between parts' })
+        ]}
+      </MenuButton>
+
+      {(s.style === 'code' || s.inCallout || s.inDetails || s.inTable) && (
+        <div className="tb-context" aria-label="Options for this block">
+          {s.style === 'code' && (
+            <select className="tb-select" aria-label="Code language" value={s.language}
+              onChange={e => chain().updateAttributes('codeBlock', { language: e.target.value }).run()}>
+              {CODE_LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          )}
+          {s.inCallout && (
+            <span className="tb-context-part">
+              <span className="tb-label">Box</span>
+              {tones(s.tone, t => { if (t) chain().updateAttributes('callout', { tone: t }).run(); }, 'Highlight colour', false)}
+              {btn(false, 'Remove the highlight box (keeps the text)', () => chain().unsetCallout().run(), X)}
             </span>
-            {btn(false, 'Remove the highlight box (keeps the text)', () => chain().unsetCallout().run(), X)}
-          </>
-        )}
-        {btn(s.inDetails, s.inDetails ? 'Collapsible (choose a colour)' : 'Collapsible: readers click its title to expand it',
-          () => { if (!s.inDetails) chain().setDetails().updateAttributes('details', { open: true }).run(); },   // open while writing
-          ListCollapse)}
-        {s.inDetails && (
-          <>
-            <span className="tb-tones" role="radiogroup" aria-label="Collapsible colour">
-              <button type="button" role="radio" aria-checked={s.detailsTone === null} title="No colour" aria-label="No colour"
-                className={`tb-tone tone-none${s.detailsTone === null ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
-                onClick={() => chain().updateAttributes('details', { tone: null }).run()} />
-              {CALLOUT_TONES.map(t => (
-                <button key={t.value} type="button" role="radio" aria-checked={s.detailsTone === t.value} title={t.name} aria-label={`Collapsible ${t.name}`}
-                  className={`tb-tone tone-${t.value}${s.detailsTone === t.value ? ' is-on' : ''}`} onMouseDown={e => e.preventDefault()}
-                  onClick={() => chain().updateAttributes('details', { tone: t.value }).run()} />
-              ))}
+          )}
+          {s.inDetails && (
+            <span className="tb-context-part">
+              <span className="tb-label">Collapsible</span>
+              {tones(s.detailsTone, t => chain().updateAttributes('details', { tone: t }).run(), 'Collapsible colour', true)}
+              {btn(false, 'Remove collapsible (keeps the text)', () => chain().unsetDetails().run(), X)}
             </span>
-            {btn(false, 'Remove collapsible (keeps the text)', () => chain().unsetDetails().run(), X)}
-          </>
-        )}
-      </div>
-
-      <div className="tb-group">
-        {btn(s.inTable, s.inTable ? 'Table (edit it with the buttons next to this one)' : 'Insert a table (3 × 3, first row is the header)',
-          () => { if (!s.inTable) chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); }, Table2)}
-        {s.inTable && (
-          <>
-            {btn(false, 'Add a row below', () => chain().addRowAfter().run(), BetweenHorizontalEnd)}
-            {btn(false, 'Add a column to the right', () => chain().addColumnAfter().run(), BetweenVerticalEnd)}
-            {btn(false, 'Delete this row', () => chain().deleteRow().run(), Rows3)}
-            {btn(false, 'Delete this column', () => chain().deleteColumn().run(), Columns3)}
-            {btn(false, 'Header row on / off', () => chain().toggleHeaderRow().run(), PanelTop)}
-            {btn(false, 'Delete the table', () => chain().deleteTable().run(), Grid2x2X)}
-          </>
-        )}
-      </div>
-
-      <div className="tb-group" title="Who sees this block: everyone, only in Detailed mode, or only in Brief mode">
-        <span className="tb-label">Show in</span>
-        <div className="segmented segmented-sm" role="radiogroup" aria-label="Show this block in">
-          {(['always', 'detail', 'brief'] as const).map(v => (
-            <button key={v} type="button" role="radio" aria-checked={s.visibility === v} disabled={!canFlag}
-              onMouseDown={e => e.preventDefault()} onClick={() => setVisibility(v)}>
-              {v === 'always' ? 'Both' : v === 'detail' ? 'Detailed' : 'Brief'}
-            </button>
-          ))}
+          )}
+          {s.inTable && (
+            <span className="tb-context-part">
+              <span className="tb-label">Table</span>
+              {btn(false, 'Add a row below', () => chain().addRowAfter().run(), BetweenHorizontalEnd)}
+              {btn(false, 'Add a column to the right', () => chain().addColumnAfter().run(), BetweenVerticalEnd)}
+              {btn(false, 'Delete this row', () => chain().deleteRow().run(), Rows3)}
+              {btn(false, 'Delete this column', () => chain().deleteColumn().run(), Columns3)}
+              {btn(false, 'Header row on / off', () => chain().toggleHeaderRow().run(), PanelTop)}
+              {btn(false, 'Delete the table', () => chain().deleteTable().run(), Grid2x2X)}
+            </span>
+          )}
         </div>
-      </div>
+      )}
 
       {trailing && <div className="tb-trailing">{trailing}</div>}
     </div>

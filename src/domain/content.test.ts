@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { ensureSectionIds, filterForLevel, hasBriefContent, readingMinutes, splitSections, type Doc } from './content.ts';
+import { ensureSectionIds, readingMinutes, splitSections, type Doc } from './content.ts';
 import { slugify, tagSlug } from './slug.ts';
 import { buildTemplateDoc, TEMPLATES } from './templates.ts';
 
-const p = (text: string, visibility?: string) => ({ type: 'paragraph', attrs: visibility ? { visibility } : {}, content: [{ type: 'text', text }] });
+const p = (text: string) => ({ type: 'paragraph', attrs: {}, content: [{ type: 'text', text }] });
 const h2 = (text: string, sectionId?: string, frameId?: string) => ({ type: 'heading', attrs: { level: 2, sectionId, frameId }, content: [{ type: 'text', text }] });
 
-const doc: Doc = { type: 'doc', content: [p('intro'), h2('A', 's1', 'f1'), p('always'), p('detail only', 'detail'), h2('B', 's2'), p('brief only', 'brief')] };
+const doc: Doc = { type: 'doc', content: [p('intro'), h2('A', 's1', 'f1'), p('one'), p('two'), h2('B', 's2'), p('three')] };
 
 describe('splitSections', () => {
   it('starts a section at every H2 and keeps an intro', () => {
@@ -15,17 +15,7 @@ describe('splitSections', () => {
   });
 });
 
-describe('filterForLevel', () => {
-  const texts = (level: 'brief' | 'detailed') => filterForLevel(doc.content, level).map(n => n.content?.[0]?.text);
-  it('detailed hides brief-only blocks', () => expect(texts('detailed')).toEqual(['intro', 'A', 'always', 'detail only', 'B']));
-  it('brief hides detail-only blocks', () => expect(texts('brief')).toEqual(['intro', 'A', 'always', 'B', 'brief only']));
-});
-
-describe('hasBriefContent / readingMinutes / ensureSectionIds', () => {
-  it('detects visibility flags', () => {
-    expect(hasBriefContent(doc)).toBe(true);
-    expect(hasBriefContent({ type: 'doc', content: [p('x')] })).toBe(false);
-  });
+describe('readingMinutes / ensureSectionIds', () => {
   it('estimates reading time', () => {
     expect(readingMinutes({ type: 'doc', content: [] })).toBe(0);
     expect(readingMinutes({ type: 'doc', content: [p('word '.repeat(660))] })).toBe(3);
@@ -59,17 +49,10 @@ describe('templates', () => {
 });
 
 describe('highlight boxes and collapsibles', () => {
-  const box = (vis?: string) => ({ type: 'callout', attrs: { tone: 'mint', ...(vis ? { visibility: vis } : {}) }, content: [p('inside a box ' + 'word '.repeat(300))] });
+  const box = () => ({ type: 'callout', attrs: { tone: 'mint' }, content: [p('inside a box ' + 'word '.repeat(300))] });
   const fold = { type: 'details', attrs: {}, content: [
     { type: 'detailsSummary', content: [{ type: 'text', text: 'Trade-off 1' }] },
     { type: 'detailsContent', content: [p('hidden until expanded ' + 'word '.repeat(300))] }] };
-
-  it('respects Brief/Detail flags on the whole block', () => {
-    const d: Doc = { type: 'doc', content: [box('detail'), fold] };
-    expect(filterForLevel(d.content, 'brief').map(n => n.type)).toEqual(['details']);
-    expect(filterForLevel(d.content, 'detailed').map(n => n.type)).toEqual(['callout', 'details']);
-    expect(hasBriefContent(d)).toBe(true);
-  });
 
   it('counts text inside boxes and collapsibles for reading time', () => {
     expect(readingMinutes({ type: 'doc', content: [box(), fold] })).toBe(3);

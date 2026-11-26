@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import Logo from './Logo.tsx';
 
-/** Logo mark + "Study Split" wordmark ("Split" in the brand colour). */
-export default function Brand({ to = '/', subtitle = 'Notes · Diagrams · Revision' }: { to?: string | null; subtitle?: string | null }) {
+export const TAGLINE = 'Split Makes Learning Easy';
+
+/** Logo mark + "Study Split" wordmark ("Split" in the brand colour) + the tagline. */
+export default function Brand({ to = '/', subtitle = TAGLINE }: { to?: string | null; subtitle?: string | null }) {
   const content = (
     <>
       <Logo />

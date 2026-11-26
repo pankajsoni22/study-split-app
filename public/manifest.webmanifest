@@ -1,7 +1,7 @@
 {
   "name": "Study Split",
   "short_name": "Study Split",
-  "description": "Notes and articles with text on one side and drawings on the other.",
+  "description": "Split Makes Learning Easy: notes and articles with text on one side and drawings on the other.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
