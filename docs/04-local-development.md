@@ -134,20 +134,22 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
 
 - **Source of truth:** `scripts/seed/`, as JavaScript, so the documents and drawings are always valid:
   - `data.mjs`: test users, the short sample articles, and `buildArticle()`, which turns an article definition into a
-    TipTap document plus Excalidraw slides (one frame per H2 section, stable ids);
+    TipTap document plus Excalidraw drawings (one frame per split, i.e. per H2 section; stable ids);
   - `draw.mjs`: helpers for the **text** (`P`, `H3`, `UL`, `OL`, `NOTE` highlight box, `MORE` collapsible, `CODE`,
     `TABLE`, with **bold**/`code`/*italic* inline) and the **drawings** (`box`, `rect`, `ellipse`, `text`, `arrow`,
-    `line`, `arc`, ring `node`/`key`, colour tones `C.teal` …). Coordinates are relative to the slide (40:60 slides are
+    `line`, `arc`, ring `node`/`key`, colour tones `C.teal` …). Coordinates are relative to the split's drawing (40:60 drawings are
     1600 × 1200);
   - one file per long article, e.g. `consistent-hashing.mjs` (each section has `title`, `body` and a `draw(k)` function).
 - **Generated file:** `supabase/seed.sql`, committed. **Don't edit it by hand.**
 - **Loaded:** on the first `supabase start`, and on every `npm run db:reset` (which wipes everything else locally).
 - **To change a sample article:** edit `scripts/seed/…`, then
-  - `npm run db:refresh-samples` updates the sample articles' text, slides and metadata **in place**. Other local data
+  - `npm run db:refresh-samples` updates the sample articles' text, drawings and metadata **in place**. Other local data
     stays; local edits to those sample articles are overwritten. Use `npm run db:refresh-samples -- consistent-hashing`
     for just one. Then reload the editor.
   - Commit `scripts/seed/` and `supabase/seed.sql` together.
-- **Check drawings visually:** open the article in the editor and click each section heading. The slide you get is
+- **Writing style for sample articles:** one idea per paragraph, short sub-headings (H3), and in every split an
+  **"In the drawing"** paragraph that walks through the drawing using the same names and numbers as the drawing.
+- **Check drawings visually:** open the article in the editor and click each split heading. The drawing you get is
   exactly what readers see. Keep text ≥ 24 px, and remember that the hand-drawn font has no `¼ ½ ¾`-style
   characters (write `1/4`).
 - **Test password:** `study-split-dev`. Fixed user IDs: `00000000-0000-4000-a000-00000000000{1,2,3}`.
@@ -171,16 +173,23 @@ row-level security in Postgres. `SUPABASE_DB_URL` has no `VITE_` prefix, so Vite
 4. **Strict test:** `npm run test:db`. It runs the migrations in PGlite **without** Supabase's default grants,
    which catches missing grants. Add checks to `supabase/tests/db.test.mjs` for new rules.
 5. **Commit** the migration together with the app code that needs it.
-6. **Apply it to production BEFORE merging to main** ("make it live"). The live site deploys straight away and
-   will break if it expects a column that isn't there yet. Two ways:
-   - **SQL Editor** (as today): paste the file into the Supabase SQL Editor and run it.
-   - **Terminal:** `npm run db:prod -- push` (§7).
+6. **Production is automatic (since 2026-11-26):** merging to `main` runs the deploy workflow's **Migrate
+   database** job, which applies every new migration to production **before** the new site is published. If a
+   migration fails, the site is not deployed (red run in Actions, with the reason).
+   - **Rule:** a migration must keep the *currently live* site working, because it runs about a minute before the
+     new site goes up. Add before you remove: add columns/functions first, and drop old ones in a later release.
+   - Manual alternatives still work: the SQL Editor, or `npm run db:prod -- push` (§7). The workflow then sees
+     them as already applied only if they were recorded, so prefer the automatic path.
 
 ---
 
 ## 7. Applying migrations to production
 
-Optional; the SQL Editor keeps working. This replaces copy-paste with a checked, recorded push.
+Normally you do nothing: the deploy workflow applies them (§6, step 6). It uses the GitHub secret
+`SUPABASE_DB_URL` (the same one the backup uses) and the Supabase CLI pinned in the workflow. Sample data
+(`seed.sql`) is **never** sent to production; `db push` only applies migrations.
+
+The commands below are for running it yourself from the terminal.
 
 **One-time setup**
 1. Supabase dashboard → **Connect** (top bar) → **Session pooler** → copy the URI. It looks like
@@ -207,9 +216,9 @@ Optional; the SQL Editor keeps working. This replaces copy-paste with a checked,
 
 Never point `db:prod` at a local URL; the script refuses. Keep the file out of chats, screenshots and commits.
 
-**Status (2026-11-25):** `.env.prod-db.local` exists and `npm run db:prod -- status` connects. The **baseline has
-not been run yet**, so production's "Remote" column is still empty. Run the baseline command above once before
-the first `push`.
+**Status:** baselined on 2026-11-26 (the five hand-applied migrations are recorded), so the deploy workflow and
+`npm run db:prod -- push` apply only new migrations. The Supabase CLI refuses hosted changes from an agent without
+`--yes`; `db:prod` passes it only after you have typed `yes, production`.
 
 **CLI upgrade note:** Supabase CLI 3.x warns that `--db-url` will be replaced by `--remote=<db-url>` in v4. The
 project pins 3.4.0 (`package.json` and `.github/workflows/backup.yml`). When upgrading to v4, change the flag in
@@ -300,6 +309,10 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 | Date | Change |
 |---|---|
+| 2026-11-26 | Production baselined; `db:prod` passes `--yes` after its own confirmation. |
+| 2026-11-26 | Deploy workflow applies migrations to production automatically (job **Migrate database**, before deploy); production must be baselined once. |
+| 2026-11-26 | Brief/Detailed removed (sample data, seed, migration `20261126000000_remove_brief.sql`; locally applied with `npx supabase migration up`). Slides are called **splits** in the app. |
+| 2026-11-26 | Consistent Hashing rewritten (article structure, "In the drawing" walkthroughs, slides 2/9/11 extended); writing-style rule. |
 | 2026-11-25 | Seed split into `scripts/seed/` (drawing + text helpers, one file per long article); `npm run db:refresh-samples`; complete Consistent Hashing sample article. |
 | 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |

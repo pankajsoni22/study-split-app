@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ensureSectionIds, hasBriefContent, readingMinutes, type Doc } from '../../domain/content.ts';
+import { ensureSectionIds, readingMinutes, type Doc } from '../../domain/content.ts';
 import { slugify } from '../../domain/slug.ts';
 import type { ArticleDraft, ArticleMeta, CanvasScene } from '../../domain/types.ts';
 import { AppError, errorMessage } from '../../data/errors.ts';
@@ -125,7 +125,7 @@ export function useDraftSession(articleId: string) {
     try {
       versionRef.current = await services.articles.saveDraft(articleId, versionRef.current, {
         doc, canvas: canvasRef.current, meta: metaRef.current,
-        hasBrief: hasBriefContent(doc), readingMinutes: readingMinutes(doc)
+        readingMinutes: readingMinutes(doc)
       });
       setSavedVersion(versionRef.current);
       setLastSavedAt(Date.now());

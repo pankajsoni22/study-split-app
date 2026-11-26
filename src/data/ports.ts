@@ -39,7 +39,7 @@ export interface ArticleRepo {
   create(input: { title: string; templateKey: string | null; doc: Doc }): Promise<string>;
   getDraft(articleId: string): Promise<ArticleDraft | null>;
   /** Optimistic lock: throws AppError CONFLICT when `expectedVersion` is stale. Returns the new version. */
-  saveDraft(articleId: string, expectedVersion: number, input: { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; hasBrief: boolean; readingMinutes: number }): Promise<number>;
+  saveDraft(articleId: string, expectedVersion: number, input: { doc: Doc; canvas: CanvasScene; meta: ArticleMeta; readingMinutes: number }): Promise<number>;
   publish(articleId: string): Promise<number>;
   unpublish(articleId: string): Promise<void>;
 

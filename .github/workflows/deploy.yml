@@ -42,9 +42,33 @@ jobs:
         with:
           path: ./dist
 
+  # Apply new files in supabase/migrations to the production database BEFORE the new site goes live
+  # (docs/04-local-development.md §7). Only on main; pull requests never touch production.
+  # Rule: every migration must keep the currently live site working (it runs about a minute before the new site).
+  migrate:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+      - name: Apply pending migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}   # same secret as the backup workflow
+          SUPABASE_CLI: supabase@3.4.0                         # same version as package.json
+        run: |
+          url="${SUPABASE_DB_URL//[$'\r\n']/}"; url="${url#"${url%%[![:space:]]*}"}"; url="${url%"${url##*[![:space:]]}"}"
+          test -n "$url" || { echo "::error title=Migrations::The SUPABASE_DB_URL secret is missing (see docs/02-setup-checklist.md step 7)."; exit 1; }
+          echo "Pending migrations:"
+          npx --yes "$SUPABASE_CLI" db push --db-url "$url" --dry-run --yes < /dev/null
+          npx --yes "$SUPABASE_CLI" db push --db-url "$url" --yes < /dev/null \
+            || { echo "::error title=Migrations::A migration failed, so the new site was NOT deployed. The error is in this step's log; fix the migration and push again."; exit 1; }
+
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, migrate]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

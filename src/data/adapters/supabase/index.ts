@@ -136,10 +136,10 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
         };
         return result;
       },
-      async saveDraft(articleId, expectedVersion, { doc, canvas, meta, hasBrief, readingMinutes }) {
+      async saveDraft(articleId, expectedVersion, { doc, canvas, meta, readingMinutes }) {
         return unwrap(await sb.rpc('save_draft', {
           p_article_id: articleId, p_expected_version: expectedVersion, p_doc: doc, p_canvas: canvas,
-          p_meta: { ...meta, hasBrief, readingMinutes }
+          p_meta: { ...meta, readingMinutes }
         })) as number;
       },
       async publish(articleId) {

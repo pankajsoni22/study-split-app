@@ -9,7 +9,7 @@ type Rect = { left: number; top: number; width: number; height: number };
 /**
  * Excalidraw focused on ONE slide: switching slides (or resizing the pane) fits that slide to the pane.
  * Zoom and pan work normally while drawing (revised 2026-11-22: a fully locked canvas was uncomfortable);
- * "Fit slide" or Shift+1 brings the whole slide back. Readers still see slides as fixed pictures.
+ * "Fit split" or Shift+1 brings the whole drawing back. Readers still see slides as fixed pictures.
  * `onSceneChange` fires only when elements really change, not on pointer moves or selection.
  */
 export default function Canvas({ initialScene, slideId, showNativeProps = false, onApi, onSceneChange }: {
@@ -113,12 +113,39 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
     return () => host.removeEventListener('keydown', onKey, { capture: true });
   }, [fit]);
 
+  // Double-click inside an UNFILLED rectangle / ellipse / diamond adds (or edits) its centred label, exactly like a
+  // filled one (decided 2026-11-26). Excalidraw only "hits" an unfilled shape on its outline, so a double-click in
+  // its empty middle used to create a loose text at the cursor that didn't move with the shape. We select the shape
+  // and send Enter, which is Excalidraw's own "edit this shape's label" action (centred, bound to the shape).
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onDblClick = (e: MouseEvent) => {
+      const api = apiRef.current;
+      if (!api || !(e.target instanceof HTMLCanvasElement)) return;
+      const st = api.getAppState();
+      if (st.activeTool.type !== 'selection' || st.editingTextElement) return;
+      const z = st.zoom.value;
+      const x = (e.clientX - st.offsetLeft) / z - st.scrollX, y = (e.clientY - st.offsetTop) / z - st.scrollY;
+      const hit = topmostAt(api.getSceneElements() as unknown as ShapeLike[], x, y);
+      if (!hit || !LABELLED.has(hit.type) || (hit.backgroundColor && hit.backgroundColor !== 'transparent')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      api.updateScene({ appState: { selectedElementIds: { [hit.id]: true }, selectedGroupIds: {}, editingGroupId: null } as never });
+      requestAnimationFrame(() => {
+        host.querySelector('.excalidraw')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }));
+      });
+    };
+    host.addEventListener('dblclick', onDblClick, { capture: true });
+    return () => host.removeEventListener('dblclick', onDblClick, { capture: true });
+  }, []);
+
   return (
     <div ref={hostRef} className={`canvas-host dot-grid is-slide${showNativeProps ? ' show-native-props' : ''}`}>
       {paper && <div className="slide-paper" style={paper} aria-hidden="true" />}
       {slideId && (
-        <button type="button" className="btn btn-ghost btn-sm fit-slide" onClick={fit} title="Show the whole slide (Shift+1)">
-          <Maximize size={14} aria-hidden="true" /> Fit slide
+        <button type="button" className="btn btn-ghost btn-sm fit-slide" onClick={fit} title="Show this split's whole drawing (Shift+1)">
+          <Maximize size={14} aria-hidden="true" /> Fit split
         </button>
       )}
       <Excalidraw
@@ -148,4 +175,28 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
       />
     </div>
   );
+}
+
+// ---- label-on-double-click helpers ----
+interface ShapeLike { id: string; type: string; x: number; y: number; width: number; height: number; angle?: number; isDeleted?: boolean; backgroundColor?: string; frameId?: string | null }
+const LABELLED = new Set(['rectangle', 'ellipse', 'diamond']);
+/** Thin strokes: their bounding box would wrongly "cover" a shape they cross. */
+const THIN = new Set(['arrow', 'line', 'freedraw']);
+
+/** The topmost element under a scene point (frames and thin strokes ignored). Shapes count anywhere inside, text and images by box. */
+function topmostAt(elements: ShapeLike[], px: number, py: number): ShapeLike | null {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i]!;
+    if (el.isDeleted || el.type === 'frame' || THIN.has(el.type)) continue;
+    // rotate the point into the element's own (unrotated) space
+    const cx = el.x + el.width / 2, cy = el.y + el.height / 2, a = -(el.angle ?? 0);
+    const dx = (px - cx) * Math.cos(a) - (py - cy) * Math.sin(a), dy = (px - cx) * Math.sin(a) + (py - cy) * Math.cos(a);
+    const rx = Math.abs(el.width) / 2, ry = Math.abs(el.height) / 2;
+    if (rx < 1 || ry < 1) continue;
+    const inside = el.type === 'ellipse' ? (dx / rx) ** 2 + (dy / ry) ** 2 <= 1
+      : el.type === 'diamond' ? Math.abs(dx) / rx + Math.abs(dy) / ry <= 1
+      : Math.abs(dx) <= rx && Math.abs(dy) <= ry;
+    if (inside) return el;
+  }
+  return null;
 }

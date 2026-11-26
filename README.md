@@ -1,6 +1,6 @@
 # Study Split
 
-Write study notes and engineering articles with **text on the left and hand-drawn diagrams on the right**. You can publish them under your own `@username`, revise them in Brief mode, and read them on any screen.
+Write study notes and engineering articles with **text on the left and hand-drawn diagrams on the right**. Each idea is a **split**: a piece of text with its own drawing. Publish under your own `@username` and read on any screen. *Split Makes Learning Easy.*
 
 - Design & requirements: [`docs/01-product-and-architecture.md`](docs/01-product-and-architecture.md)
 - **Setup checklist (start here):** [`docs/02-setup-checklist.md`](docs/02-setup-checklist.md)

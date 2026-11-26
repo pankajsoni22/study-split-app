@@ -28,7 +28,7 @@ const LEAVE_HIDE_MS = 1200;
 
 /**
  * Slides panel (decided 2026-11-22): a slim strip across the full width of the editor.
- * Unpinned, it hides behind a small floating "Slides" button: hover, focus or click to open; it closes
+ * Unpinned, it hides behind a small floating "Splits" button: hover, focus or click to open; it closes
  * after a few seconds, when the pointer leaves, on a click outside, or with Esc. Pinned, it is docked
  * at the bottom of the editor and stays.
  */
@@ -67,9 +67,9 @@ function FloatingStrip(props: StripProps) {
     <>
       <button ref={buttonRef} type="button" className={`slides-fab${open ? ' is-open' : ''}`} aria-expanded={open} aria-controls="slides-panel"
         onMouseEnter={show} onFocus={show} onClick={() => (open ? setOpen(false) : show())}
-        title="Slides (hover to open)">
+        title="Splits (hover to open)">
         <GalleryHorizontal size={16} aria-hidden="true" />
-        Slides <span className="slides-fab-count">{props.slides.length ? `${Math.max(index, 0) + 1} / ${props.slides.length}` : '0'}</span>
+        Splits <span className="slides-fab-count">{props.slides.length ? `${Math.max(index, 0) + 1} / ${props.slides.length}` : '0'}</span>
       </button>
       {open && (
         <div ref={panelRef} id="slides-panel" className="slides-float"
@@ -90,7 +90,7 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
   }, [activeSectionId]);
 
   return (
-    <nav className={`slide-strip${docked ? ' is-docked' : ''}`} aria-label="Slides">
+    <nav className={`slide-strip${docked ? ' is-docked' : ''}`} aria-label="Splits">
       <ol ref={listRef}>
         {slides.map((s, i) => {
           const active = s.sectionId === activeSectionId;
@@ -107,8 +107,8 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
           );
         })}
         {orphans.length > 0 && (
-          <li className="orphan-head" aria-label="Unlinked slides">
-            <span>Unlinked<br />slides</span>
+          <li className="orphan-head" aria-label="Drawings not linked to a split">
+            <span>Unlinked<br />drawings</span>
           </li>
         )}
         {orphans.map(o => (
@@ -117,16 +117,16 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
           </li>
         ))}
         <li>
-          <button type="button" className="slide-add" onClick={onAdd} title="Add a section with its own slide after the current one">
+          <button type="button" className="slide-add" onClick={onAdd} title="Add a new split (heading + drawing) after the current one">
             <Plus size={16} aria-hidden="true" />
-            <span>Add slide</span>
+            <span>Add split</span>
           </button>
         </li>
       </ol>
       <button type="button" className="icon-btn icon-btn-plain strip-pin" onClick={() => onPinnedChange(!pinned)}
-        aria-pressed={pinned} title={pinned ? 'Unpin: hide the slides behind a button' : 'Pin: keep the slides visible'}>
+        aria-pressed={pinned} title={pinned ? 'Unpin: hide the splits behind a button' : 'Pin: keep the splits visible'}>
         {pinned ? <PinOff size={16} aria-hidden="true" /> : <Pin size={16} aria-hidden="true" />}
-        <span className="visually-hidden">{pinned ? 'Unpin slides' : 'Pin slides'}</span>
+        <span className="visually-hidden">{pinned ? 'Unpin splits' : 'Pin splits'}</span>
       </button>
     </nav>
   );
@@ -187,8 +187,8 @@ function OrphanSlide({ orphan, slides, scene, onAdopt, onDelete }: {
         </span>
         <span className="slide-thumb-label">{orphan.title}</span>
       </button>
-      <button type="button" className="orphan-delete" aria-label={`Delete unlinked slide "${orphan.title}"`} title="Delete this slide and its drawings"
-        onClick={() => { if (window.confirm(`Delete the unlinked slide "${orphan.title}" and everything drawn on it?`)) onDelete(orphan.frameId); }}>
+      <button type="button" className="orphan-delete" aria-label={`Delete unlinked drawing "${orphan.title}"`} title="Delete this unlinked drawing"
+        onClick={() => { if (window.confirm(`Delete the unlinked drawing "${orphan.title}" and everything drawn on it?`)) onDelete(orphan.frameId); }}>
         <X size={12} aria-hidden="true" />
       </button>
       {peek && !menu && (

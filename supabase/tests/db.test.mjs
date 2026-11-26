@@ -109,13 +109,13 @@ await as(u1.id, async () => {
   const [{ create_article: dupId }] = await q(`select public.create_article('System Design: Chat App', null, null)`);
   ok((await q(`select slug::text from public.articles where id = $1`, [dupId]))[0].slug === 'system-design-chat-app-2', 'duplicate titles get -2 slugs');
 
-  const meta = JSON.stringify({ title: 'Chat App', slug: 'chat-app', summary: 'WebSockets', tags: ['System Design', 'backend'], visibility: 'public', hasBrief: true, readingMinutes: 4 });
+  const meta = JSON.stringify({ title: 'Chat App', slug: 'chat-app', summary: 'WebSockets', tags: ['System Design', 'backend'], visibility: 'public', readingMinutes: 4 });
   const doc = JSON.stringify({ type: 'doc', content: [{ type: 'heading', attrs: { level: 2, sectionId: 's1' }, content: [{ type: 'text', text: 'HLD' }] }] });
   const canvas = JSON.stringify({ elements: [{ id: 'f1', type: 'frame' }], files: {} });
   const [{ save_draft: v2 }] = await q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [artId, doc, canvas, meta]);
   ok(v2 === 2, 'save_draft bumps the version');
-  const [m] = await q(`select slug::text, title, tags, has_brief, reading_minutes from public.articles where id = $1`, [artId]);
-  ok(m.slug === 'chat-app' && m.tags.includes('system-design') && m.has_brief && m.reading_minutes === 4, 'save_draft updates metadata: ' + JSON.stringify(m));
+  const [m] = await q(`select slug::text, title, tags, reading_minutes from public.articles where id = $1`, [artId]);
+  ok(m.slug === 'chat-app' && m.tags.includes('system-design') && m.reading_minutes === 4, 'save_draft updates metadata: ' + JSON.stringify(m));
   await expectFail('stale save (CONFLICT)', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [artId, doc, canvas, meta]));
   await expectFail('slug already used by my other article', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`,
     [dupId, doc, canvas, JSON.stringify({ title: 'x', slug: 'chat-app' })]));
@@ -222,3 +222,21 @@ await as(u1.id, async () => {
 }
 
 console.log(process.exitCode ? '\nSOME CHECKS FAILED' : '\nALL CHECKS PASSED');
+
+// Brief/Detailed removed (20261126000000_remove_brief.sql): the column is gone, and re-running the migration strips
+// any per-block `visibility` flag left in saved documents (at any depth) without touching anything else.
+{
+  await db.exec(`reset role`);   // migrations run as the database owner (like the SQL Editor)
+  const cols = await q(`select 1 from information_schema.columns where table_schema = 'public' and table_name = 'articles' and column_name = 'has_brief'`);
+  ok(cols.length === 0, 'articles.has_brief is dropped');
+  const flagged = { type: 'doc', content: [
+    { type: 'heading', attrs: { level: 2, sectionId: 's9', frameId: 'f9' }, content: [{ type: 'text', text: 'Keep me' }] },
+    { type: 'paragraph', attrs: { visibility: 'brief' }, content: [{ type: 'text', text: 'was brief only' }] },
+    { type: 'callout', attrs: { tone: 'mint', visibility: 'detail' }, content: [{ type: 'paragraph', attrs: { visibility: null }, content: [{ type: 'text', text: 'inside' }] }] }] };
+  await q(`update public.article_drafts set doc = $1::jsonb where article_id = (select id from public.articles where slug = 'chat-app')`, [JSON.stringify(flagged)]);
+  await db.exec(readFileSync(new URL('../migrations/20261126000000_remove_brief.sql', import.meta.url), 'utf8'));
+  const [{ doc }] = await q(`select doc from public.article_drafts where article_id = (select id from public.articles where slug = 'chat-app')`);
+  const text = JSON.stringify(doc);
+  ok(!text.includes('visibility') && text.includes('was brief only') && text.includes('"tone":"mint"') && text.includes('"frameId":"f9"'),
+    'remove_brief strips every visibility flag, keeps all content and other attrs (and is safe to run twice)');
+}
