@@ -361,7 +361,7 @@ export default function EditorPage() {
               <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)}
                 trailing={<FullscreenButton on={fullscreen.pane === 'canvas'} what="drawing" onClick={() => fullscreen.toggle('canvas')} />} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
-                <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null} showNativeProps={nativeProps}
+                <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null}
                   onApi={onCanvasApi} onSceneChange={onCanvasChange} />
               </Suspense>
             </div>

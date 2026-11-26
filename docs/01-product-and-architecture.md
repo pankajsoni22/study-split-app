@@ -259,7 +259,13 @@ The editor uses the same split layout as the reader: **rich-text editor on the l
 ### 6.3 Canvas
 
 - Full Excalidraw: shapes, arrows with bindings, hand-drawn style, text, images, frames, laser pointer, lock, grouping, export.
-- **Format bar** (top of the drawing side) replaces Excalidraw's floating properties panel; **More options** reopens it.
+- **Format bar** (top of the drawing side; restyled 2026-11-26): outlined, labelled buttons like the writing toolbar:
+  **Shapes ▾ · Stroke ▾ · Fill ▾ · Line ▾ · font ▾** (+ text size, layer and delete with a selection) · **Style** · full
+  screen. On a narrow drawing side the labels hide and only icons remain. Excalidraw's own tool palette is unchanged.
+- **Style panel** (2026-11-26) replaces Excalidraw's properties panel ("More options"): stroke and fill colours, fill
+  pattern, width, line style, look, edges, arrow start/end heads, font/size/align for text, opacity (saved once you
+  pause), and layer (front / back / delete). It styles the selection, or the next shapes when nothing is selected, and
+  says which. Opens below Excalidraw's palette; ✕ or the Style button closes it.
 - **Labels in shapes** (2026-11-26): double-clicking anywhere inside a rectangle, ellipse or diamond adds (or edits) its
   centred label, which moves with the shape. Excalidraw does this only for **filled** shapes (an unfilled one is "hit"
   only on its outline), so for unfilled shapes the canvas selects the shape and triggers Excalidraw's own "edit label"

@@ -122,7 +122,7 @@ export function applyStyle(api: ExcalidrawImperativeAPI, key: StyleKey, value: S
   const remeasured = new Map(restoreElements(texts as never, null, { refreshDimensions: true }).map(e => [e.id, e]));
   api.updateScene({
     elements: remeasured.size ? elements.map(e => remeasured.get(e.id) ?? e) : elements,
-    appState: { [CURRENT_ITEM_KEY[key]]: value } as never,
+    appState: { [CURRENT_ITEM_KEY[key]]: (key === 'startArrowhead' || key === 'endArrowhead') && value === 'none' ? null : value } as never,
     captureUpdate: CaptureUpdateAction.IMMEDIATELY
   });
 }

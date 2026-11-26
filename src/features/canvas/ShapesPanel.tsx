@@ -1,4 +1,4 @@
-import { Shapes } from 'lucide-react';
+import { ChevronDown, Shapes } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { readJson, writeJson } from '../../lib/storage.ts';
 import { nextSvgPrefix, scopeSvgIds } from '../../lib/svgIds.ts';
@@ -32,9 +32,9 @@ export default function ShapesPanel({ api, slideId }: { api: ExcalidrawImperativ
 
   return (
     <div className="fb-color shapes" ref={ref}>
-      <button type="button" className={`btn btn-sm shapes-btn${open ? ' is-on' : ''}`} aria-expanded={open} aria-haspopup="dialog"
+      <button type="button" className={`tb-style shapes-btn${open ? ' is-open' : ''}`} aria-expanded={open} aria-haspopup="dialog"
         onMouseDown={e => e.preventDefault()} onClick={() => setOpen(o => !o)} title="Insert a ready-made shape">
-        <Shapes size={15} aria-hidden="true" /> Shapes
+        <Shapes size={16} aria-hidden="true" /><span className="tb-style-label">Shapes</span><ChevronDown size={12} aria-hidden="true" className="fb-chev" />
       </button>
       {open && (
         <div className="fb-popover shapes-popover" role="dialog" aria-label="Shapes">

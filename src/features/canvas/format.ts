@@ -23,7 +23,14 @@ export const FONT_SIZES = [{ value: 16, name: 'S' }, { value: 20, name: 'M' }, {
 
 export type StyleKey =
   | 'strokeColor' | 'backgroundColor' | 'fillStyle' | 'strokeWidth' | 'strokeStyle'
-  | 'roughness' | 'roundness' | 'fontFamily' | 'fontSize' | 'textAlign';
+  | 'roughness' | 'roundness' | 'fontFamily' | 'fontSize' | 'textAlign'
+  | 'opacity' | 'startArrowhead' | 'endArrowhead';
+
+/** Arrowhead choices in the Style panel ('none' stands for Excalidraw's null). */
+export const ARROWHEADS = [
+  { value: 'none', name: 'None' }, { value: 'arrow', name: 'Arrow' }, { value: 'triangle', name: 'Triangle' },
+  { value: 'dot', name: 'Dot' }, { value: 'bar', name: 'Bar' }
+] as const;
 
 /** Format-bar values. roundness is simplified to 'round' | 'sharp'. */
 export type StyleValue = string | number;
@@ -32,8 +39,10 @@ export type StyleValue = string | number;
 export const CURRENT_ITEM_KEY: Record<StyleKey, string> = {
   strokeColor: 'currentItemStrokeColor', backgroundColor: 'currentItemBackgroundColor', fillStyle: 'currentItemFillStyle',
   strokeWidth: 'currentItemStrokeWidth', strokeStyle: 'currentItemStrokeStyle', roughness: 'currentItemRoughness',
-  roundness: 'currentItemRoundness', fontFamily: 'currentItemFontFamily', fontSize: 'currentItemFontSize', textAlign: 'currentItemTextAlign'
+  roundness: 'currentItemRoundness', fontFamily: 'currentItemFontFamily', fontSize: 'currentItemFontSize', textAlign: 'currentItemTextAlign',
+  opacity: 'currentItemOpacity', startArrowhead: 'currentItemStartArrowhead', endArrowhead: 'currentItemEndArrowhead'
 };
+const ARROWHEAD_KEYS = new Set<StyleKey>(['startArrowhead', 'endArrowhead']);
 
 export interface El {
   id: string;
@@ -49,7 +58,7 @@ const EDGED = new Set(['rectangle', 'diamond']);
 const LINEAR = new Set(['arrow', 'line']);
 const TEXT_KEYS = new Set<StyleKey>(['fontFamily', 'fontSize', 'textAlign']);
 
-export interface Kinds { fill: boolean; edges: boolean; stroke: boolean; text: boolean }
+export interface Kinds { fill: boolean; edges: boolean; stroke: boolean; text: boolean; arrow: boolean }
 export interface Summary {
   /** Number of selected elements (0 = the bar edits the defaults for new shapes). */
   count: number;
@@ -71,7 +80,8 @@ export function selectionWithLabels(elements: readonly El[], selected: Record<st
 function appliesTo(key: StyleKey, e: El): boolean {
   if (e.type === 'frame') return false;
   switch (key) {
-    case 'strokeColor': return true;
+    case 'strokeColor': case 'opacity': return true;
+    case 'startArrowhead': case 'endArrowhead': return e.type === 'arrow';
     case 'backgroundColor': case 'fillStyle': return FILLABLE.has(e.type);
     case 'roundness': return EDGED.has(e.type);
     case 'strokeWidth': case 'strokeStyle': case 'roughness': return e.type !== 'text';
@@ -81,16 +91,20 @@ function appliesTo(key: StyleKey, e: El): boolean {
 
 function read(key: StyleKey, e: El): StyleValue {
   if (key === 'roundness') return e.roundness ? 'round' : 'sharp';
+  if (ARROWHEAD_KEYS.has(key)) return (e[key] as string | null | undefined) ?? 'none';
   return e[key] as StyleValue;
 }
 
 export function summarize(elements: readonly El[], selected: Record<string, boolean>, appState: Record<string, unknown>): Summary {
   const sel = selectionWithLabels(elements, selected);
   const keys = Object.keys(CURRENT_ITEM_KEY) as StyleKey[];
-  const defaults = Object.fromEntries(keys.map(k => [k, appState[CURRENT_ITEM_KEY[k]] as StyleValue]));
+  const defaults = Object.fromEntries(keys.map(k => {
+    const v = appState[CURRENT_ITEM_KEY[k]] as StyleValue | null | undefined;
+    return [k, ARROWHEAD_KEYS.has(k) ? (v ?? 'none') : v];
+  })) as Partial<Record<StyleKey, StyleValue>>;
   if (sel.filter(e => selected[e.id]).length === 0) {
     const tool = (appState.activeTool as { type?: string } | undefined)?.type;
-    return { count: 0, kinds: { fill: true, edges: true, stroke: true, text: tool === 'text' }, values: defaults, defaults };
+    return { count: 0, kinds: { fill: true, edges: true, stroke: true, text: tool === 'text', arrow: true }, values: defaults, defaults };
   }
   const values: Partial<Record<StyleKey, StyleValue>> = {};
   for (const k of keys) {
@@ -103,7 +117,8 @@ export function summarize(elements: readonly El[], selected: Record<string, bool
       fill: sel.some(e => FILLABLE.has(e.type)),
       edges: sel.some(e => EDGED.has(e.type)),
       stroke: sel.some(e => e.type !== 'text' || LINEAR.has(e.type)),
-      text: sel.some(e => e.type === 'text')
+      text: sel.some(e => e.type === 'text'),
+      arrow: sel.some(e => e.type === 'arrow')
     },
     values,
     defaults
@@ -116,6 +131,7 @@ export function restyle(elements: readonly El[], selected: Record<string, boolea
   for (const e of selectionWithLabels(elements, selected)) {
     if (!appliesTo(key, e)) continue;
     if (key === 'roundness') patches.set(e.id, { roundness: value === 'round' ? { type: 3 } : null });   // ADAPTIVE_RADIUS
+    else if (ARROWHEAD_KEYS.has(key)) patches.set(e.id, { [key]: value === 'none' ? null : value });
     else patches.set(e.id, { [key]: value });
   }
   return patches;
