@@ -113,6 +113,20 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Breadcrumb (2026-11-27):** the reader bar shows `Article title › [3/11 Split title ▾]` on the left. The split chip
+  is the Contents menu (the separate Contents button is gone); it follows Next/Previous in Split view and the scroll in
+  Article view. Phones show only the chip.
+- **Links to a split (2026-11-27):** the address bar always names the current split, e.g.
+  `…/consistent-hashing#split-3-finding-a-keys-server`, so copying it shares that split. A **Copy link** button sits at
+  the top of each split (Split view) and appears on hover beside each split (Article view). Opening a link goes to that
+  split in either view (the title wins over the number, so links survive reordering); a link to the split this browser
+  was already reading resumes the exact place.
+- **Resume where you left off (2026-11-27):** Split view remembers (per article, in this browser) the split, the
+  paragraph under the pointer (or, without Unfold, the paragraph at the top of the text; or the Next / previous
+  button) and how far down the screen it sat. A refresh reopens exactly there. Anchored to the paragraph, not to
+  pixels, so it survives window-size changes.
+- **Going back mirrors going forward (2026-11-27):** "‹ previous" (click or Enter) and **[** open the previous split
+  at its **end**, pointer on its last paragraph; going forward opens a split at its start. Contents opens at the start.
 - **Split view is one split at a time.** The text pane scrolls only within the current split. At its end a **Next
   split: N. title →** card (last split: "End of the article"), right after the text, or at the bottom of the pane when
   the split is short; no empty space below it; from split 2 on, a "‹ previous" link at the top; keys
@@ -137,7 +151,10 @@ The drawing **builds up as you read**: each paragraph is a step that adds its pa
   paragraph is in view; when the pointer reaches the bottom of the visible text, the page scrolls to bring it to ~30%
   from the top. A paragraph taller than the pane scrolls normally until its end shows. At the last paragraph the
   wheel scrolls on to the Next split card; at the first, back to the top. Scroll-bar drags and jumps place the pointer
-  by position; **clicking** a paragraph makes it current; empty paragraphs are skipped. **Article** view shows finished drawings.
+  by position; **clicking** a paragraph makes it current; empty paragraphs are skipped.
+  **Enter (2026-11-27):** on a collapsible it opens / closes it (its hint reads "press Enter to expand"); the pointer
+  also stops on the **‹ previous** link (up from the first paragraph) and the **Next split** card (down from the
+  last), which show "Enter ↵" and a teal ring; Enter there = click. **Article** view shows finished drawings.
 - **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
   and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
 - Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),

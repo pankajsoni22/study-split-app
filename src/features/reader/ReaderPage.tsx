@@ -1,7 +1,8 @@
-import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { splitSections, textOf, type Section } from '../../domain/content.ts';
+import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
 import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
@@ -23,7 +24,9 @@ import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
 
 type Mode = 'flow' | 'article';
-interface ReadPrefs { mode?: Mode | 'present'; sectionId?: string; layout?: LayoutId; unfold?: boolean }
+/** Where the reader was in Split view: the split, the paragraph (or 'prev' / 'next' button) and its distance from the top. */
+interface ReadPlace { sectionId: string; blockId: string; offset: number }
+interface ReadPrefs { mode?: Mode | 'present'; sectionId?: string; layout?: LayoutId; unfold?: boolean; place?: ReadPlace }
 
 /** The slide shown with a section: its own, else the closest earlier one, else the first slide. */
 function slideFor(sections: Section[], index: number): Section | null {
@@ -80,18 +83,33 @@ function Reader({ article }: { article: PublishedArticle }) {
 
   /** The split being read: shown alone in Split view; the one in view in Article view (drives Contents). */
   const firstId = sections[0]?.id ?? null;
-  const [current, setCurrent] = useState<string | null>(() => (sections.some(x => x.id === prefs.sectionId) ? prefs.sectionId! : firstId));
+  // A shared link (#split-3-title) opens that split, ahead of where this browser last was.
+  const [linked] = useState<string | null>(() => splitFromHash(sections, window.location.hash));
+  const [current, setCurrent] = useState<string | null>(() => linked ?? (sections.some(x => x.id === prefs.sectionId) ? prefs.sectionId! : firstId));
+  // The address bar always names the current split, so copying it shares that split.
+  useEffect(() => {
+    const i = sections.findIndex(x => x.id === current);
+    if (i < 0) return;
+    const hash = splitHash(i, sections[i]!);
+    if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash);
+  }, [current, sections]);
   useEffect(() => {
     if (!current) return;
     const t = window.setTimeout(() => setPrefs({ sectionId: current }), 300);
     return () => window.clearTimeout(t);
   }, [current, setPrefs]);
 
+  const currentIndex = Math.max(0, sections.findIndex(x => x.id === current));
+  const currentSection = sections[currentIndex];
+
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
-  const [jump, setJump] = useState<Jump | null>(null);
-  const jumpTo = useCallback((sectionId: string, sub: number | null = null) => {
+  // A link to the split this browser was already reading (e.g. a refresh keeps #split-… in the address bar) resumes the
+  // exact place in it; a link to another split opens that split at its start.
+  const resumeLinked = !!linked && mode === 'flow' && prefs.place?.sectionId === linked;
+  const [jump, setJump] = useState<Jump | null>(() => (linked && !resumeLinked ? { sectionId: linked, sub: null, n: 1 } : null));
+  const jumpTo = useCallback((sectionId: string, sub: number | null = null, arrive: 'start' | 'end' = 'start') => {
     setCurrent(sectionId);
-    setJump(j => ({ sectionId, sub, n: (j?.n ?? 0) + 1 }));
+    setJump(j => ({ sectionId, sub, arrive, n: (j?.n ?? 0) + 1 }));
   }, []);
 
   // FR-24: one view per browser per article per day. Fire and forget.
@@ -103,14 +121,28 @@ function Reader({ article }: { article: PublishedArticle }) {
     <div className="reader-page">
       <header className="reader-bar">
         <Link to="/" className="reader-home" aria-label="Study Split home"><Logo size={28} /></Link>
-        <span className="reader-bar-title" title={article.title}>{article.title}</span>
+        {/* Breadcrumb (2026-11-27): the article, then the current split, which is also the Contents menu. */}
+        <nav className="reader-crumbs" aria-label="You are reading">
+          <span className="reader-bar-title" title={article.title}>{article.title}</span>
+          {sections.length > 1 && currentSection && (
+            <>
+              <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
+              <MenuButton label={`Contents: you are on split ${currentIndex + 1} of ${sections.length}, ${currentSection.title}. Jump to another split`}
+                align="left" buttonClassName="crumb-split"
+                trigger={(
+                  <>
+                    <ListTree size={14} aria-hidden="true" className="crumb-icon" />
+                    <span className="crumb-num">{currentIndex + 1}<small>/{sections.length}</small></span>
+                    <span className="crumb-title">{currentSection.title}</span>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </>
+                )}>
+                {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
+              </MenuButton>
+            </>
+          )}
+        </nav>
         <span className="editor-bar-spacer" />
-        {sections.length > 1 && (
-          <MenuButton label="Contents: jump to a split" buttonClassName="btn btn-ghost btn-sm reader-contents-btn"
-            trigger={<><ListTree size={15} aria-hidden="true" /><span className="hide-narrow">Contents</span><ChevronDown size={14} aria-hidden="true" /></>}>
-            {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
-          </MenuButton>
-        )}
         {canUnfold && mode !== 'article' && (
           <button type="button" className={`btn btn-ghost btn-sm unfold-toggle${unfold ? ' is-on' : ''}`} aria-pressed={unfold}
             title={unfold ? 'Unfold is on: each drawing builds up as you read. Click to show whole drawings.' : 'Unfold: build each drawing up paragraph by paragraph'}
@@ -133,7 +165,7 @@ function Reader({ article }: { article: PublishedArticle }) {
         )}
       </header>
       {mode === 'flow' && (
-        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo}
+        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={!linked || resumeLinked ? prefs.place : undefined}
           setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} unfold={unfold} />
       )}
       {mode === 'article' && (
@@ -144,7 +176,36 @@ function Reader({ article }: { article: PublishedArticle }) {
   );
 }
 
-interface Jump { sectionId: string; sub: number | null; n: number }
+/** `arrive: 'end'` = going back: open the split at its end (its last paragraph), mirroring going forward. */
+interface Jump { sectionId: string; sub: number | null; arrive?: 'start' | 'end'; n: number }
+
+/** `#split-3-finding-a-keys-server`: number for humans, title so the link survives reordering. */
+const splitSlug = (title: string) => slugify(title.replace(/['’]/g, ''));   // "key's" → "keys", not "key-s"
+function splitHash(index: number, section: Section): string {
+  return `#split-${index + 1}-${splitSlug(section.title)}`;
+}
+function splitFromHash(sections: Section[], hash: string): string | null {
+  const m = /^#split-(\d+)(?:-(.+))?$/.exec(hash);
+  if (!m) return null;
+  const bySlug = m[2] ? sections.find(x => splitSlug(x.title) === m[2]) : undefined;
+  return (bySlug ?? sections[Number(m[1]) - 1])?.id ?? null;
+}
+
+/** "Copy link" to one split (shows "Copied ✓" for a moment). */
+function CopySplitLink({ index, section, compact = false }: { index: number; section: Section; compact?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    const url = `${window.location.origin}${window.location.pathname}${splitHash(index, section)}`;
+    void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }, () => window.prompt('Copy this link', url));
+  };
+  return (
+    <button type="button" className={`copy-split-link${copied ? ' is-copied' : ''}${compact ? ' is-compact' : ''}`} onClick={copy}
+      title={`Copy a link to split ${index + 1}: ${section.title}`} aria-label={`Copy a link to split ${index + 1}`}>
+      {copied ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
+      {!compact && <span>{copied ? 'Copied' : 'Copy link'}</span>}
+    </button>
+  );
+}
 
 /** Sub-headings (H3) of a split, for Contents. */
 function subHeadings(section: Section): string[] {
@@ -219,9 +280,9 @@ function ArticleHeader({ article, views }: { article: PublishedArticle; views: n
 }
 
 // ---------------------------------------------------------------- Split view: one split at a time (2026-11-27)
-function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, layout, authorLayout, unfold }: {
-  article: PublishedArticle; sections: Section[]; views: number; current: string | null; jump: Jump | null;
-  onGo: (sectionId: string, sub?: number | null) => void; setPrefs: (p: ReadPrefs) => void;
+function FlowMode({ article, sections, views, current, jump, onGo, place, setPrefs, layout, authorLayout, unfold }: {
+  article: PublishedArticle; sections: Section[]; views: number; current: string | null; jump: Jump | null; place?: ReadPlace;
+  onGo: (sectionId: string, sub?: number | null, arrive?: 'start' | 'end') => void; setPrefs: (p: ReadPrefs) => void;
   layout: LayoutId; authorLayout: LayoutId; unfold: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -229,13 +290,51 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
   const section = sections[index];
   const prev = sections[index - 1], next = sections[index + 1];
 
-  // A new split starts at its top; a jump to a sub-heading scrolls to it.
+  // Resume where the reader left off (2026-11-27): the saved place is used once, when the page opens on that split.
+  const [restoreOnce] = useState<ReadPlace | undefined>(place);
+  const restoreRef = useRef<ReadPlace | undefined>(restoreOnce);
+  const anchorEl = useCallback((root: HTMLElement, blockId: string): HTMLElement | null => {
+    if (blockId === 'prev') return root.querySelector<HTMLElement>('.prev-split');
+    if (blockId === 'next') return root.querySelector<HTMLElement>('.next-split-cta');
+    return root.querySelector<HTMLElement>(`.ProseMirror > [data-block-id="${CSS.escape(blockId)}"]`);
+  }, []);
+  /** Remember the place: the pointer's stop (Unfold) or the first paragraph in view, and how far down it sits. */
+  const saveTimer = useRef(0);
+  const rememberPlace = useCallback(() => {
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      const root = scrollRef.current;
+      if (!root || !section) return;
+      const top = root.getBoundingClientRect().top;
+      const el = root.querySelector<HTMLElement>('.is-unfold-current')
+        ?? [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id]')].find(b => b.getBoundingClientRect().bottom > top + 1) ?? null;
+      if (!el) return;
+      const blockId = el.classList.contains('prev-split') ? 'prev' : el.classList.contains('next-split-cta') ? 'next' : el.getAttribute('data-block-id');
+      if (!blockId) return;
+      setPrefs({ place: { sectionId: section.id, blockId, offset: Math.round(el.getBoundingClientRect().top - top) } });
+    }, 400);
+  }, [section, setPrefs]);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    root.addEventListener('scroll', rememberPlace, { passive: true });
+    return () => { root.removeEventListener('scroll', rememberPlace); window.clearTimeout(saveTimer.current); };
+  }, [rememberPlace]);
+
+  // A new split starts at its top; going back opens it at its end; a jump to a sub-heading scrolls to it.
+  const arriveAtEnd = !!(jump && section && jump.sectionId === section.id && jump.arrive === 'end');
+  const arriveAtEndRef = useRef(arriveAtEnd);
+  useEffect(() => { arriveAtEndRef.current = arriveAtEnd; });   // declared first: runs before the effects below
   useEffect(() => {
     const root = scrollRef.current;
     if (!root || !section) return;
+    const restore = !jump && restoreRef.current?.sectionId === section.id ? restoreRef.current : undefined;
+    const el = restore ? anchorEl(root, restore.blockId) : null;
     if (jump && jump.sectionId === section.id && jump.sub !== null) scrollToTarget(root, section.id, jump.sub, 'smooth');
+    else if (el && restore) root.scrollTop += el.getBoundingClientRect().top - root.getBoundingClientRect().top - restore.offset;
+    else if (arriveAtEndRef.current) root.scrollTop = root.scrollHeight;
     else root.scrollTop = 0;
-  }, [section, jump]);
+  }, [section, jump, anchorEl]);
 
   // [ and ] (or Alt+← / Alt+→): previous / next split.
   useEffect(() => {
@@ -244,7 +343,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (t?.closest('input, textarea, select, [contenteditable="true"]') || e.ctrlKey || e.metaKey) return;
       const back = e.key === '[' || (e.altKey && e.key === 'ArrowLeft');
       const fwd = e.key === ']' || (e.altKey && e.key === 'ArrowRight');
-      if (back && prev) { e.preventDefault(); onGo(prev.id); }
+      if (back && prev) { e.preventDefault(); onGo(prev.id, null, 'end'); }
       if (fwd && next) { e.preventDefault(); onGo(next.id); }
     };
     window.addEventListener('keydown', onKey);
@@ -268,8 +367,15 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     };
     if (!unfold || !section) { clear(); return; }
     // Empty paragraphs (e.g. the editor's final empty line) are not reading steps.
-    const blocksOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
+    const paragraphsOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
       .filter(el => (el.textContent ?? '').trim() !== '' || el.querySelector('img, svg, hr') || el.tagName === 'HR');
+    // The pointer's stops: the "previous split" link, every paragraph, then the "Next split" card (Enter = click).
+    const blocksOf = () => {
+      const prevBtn = root.querySelector<HTMLElement>('.prev-split');
+      const nextBtn = root.querySelector<HTMLElement>('.next-split-cta');
+      return [...(prevBtn ? [prevBtn] : []), ...paragraphsOf(), ...(nextBtn ? [nextBtn] : [])];
+    };
+    const isButton = (el: HTMLElement | undefined) => !!el && el.tagName === 'BUTTON';
     let at = 0;                 // index into blocksOf()
     let quietUntil = 0;         // ignore position-based placement while our own / wheel scrolling settles
     let acc = 0, lastStep = 0, raf = 0;
@@ -278,13 +384,17 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       const blocks = blocksOf();
       if (!blocks.length) return;
       at = Math.max(0, Math.min(i, blocks.length - 1));
+      const cur = blocks[at]!;
+      const onPrev = isButton(cur) && cur.classList.contains('prev-split');
       blocks.forEach((el, k) => {
         el.classList.toggle('is-unfold-current', k === at);
-        el.classList.toggle('is-unfold-future', k > at);
+        el.classList.toggle('is-unfold-future', !onPrev && !isButton(el) && k > at);   // on "previous": nothing read yet, nothing faded
       });
-      const cur = blocks[at]!;
-      const id = cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
-      const index = id ? stepIds(section.nodes).indexOf(id) : -1;
+      // The drawing: on "previous" nothing of this split yet; on "Next split" all of it.
+      const id = isButton(cur) ? null : cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
+      const ids = stepIds(section.nodes);
+      const index = onPrev ? -1 : isButton(cur) ? ids.length - 1 : id ? ids.indexOf(id) : -1;
+      rememberPlace();
       setStep(p => (p?.sectionId === section.id && p.index === index ? p : { sectionId: section.id, index }));
     };
     const view = () => { const b = root.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, h: b.height }; };
@@ -297,13 +407,14 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     };
     /** Place the pointer by scroll position (scroll bar drags, jumps): the line runs from the split's start to its end. */
     const placeByPosition = () => {
-      const blocks = blocksOf();
+      const all = blocksOf();
+      const blocks = paragraphsOf();
       const max = root.scrollHeight - root.clientHeight;
       const line = (max > 0 ? root.scrollTop / max : 0) * root.scrollHeight;
       const top = view().top;
       let i = -1;
       blocks.forEach((el, k) => { if (el.getBoundingClientRect().top - top + root.scrollTop <= line + 1) i = k; });
-      apply(Math.max(0, i));
+      apply(all.indexOf(blocks[Math.max(0, i)]!));
     };
     const stepBy = (dir: 1 | -1): boolean => {
       const blocks = blocksOf();
@@ -312,8 +423,8 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (!cur) return false;
       const r = cur.getBoundingClientRect();
       // A tall paragraph: scroll through it first.
-      if (dir === 1 && r.bottom > v.bottom - 10) return false;
-      if (dir === -1 && r.top < v.top - 10) return false;
+      if (!isButton(cur) && dir === 1 && r.bottom > v.bottom - 10) return false;
+      if (!isButton(cur) && dir === -1 && r.top < v.top - 10) return false;
       const next = at + dir;
       if (next < 0 || next >= blocks.length) return false;      // edges: normal scrolling
       apply(next);
@@ -330,7 +441,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       const cur = blocks[at];
       const v = view();
       const r = cur?.getBoundingClientRect();
-      const tall = r && (dir === 1 ? r.bottom > v.bottom - 10 : r.top < v.top - 10);
+      const tall = r && !isButton(cur) && (dir === 1 ? r.bottom > v.bottom - 10 : r.top < v.top - 10);
       const edge = dir === 1 ? at >= blocks.length - 1 : at <= 0;
       if (tall || edge) { acc = 0; return; }                    // let the page scroll normally
       e.preventDefault();
@@ -344,7 +455,24 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest('input, textarea, select, [contenteditable="true"]') || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'Enter') {
+        if (t?.closest('button, a, [role="menu"]')) return;   // a focused control handles its own Enter
+        const cur = blocksOf()[at];
+        if (!cur) return;
+        // Enter on the split buttons = click; on a collapsible = open / close it.
+        const target = isButton(cur) ? cur : cur.matches('.collapsible, [data-type="details"]') ? cur.querySelector<HTMLElement>(':scope > button') : null;
+        if (!target) return;
+        e.preventDefault();
+        // Opening / closing changes the page height and nudges the scroll: keep the pointer on this collapsible.
+        if (!isButton(cur)) quietUntil = Date.now() + 900;
+        target.click();
+        if (!isButton(cur)) { const keep = at; requestAnimationFrame(() => apply(keep)); }
+        return;
+      }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      // Like the wheel: arrow-key scrolling never re-places the pointer by position (e.g. ↓ on the Next split card,
+      // where there is nothing further to step to, must not send the pointer back up).
+      quietUntil = Date.now() + 500;
       if (stepBy(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     };
     const onScroll = () => {
@@ -355,11 +483,21 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('a, button, summary')) return;
-      const i = blocksOf().findIndex(b => b.contains(t));
+      const i = blocksOf().findIndex(b => !isButton(b) && b.contains(t));
       if (i >= 0) apply(i);
     };
 
-    raf = requestAnimationFrame(() => apply(0));                 // a split starts at its first paragraph
+    // A split starts at its first paragraph; arriving from the next split (going back), at its last one; after a
+    // refresh, where the reader left off.
+    const restore = restoreRef.current?.sectionId === section.id ? restoreRef.current : undefined;
+    const arriveEnd = arriveAtEndRef.current;
+    if (arriveEnd || restore) quietUntil = Date.now() + 700;
+    raf = requestAnimationFrame(() => {
+      const paras = paragraphsOf();
+      const restored = restore ? anchorEl(root, restore.blockId) : null;
+      const start = restored ?? (arriveEnd ? paras[paras.length - 1] : paras[0]);
+      apply(Math.max(0, blocksOf().indexOf(start!)));
+    });
     root.addEventListener('wheel', onWheel, { passive: false });
     root.addEventListener('scroll', onScroll, { passive: true });
     root.addEventListener('click', onClick);
@@ -372,7 +510,10 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       cancelAnimationFrame(raf);
       clear();
     };
-  }, [unfold, section]);
+  }, [unfold, section, anchorEl, rememberPlace]);
+  // The saved place applies to the split it belongs to; forget it once the reader moves to another split. (Not cleared
+  // right after use: React's development mode runs effects twice, and the second run must still find it.)
+  useEffect(() => { if (restoreRef.current && restoreRef.current.sectionId !== section?.id) restoreRef.current = undefined; }, [section]);
 
   const slide = slideFor(sections, index);
   const parts = useMemo(() => {
@@ -389,11 +530,16 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       left={(
         <div ref={scrollRef} className={`reader-scroll${unfold ? ' is-unfolding' : ''}`} id="main">
           <div className="reader-column">
-            {index === 0 ? <ArticleHeader article={article} views={views} /> : prev && (
-              <button type="button" className="prev-split" onClick={() => onGo(prev.id)} title="Previous split ([)">
-                <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
-              </button>
-            )}
+            {index === 0 && <ArticleHeader article={article} views={views} />}
+            <div className="split-top">
+              {prev && (
+                <button type="button" className="prev-split" onClick={() => onGo(prev.id, null, 'end')} title="Previous split ([)">
+                  <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
+                  <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
+                </button>
+              )}
+              <CopySplitLink index={index} section={section} />
+            </div>
             <section key={section.id} data-reader-section={section.id} className="reader-section is-active">
               <SectionView nodes={section.nodes} />
             </section>
@@ -402,6 +548,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
                 <button type="button" className="next-split-cta" onClick={() => onGo(next.id)} title="Next split (])">
                   <span className="next-split-label">Next split</span>
                   <span className="next-split-title">{index + 2}. {next.title}</span>
+                  <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               ) : (
@@ -464,7 +611,8 @@ function ArticleMode({ article, sections, views, onOpen, jump, current, onActive
         <div className="reader-column">
           <ArticleHeader article={article} views={views} />
           {sections.map((s, i) => (
-            <section key={s.id} data-reader-section={s.id} className="reader-section">
+            <section key={s.id} data-reader-section={s.id} className="reader-section has-copy-link">
+              <CopySplitLink index={i} section={s} compact />
               <SectionView nodes={s.nodes} />
               {s.frameId && (
                 <figure className="slide-figure">
