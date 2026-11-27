@@ -1,4 +1,4 @@
-import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, SendToBack, SlidersHorizontal, Trash2, Type, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, BringToFront, ChevronDown, Eye, Layers, SendToBack, SlidersHorizontal, Trash2, Type, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { applyStyle, deleteSelection, moveSelection, type ExcalidrawImperativeAPI } from './excalidraw.ts';
 import ShapesPanel from './ShapesPanel.tsx';
@@ -8,7 +8,9 @@ import { ARROWHEADS, FILL_COLORS, FONT_SIZES, FONTS, STROKE_COLORS, summarize, t
  * Study Split's drawing format bar (replaces Excalidraw's floating properties panel, which covered the slide).
  * With a selection it restyles the selection; with nothing selected it sets the style of the next shapes.
  */
-export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, trailing }: {
+export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, trailing, unfold }: {
+  /** Unfold on: which step the cursor's paragraph is, and how to (re)assign the selected parts. */
+  unfold?: { step: number | null; assign: (where: 'current' | 'start') => void };
   /** Shown at the right end of the bar (e.g. the full-screen button). */
   trailing?: React.ReactNode;
   api: ExcalidrawImperativeAPI | null;
@@ -113,6 +115,26 @@ export default function FormatBar({ api, slideId, nativeOpen, onToggleNative, tr
         </Pop>
       )}
 
+      {s.count > 0 && unfold && (
+        <Pop label="Unfold: when these parts appear" caption="Step" trigger={<Layers size={15} aria-hidden="true" />}>
+          {close => (
+            <div className="fb-menu">
+              <button type="button" className="menu-item" disabled={unfold.step === null}
+                onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('current'); close(); }}>
+                <Layers size={16} aria-hidden="true" />
+                <span className="menu-item-text">
+                  {unfold.step === null ? 'Show with a paragraph' : `Show with paragraph ${unfold.step}`}
+                  <small>{unfold.step === null ? 'Click into a paragraph on the left first' : 'The paragraph your cursor is in'}</small>
+                </span>
+              </button>
+              <button type="button" className="menu-item" onMouseDown={e => e.preventDefault()} onClick={() => { unfold.assign('start'); close(); }}>
+                <Eye size={16} aria-hidden="true" />
+                <span className="menu-item-text">Always visible<small>Shown from the first paragraph</small></span>
+              </button>
+            </div>
+          )}
+        </Pop>
+      )}
       {s.count > 0 && (
         <>
           <span className="fb-sep" aria-hidden="true" />
@@ -307,7 +329,7 @@ function Seg({ label, value, options, onPick, icons = false }: { label: string; 
 }
 
 /** Small button that opens a panel below it (flips left near the screen edge). Esc / click outside close it. */
-function Pop({ label, trigger, children, caption }: { label: string; trigger: ReactNode; children: ReactNode; caption?: string }) {
+function Pop({ label, trigger, children, caption }: { label: string; trigger: ReactNode; children: ReactNode | ((close: () => void) => ReactNode); caption?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
@@ -331,7 +353,7 @@ function Pop({ label, trigger, children, caption }: { label: string; trigger: Re
         aria-expanded={open} aria-haspopup="dialog" onMouseDown={e => e.preventDefault()} onClick={toggle}>
         {trigger}{caption && <span className="tb-style-label">{caption}</span>}<ChevronDown size={12} aria-hidden="true" className="fb-chev" />
       </button>
-      {open && <div className="fb-popover" style={pos} role="dialog" aria-label={label}>{children}</div>}
+      {open && <div className="fb-popover" style={pos} role="dialog" aria-label={label}>{typeof children === 'function' ? children(() => setOpen(false)) : children}</div>}
     </div>
   );
 }

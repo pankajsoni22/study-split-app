@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ensureSectionIds, readingMinutes, type Doc } from '../../domain/content.ts';
+import { ensureSectionIds, ensureTrailingParagraph, readingMinutes, type Doc } from '../../domain/content.ts';
+import { ensureBlockIds } from '../../domain/unfold.ts';
 import { slugify } from '../../domain/slug.ts';
 import type { ArticleDraft, ArticleMeta, CanvasScene } from '../../domain/types.ts';
 import { AppError, errorMessage } from '../../data/errors.ts';
@@ -50,7 +51,7 @@ export function useDraftSession(articleId: string) {
       const useLocal = !!local && !d.deletedAt && local.savedAt > Date.parse(d.updatedAt);
       if (local && !useLocal) void localDrafts.remove(articleId);
       const start = useLocal ? { ...d, doc: local.doc, canvas: local.canvas, meta: local.meta } : d;
-      docRef.current = ensureSectionIds(start.doc);
+      docRef.current = ensureBlockIds(ensureTrailingParagraph(ensureSectionIds(start.doc)));   // blockIds: Unfold steps (domain/unfold.ts)
       canvasRef.current = start.canvas;
       metaRef.current = start.meta;
       versionRef.current = useLocal ? local.baseVersion : d.version;
@@ -60,7 +61,7 @@ export function useDraftSession(articleId: string) {
       setStatus(d.status);
       setSavedVersion(d.version);
       setPublishedDraftVersion(d.publishedDraftVersion);
-      setDraft(start);
+      setDraft({ ...start, doc: docRef.current });
     })().catch((err: unknown) => { if (!cancelled) setLoadError(err); });
     return () => { cancelled = true; };
   }, [articleId, services]);
@@ -177,7 +178,7 @@ export function useDraftSession(articleId: string) {
     versionRef.current = d.version;
     changeCount.current = 0;
     setSavedVersion(d.version);
-    replaceContent(ensureSectionIds(d.doc), d.canvas, d.meta);
+    replaceContent(ensureBlockIds(ensureTrailingParagraph(ensureSectionIds(d.doc))), d.canvas, d.meta);
     setSaveState('saved');
     setFromDevice(false);
   }, [articleId, replaceContent, services]);

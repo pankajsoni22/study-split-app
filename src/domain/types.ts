@@ -73,6 +73,8 @@ export interface CanvasScene {
   files: Record<string, unknown>;
   /** The author's layout; sets the slide shape. Stored with the canvas so it is versioned. */
   layout?: LayoutId;
+  /** Unfold (experimental): the drawing builds up paragraph by paragraph for readers. See domain/unfold.ts. */
+  unfold?: boolean;
 }
 
 export interface ArticleMeta {

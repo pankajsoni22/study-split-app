@@ -31,16 +31,19 @@ export function buildArticle(def) {
   const elements = [];
   def.sections.forEach((s, i) => {
     const frameId = nextId('frame'), x0 = i * (w + GAP);
-    doc.content.push({ type: 'heading', attrs: { level: 2, sectionId: nextId('s'), frameId }, content: [{ type: 'text', text: s.title }] }, ...s.body);
+    // Every block gets a stable blockId (Unfold steps; see src/domain/unfold.ts).
+    const body = s.body.map(b => ({ ...b, attrs: { ...(b.attrs ?? {}), blockId: nextId('b') } }));
+    doc.content.push({ type: 'heading', attrs: { level: 2, sectionId: nextId('s'), frameId }, content: [{ type: 'text', text: s.title }] }, ...body);
     elements.push({ id: frameId, type: 'frame', x: x0, y: 0, width: w, height: h, name: s.title, seed: i + 1, strokeColor: '#bbb',
       backgroundColor: 'transparent', fillStyle: 'solid', strokeWidth: 2, roughness: 0, opacity: 100, angle: 0, groupIds: [], frameId: null, roundness: null });
-    const kit = slideKit({ frameId, x0, nextId });
+    const plain = node => node.text ?? (node.content ?? []).map(plain).join('');
+    const kit = slideKit({ frameId, x0, nextId, blocks: body.map(b => ({ id: b.attrs.blockId, text: plain(b).replace(/\s+/g, ' ').trim() })) });
     (s.draw ?? (s.boxes ? boxesSlide(s.boxes) : () => {}))(kit);
     elements.push(...kit.els);
   });
   const textOf = node => node.text ?? (node.content ?? []).map(textOf).join(' ');
   const words = doc.content.map(textOf).join(' ').split(/\s+/).filter(Boolean).length;
-  return { doc, canvas: { layout: def.layout, files: {}, elements }, readingMinutes: Math.max(1, Math.round(words / 220)) };
+  return { doc, canvas: { layout: def.layout, files: {}, elements, ...(def.unfold ? { unfold: true } : {}) }, readingMinutes: Math.max(1, Math.round(words / 220)) };
 }
 
 const teal = C.teal, amber = C.amber, sky = C.sky;

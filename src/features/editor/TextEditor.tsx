@@ -7,7 +7,9 @@ import { selectionContext, type CurrentSection } from './selection.ts';
 import Toolbar from './Toolbar.tsx';
 
 /** Rich-text side of the editor. Reports content changes and which section the cursor is in. */
-export default function TextEditor({ initialDoc, onReady, onChange, onActiveSection, trailing }: {
+export default function TextEditor({ initialDoc, onReady, onChange, onActiveSection, onActiveBlock, trailing }: {
+  /** Unfold: the top-level block (paragraph, list…) the cursor is in, by blockId. */
+  onActiveBlock?: (blockId: string | null) => void;
   /** Shown at the right end of the formatting toolbar (e.g. the full-screen button). */
   trailing?: React.ReactNode;
   initialDoc: Doc;
@@ -15,9 +17,10 @@ export default function TextEditor({ initialDoc, onReady, onChange, onActiveSect
   onChange: (doc: Doc) => void;
   onActiveSection: (section: CurrentSection | null) => void;
 }) {
-  const callbacks = useRef({ onChange, onActiveSection });
-  useEffect(() => { callbacks.current = { onChange, onActiveSection }; });
+  const callbacks = useRef({ onChange, onActiveSection, onActiveBlock });
+  useEffect(() => { callbacks.current = { onChange, onActiveSection, onActiveBlock }; });
   const lastSection = useRef<string | null>(null);
+  const lastBlock = useRef<string | null | undefined>(undefined);
   const alive = useRef(true);
   useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -28,7 +31,10 @@ export default function TextEditor({ initialDoc, onReady, onChange, onActiveSect
     editorProps: { attributes: { class: 'prose prose-edit', 'aria-label': 'Article text', spellcheck: 'true' } },
     onUpdate: ({ editor: e }) => { if (alive.current) callbacks.current.onChange(e.getJSON() as Doc); },
     onSelectionUpdate: ({ editor: e }) => {
-      const { section } = selectionContext(e);
+      const { section, block } = selectionContext(e);
+      const isSplit = block?.type.name === 'heading' && block.attrs.level === 2;
+      const blockId = !block || isSplit ? null : ((block.attrs.blockId as string | null) ?? null);
+      if (blockId !== lastBlock.current) { lastBlock.current = blockId; callbacks.current.onActiveBlock?.(blockId); }
       const key = section ? section.sectionId : null;
       if (key === lastSection.current) return;
       lastSection.current = key;

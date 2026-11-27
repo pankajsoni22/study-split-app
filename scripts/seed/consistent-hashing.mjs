@@ -28,7 +28,7 @@ function owners(k, cx, cy, r, arcs, sw = 12) {
 }
 
 export const consistentHashing = {
-  key: 'hash', owner: 1, slug: 'consistent-hashing', title: 'Consistent Hashing', state: 'draft', layout: '40-60',
+  key: 'hash', owner: 1, slug: 'consistent-hashing', title: 'Consistent Hashing', state: 'draft', layout: '40-60', unfold: true,
   tags: ['system-design', 'distributed-systems', 'caching'],
   summary: 'How to spread keys over servers so that adding or losing a server moves only a few keys: the hash ring, virtual nodes, replication, hot keys, alternatives and where it is used.',
   sections: [
@@ -60,6 +60,7 @@ export const consistentHashing = {
       ],
       draw(k) {
         title(k, 'hash(key) % N: what happens when N changes?', 'Same 8 keys, 3 servers → 4 servers');
+        k.step('The drawing takes 8 keys');
         const cols = [['Key', 160, 200], ['hash(key)', 360, 240], ['% 3 (before)', 600, 260], ['% 4 (after)', 860, 260], ['Moved?', 1120, 300]];
         const y0 = 180, rh = 66;
         cols.forEach(([t, x, w]) => k.box(x, y0, w, rh, t, { tone: C.slate, size: 28 }));
@@ -69,7 +70,9 @@ export const consistentHashing = {
           [[`k${i + 1}`], [String(h)], [`S${a}`], [`S${b}`], [moved ? 'yes' : 'no']].forEach(([t], j) =>
             k.box(cols[j][1], y, cols[j][2], rh, t, { tone, size: 28, color: moved && j >= 3 ? C.rose.stroke : C.ink }));
         }
+        k.step('The red rows are the keys that changed server');
         k.box(160, 830, 1260, 150, '5 of 8 keys moved (theory: N/(N+1) = 75%)\n→ caches go cold, every miss hits the database', { tone: C.rose, size: 32 });
+        k.step('When a server joins or leaves');
         k.box(160, 1020, 1260, 110, 'We want: only the new server\'s fair share (~K/N keys) to move', { tone: C.green, size: 32 });
       }
     },
@@ -136,20 +139,27 @@ export const consistentHashing = {
       draw(k) {
         title(k, 'Walk clockwise to the first server');
         const cx = 600, cy = 660, r = 380;
+        k.step('Once servers and keys are on the ring');
         ring(k, cx, cy, r);
+        k.step('Servers A, B and C each colour the arc they own');
         owners(k, cx, cy, r, [[30, 150, C.amber], [150, 260, C.violet], [260, 390, C.teal]]);
+        k.step('Once servers and keys are on the ring');
         k.node(cx, cy, r, 30, 'A', { tone: C.teal }).node(cx, cy, r, 150, 'B', { tone: C.amber }).node(cx, cy, r, 260, 'C', { tone: C.violet });
+        k.step('Servers A, B and C each colour the arc they own');
         [[70, 'k1', C.amber], [120, 'k2', C.amber], [200, 'k3', C.violet], [300, 'k4', C.teal], [350, 'k5', C.teal]]
           .forEach(([d, l, t]) => k.key(cx, cy, r, d, l, { tone: t }));
-        k.arc(cx, cy, r - 95, 204, 252, { stroke: C.violet.stroke, sw: 3, dashed: true, arrow: true });
-        const [tx, ty] = polar(cx, cy, r - 170, 228);
-        k.text(tx, ty - 16, 'k3 → C', { size: 28, align: 'center', color: C.violet.stroke });
-        k.arc(cx, cy, r - 95, 304, 386, { stroke: C.teal.stroke, sw: 3, dashed: true, arrow: true });
-        const [wx, wy] = polar(cx, cy, r - 170, 340);
-        k.text(wx, wy - 16, 'wraps past 0', { size: 26, align: 'center', color: C.teal.stroke });
         k.box(1080, 250, 460, 110, 'A owns (C, A]  →  k4, k5', { tone: C.teal, size: 28 });
         k.box(1080, 390, 460, 110, 'B owns (A, B]  →  k1, k2', { tone: C.amber, size: 28 });
         k.box(1080, 530, 460, 110, 'C owns (B, C]  →  k3', { tone: C.violet, size: 28 });
+        k.step('Key k3 sits between B and C');
+        k.arc(cx, cy, r - 95, 204, 252, { stroke: C.violet.stroke, sw: 3, dashed: true, arrow: true });
+        const [tx, ty] = polar(cx, cy, r - 170, 228);
+        k.text(tx, ty - 16, 'k3 → C', { size: 28, align: 'center', color: C.violet.stroke });
+        k.step('Keys k4 and k5 sit after C');
+        k.arc(cx, cy, r - 95, 304, 386, { stroke: C.teal.stroke, sw: 3, dashed: true, arrow: true });
+        const [wx, wy] = polar(cx, cy, r - 170, 340);
+        k.text(wx, wy - 16, 'wraps past 0', { size: 26, align: 'center', color: C.teal.stroke });
+        k.step('Hash the key to get its position');
         k.text(1080, 700, '1. p = hash(key)\n2. first server ≥ p\n3. none? wrap to the first', { size: 30 });
       }
     },
@@ -179,12 +189,14 @@ export const consistentHashing = {
         title(k, 'Only the neighbouring arc moves');
         const r = 270, cy = 560;
         const L = 400, R = 1200;
+        k.step('On the left are servers A, B and C');
         ring(k, L, cy, r);
         owners(k, L, cy, r, [[30, 150, C.amber], [150, 260, C.violet], [260, 390, C.teal]], 10);
         k.node(L, cy, r, 30, 'A', { tone: C.teal, dot: 24 }).node(L, cy, r, 150, 'B', { tone: C.amber, dot: 24 }).node(L, cy, r, 260, 'C', { tone: C.violet, dot: 24 });
         k.key(L, cy, r, 70, 'k1', { tone: C.amber }).key(L, cy, r, 120, 'k2', { tone: C.amber }).key(L, cy, r, 200, 'k3', { tone: C.violet });
         k.text(L, 190, 'Before: A, B, C', { size: 32, align: 'center' });
 
+        k.step('When a new server D lands between A and B');
         ring(k, R, cy, r);
         owners(k, R, cy, r, [[30, 100, C.green], [100, 150, C.amber], [150, 260, C.violet], [260, 390, C.teal]], 10);
         k.node(R, cy, r, 30, 'A', { tone: C.teal, dot: 24 }).node(R, cy, r, 100, 'D (new)', { tone: C.green, dot: 24, labelGap: 80 })
@@ -194,7 +206,9 @@ export const consistentHashing = {
         k.arrow([[700, 560], [880, 560]], { stroke: C.green.stroke, sw: 4 });
         k.text(790, 500, 'add D', { size: 28, align: 'center', color: C.green.stroke });
 
+        k.step('Only k1 falls in D');
         k.box(140, 920, 1320, 100, 'Only k1 moves (B → D). k2 and k3 stay put.', { tone: C.rose, size: 32 });
+        k.step('If D is removed again');
         k.box(140, 1050, 1320, 100, 'Remove D → its keys go to the next server clockwise (B)', { tone: C.slate, size: 30 });
       }
     },
@@ -228,12 +242,14 @@ export const consistentHashing = {
       draw(k) {
         title(k, 'One position per server vs. virtual nodes');
         const r = 220, cy = 470, L = 400, R = 1200;
+        k.step('Servers land at random positions');
         ring(k, L, cy, r);
         owners(k, L, cy, r, [[10, 60, C.amber], [60, 120, C.violet], [120, 370, C.teal]], 10);
         k.node(L, cy, r, 10, 'A', { tone: C.teal, dot: 22, labelGap: 50 }).node(L, cy, r, 60, 'B', { tone: C.amber, dot: 22, labelGap: 50 })
           .node(L, cy, r, 120, 'C', { tone: C.violet, dot: 22, labelGap: 50 });
         k.text(L, 140, '1 position per server', { size: 30, align: 'center' });
 
+        k.step('Give each physical server many positions');
         ring(k, R, cy, r);
         const v = [['A1', C.teal], ['B1', C.amber], ['C1', C.violet], ['A2', C.teal], ['B2', C.amber], ['C2', C.violet], ['A3', C.teal], ['B3', C.amber], ['C3', C.violet]];
         owners(k, R, cy, r, v.map(([, t], i) => [i * 40 - 40, i * 40, t]), 10);
@@ -249,9 +265,11 @@ export const consistentHashing = {
             k.text(x + 60, 1110, l, { size: 28, align: 'center' });
           });
         };
+        k.step('Left: with one position each');
         bars(160, [['A', 69, C.teal], ['B', 14, C.amber], ['C', 17, C.violet]]);
-        bars(960, [['A', 33, C.teal], ['B', 34, C.amber], ['C', 33, C.violet]]);
         k.text(400, 745, 'share of keys', { size: 24, align: 'center', color: C.muted });
+        k.step('Right: each server has 3 virtual nodes');
+        bars(960, [['A', 33, C.teal], ['B', 34, C.amber], ['C', 33, C.violet]]);
         k.text(1200, 745, 'share of keys', { size: 24, align: 'center', color: C.muted });
       }
     },

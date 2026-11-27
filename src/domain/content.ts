@@ -83,3 +83,14 @@ export function ensureSectionIds(doc: Doc): Doc {
   });
   return changed ? { ...doc, content } : doc;
 }
+
+/**
+ * The editor keeps an empty paragraph at the end (so you can click below a final box or table and type). Adding it
+ * when an article is opened, instead of on the editor's first event, stops a merely opened (or clicked) article from
+ * looking edited. Returns the same doc when it already ends with a paragraph.
+ */
+export function ensureTrailingParagraph(doc: Doc): Doc {
+  const last = doc.content[doc.content.length - 1];
+  if (last?.type === 'paragraph') return doc;
+  return { ...doc, content: [...doc.content, { type: 'paragraph' }] };
+}

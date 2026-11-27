@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, Ellipsis, ExternalLink, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, Ellipsis, ExternalLink, Layers, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -17,7 +17,9 @@ import { errorMessage } from '../../data/errors.ts';
 import { getServices } from '../../data/services.ts';
 import { invalidate } from '../../data/useQuery.ts';
 import { useAuth } from '../auth/useAuth.ts';
-import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, tagElements, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
+import { countsByStep, UNFOLD_KEY } from '../../domain/unfold.ts';
+import { setUnfoldMarks } from './unfoldMarks.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
 import SlideStrip, { type LinkTarget, type SlideRef } from './SlideStrip.tsx';
@@ -71,12 +73,82 @@ export default function EditorPage() {
   useEffect(() => { layoutRef.current = articleLayout; }, [articleLayout]);
   const viewLayout: LayoutId = editorView.view ?? articleLayout;
 
+  // ---- Unfold (experimental): the drawing builds up paragraph by paragraph for readers. Per article, stored with
+  //      the canvas. While on, new drawing parts belong to the paragraph the cursor is in. ----
+  const [unfoldPick, setUnfoldPick] = useState<{ key: number; on: boolean } | null>(null);
+  const unfoldOn = unfoldPick?.key === sessionKey ? unfoldPick.on : !!draft?.canvas.unfold;
+  const unfoldRef = useRef(unfoldOn);
+  useEffect(() => { unfoldRef.current = unfoldOn; }, [unfoldOn]);
+  const activeBlockRef = useRef<string | null>(null);
+  const [activeBlock, setActiveBlock] = useState<string | null>(null);
+  const knownIds = useRef<Set<string> | null>(null);
+  const marksKey = useRef('');
+  const onActiveBlock = useCallback((blockId: string | null) => { activeBlockRef.current = blockId; setActiveBlock(blockId); }, []);
+
+  /** Unfold bookkeeping on every drawing change: tag new parts with the current paragraph; refresh the step badges. */
+  const unfoldAfterChange = useCallback((scene: CanvasScene) => {
+    if (!api) return;
+    type Part = { id: string; type: string; isDeleted?: boolean; containerId?: string | null; customData?: Record<string, unknown> };
+    const parts = scene.elements as Part[];
+    if (!knownIds.current) knownIds.current = new Set(parts.map(e => e.id));
+    const st = api.getAppState() as unknown as Record<string, unknown>;
+    const busy = st.newElement || st.multiElement || st.editingTextElement;   // never touch a shape while it is being drawn
+    if (!busy) {
+      const fresh = parts.filter(e => !knownIds.current!.has(e.id) && !e.isDeleted);
+      fresh.forEach(e => knownIds.current!.add(e.id));
+      const toTag = fresh.filter(e => e.type !== 'frame' && !e.containerId && !e.customData?.[UNFOLD_KEY]).map(e => e.id);
+      if (unfoldRef.current && toTag.length && activeBlockRef.current) tagElements(api, toTag, activeBlockRef.current);
+    }
+    if (editor) {
+      const counts = countsByStep(parts);
+      const key = `${unfoldRef.current}|${[...counts].join(',')}`;
+      if (key !== marksKey.current) { marksKey.current = key; setUnfoldMarks(editor.view, { on: unfoldRef.current, counts }); }
+    }
+  }, [api, editor]);
+
   const onCanvasChange = useCallback((scene: CanvasScene) => {
-    const withLayout = { ...scene, layout: layoutRef.current };
+    unfoldAfterChange(scene);
+    const withLayout = { ...scene, layout: layoutRef.current, ...(unfoldRef.current ? { unfold: true } : {}) };
     setCanvas(withLayout, sessionKey);
     window.clearTimeout(thumbTimer.current);
     thumbTimer.current = window.setTimeout(() => setThumbScene({ key: sessionKey, scene: withLayout }), 700);
-  }, [sessionKey, setCanvas]);
+  }, [sessionKey, setCanvas, unfoldAfterChange]);
+
+  // New session (open / discard / reload): forget which parts were already seen.
+  useEffect(() => { knownIds.current = null; marksKey.current = ''; }, [sessionKey]);
+  // Badges as soon as both sides are ready, and whenever Unfold is switched.
+  useEffect(() => {
+    if (!editor || !api) return;
+    marksKey.current = '';
+    unfoldAfterChange({ ...(canvasRef.current ?? draft?.canvas ?? { elements: [], files: {} }), elements: api.getSceneElements() as unknown[] });
+  }, [api, editor, unfoldOn, unfoldAfterChange, canvasRef, draft]);
+
+  /** A shape finished on mouse/key release often reports no further change, so check again right after release. */
+  const unfoldCheckSoon = useCallback(() => {
+    if (!unfoldRef.current || !api) return;
+    requestAnimationFrame(() => unfoldAfterChange({ ...(canvasRef.current ?? { files: {} }), elements: api.getSceneElements() as unknown[] }));
+  }, [api, canvasRef, unfoldAfterChange]);
+
+  const toggleUnfold = useCallback(() => {
+    const on = !unfoldRef.current;
+    unfoldRef.current = on;
+    setUnfoldPick({ key: sessionKey, on });
+    const scene = canvasRef.current ?? draft?.canvas;
+    if (scene) setCanvas({ ...scene, unfold: on || undefined });
+  }, [canvasRef, draft, sessionKey, setCanvas]);
+
+  /** The step number (1-based, within its split) of the paragraph the cursor is in, for the drawing bar. */
+  const stepOfBlock = useCallback((blockId: string | null): number | null => {
+    if (!editor || !blockId) return null;
+    let step = 0, found: number | null = null;
+    editor.state.doc.forEach(node => {
+      if (found !== null) return;
+      if (node.type.name === 'heading' && node.attrs.level === 2) { step = 0; return; }
+      step += 1;
+      if (node.attrs.blockId === blockId) found = step;
+    });
+    return found;
+  }, [editor]);
 
   /**
    * One slide per section: every H2 gets a slide (created on the canvas and linked through the heading's
@@ -315,6 +387,13 @@ export default function EditorPage() {
                 <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
               </button>
               <div className="menu-sep" role="separator" />
+              <button type="button" role="menuitemcheckbox" aria-checked={unfoldOn} className="menu-item" onClick={toggleUnfold}
+                title="Readers see each drawing build up paragraph by paragraph. While on, what you draw belongs to the paragraph your cursor is in.">
+                <Layers size={16} aria-hidden="true" />
+                <span className="menu-item-text">Unfold <em className="menu-tag">experimental</em><small>Drawings build up paragraph by paragraph</small></span>
+                <span className={`switch${unfoldOn ? ' is-on' : ''}`} aria-hidden="true" />
+              </button>
+              <div className="menu-sep" role="separator" />
               <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
                 <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
               </button>
@@ -351,14 +430,22 @@ export default function EditorPage() {
         focus={fullscreen.pane === 'text' ? 'left' : fullscreen.pane === 'canvas' ? 'right' : null}
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
-            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection}
+            <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} onActiveBlock={onActiveBlock}
               trailing={<FullscreenButton on={fullscreen.pane === 'text'} what="writing" onClick={() => fullscreen.toggle('text')} />} />
           </div>
         )}
         right={(
           <div className="slide-pane">
-            <div className="canvas-zone" onPointerUpCapture={() => editorView.activity('draw')}>
+            <div className="canvas-zone" onPointerUpCapture={() => { editorView.activity('draw'); unfoldCheckSoon(); }} onKeyUpCapture={unfoldCheckSoon}>
               <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)}
+                unfold={unfoldOn ? {
+                  step: stepOfBlock(activeBlock),
+                  assign: where => {
+                    if (!api) return;
+                    const ids = Object.keys(api.getAppState().selectedElementIds).filter(id => api.getAppState().selectedElementIds[id]);
+                    tagElements(api, ids, where === 'current' ? activeBlockRef.current : null);
+                  }
+                } : undefined}
                 trailing={<FullscreenButton on={fullscreen.pane === 'canvas'} what="drawing" onClick={() => fullscreen.toggle('canvas')} />} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null}

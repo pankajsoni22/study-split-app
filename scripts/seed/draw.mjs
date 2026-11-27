@@ -22,16 +22,26 @@ export function polar(cx, cy, r, deg) {
  * Drawing context for one slide. `nextId` makes stable ids (and stable hand-drawn jitter via `seed`), so
  * regenerating the seed gives identical drawings.
  */
-export function slideKit({ frameId, x0, y0 = 0, nextId }) {
+export function slideKit({ frameId, x0, y0 = 0, nextId, blocks = [] }) {
   const els = [];
+  let tag = null;   // Unfold: the paragraph (blockId) new elements belong to; null = always visible
   const common = () => {
     const id = nextId('el');
-    return { id, frameId, seed: hashSeed(id), roughness: 1, opacity: 100, angle: 0, strokeStyle: 'solid', groupIds: [] };
+    return { id, frameId, seed: hashSeed(id), roughness: 1, opacity: 100, angle: 0, strokeStyle: 'solid', groupIds: [],
+      ...(tag ? { customData: { unfold: tag } } : {}) };
   };
   const at = (x, y) => ({ x: x0 + x, y: y0 + y });
 
   const kit = {
     els,
+    /** Unfold: what is drawn next appears with the paragraph whose text starts with `prefix` (null = always visible). */
+    step(prefix) {
+      if (prefix === null) { tag = null; return kit; }
+      const hit = blocks.find(b => b.text.startsWith(prefix));
+      if (!hit) throw new Error(`Unfold step: no paragraph starts with "${prefix}"`);
+      tag = hit.id;
+      return kit;
+    },
     rect(x, y, w, h, { stroke = C.ink, fill = 'transparent', sw = 2, round = true, dashed = false } = {}) {
       els.push({ ...common(), type: 'rectangle', ...at(x, y), width: w, height: h, strokeColor: stroke, backgroundColor: fill,
         fillStyle: 'solid', strokeWidth: sw, roundness: round ? { type: 3 } : null, strokeStyle: dashed ? 'dashed' : 'solid' });
