@@ -89,9 +89,9 @@ function Reader({ article }: { article: PublishedArticle }) {
 
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
   const [jump, setJump] = useState<Jump | null>(null);
-  const jumpTo = useCallback((sectionId: string, sub: number | null = null) => {
+  const jumpTo = useCallback((sectionId: string, sub: number | null = null, arrive: 'start' | 'end' = 'start') => {
     setCurrent(sectionId);
-    setJump(j => ({ sectionId, sub, n: (j?.n ?? 0) + 1 }));
+    setJump(j => ({ sectionId, sub, arrive, n: (j?.n ?? 0) + 1 }));
   }, []);
 
   // FR-24: one view per browser per article per day. Fire and forget.
@@ -144,7 +144,8 @@ function Reader({ article }: { article: PublishedArticle }) {
   );
 }
 
-interface Jump { sectionId: string; sub: number | null; n: number }
+/** `arrive: 'end'` = going back: open the split at its end (its last paragraph), mirroring going forward. */
+interface Jump { sectionId: string; sub: number | null; arrive?: 'start' | 'end'; n: number }
 
 /** Sub-headings (H3) of a split, for Contents. */
 function subHeadings(section: Section): string[] {
@@ -221,7 +222,7 @@ function ArticleHeader({ article, views }: { article: PublishedArticle; views: n
 // ---------------------------------------------------------------- Split view: one split at a time (2026-11-27)
 function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, layout, authorLayout, unfold }: {
   article: PublishedArticle; sections: Section[]; views: number; current: string | null; jump: Jump | null;
-  onGo: (sectionId: string, sub?: number | null) => void; setPrefs: (p: ReadPrefs) => void;
+  onGo: (sectionId: string, sub?: number | null, arrive?: 'start' | 'end') => void; setPrefs: (p: ReadPrefs) => void;
   layout: LayoutId; authorLayout: LayoutId; unfold: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -229,11 +230,15 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
   const section = sections[index];
   const prev = sections[index - 1], next = sections[index + 1];
 
-  // A new split starts at its top; a jump to a sub-heading scrolls to it.
+  // A new split starts at its top; going back opens it at its end; a jump to a sub-heading scrolls to it.
+  const arriveAtEnd = !!(jump && section && jump.sectionId === section.id && jump.arrive === 'end');
+  const arriveAtEndRef = useRef(arriveAtEnd);
+  useEffect(() => { arriveAtEndRef.current = arriveAtEnd; });   // declared first: runs before the effects below
   useEffect(() => {
     const root = scrollRef.current;
     if (!root || !section) return;
     if (jump && jump.sectionId === section.id && jump.sub !== null) scrollToTarget(root, section.id, jump.sub, 'smooth');
+    else if (arriveAtEndRef.current) root.scrollTop = root.scrollHeight;
     else root.scrollTop = 0;
   }, [section, jump]);
 
@@ -244,7 +249,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (t?.closest('input, textarea, select, [contenteditable="true"]') || e.ctrlKey || e.metaKey) return;
       const back = e.key === '[' || (e.altKey && e.key === 'ArrowLeft');
       const fwd = e.key === ']' || (e.altKey && e.key === 'ArrowRight');
-      if (back && prev) { e.preventDefault(); onGo(prev.id); }
+      if (back && prev) { e.preventDefault(); onGo(prev.id, null, 'end'); }
       if (fwd && next) { e.preventDefault(); onGo(next.id); }
     };
     window.addEventListener('keydown', onKey);
@@ -387,7 +392,12 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (i >= 0) apply(i);
     };
 
-    raf = requestAnimationFrame(() => apply(blocksOf().indexOf(paragraphsOf()[0]!)));   // a split starts at its first paragraph
+    // A split starts at its first paragraph; arriving from the next split (going back), at its last one.
+    if (arriveAtEndRef.current) quietUntil = Date.now() + 700;
+    raf = requestAnimationFrame(() => {
+      const paras = paragraphsOf();
+      apply(blocksOf().indexOf((arriveAtEndRef.current ? paras[paras.length - 1] : paras[0])!));
+    });
     root.addEventListener('wheel', onWheel, { passive: false });
     root.addEventListener('scroll', onScroll, { passive: true });
     root.addEventListener('click', onClick);
@@ -418,7 +428,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
         <div ref={scrollRef} className={`reader-scroll${unfold ? ' is-unfolding' : ''}`} id="main">
           <div className="reader-column">
             {index === 0 ? <ArticleHeader article={article} views={views} /> : prev && (
-              <button type="button" className="prev-split" onClick={() => onGo(prev.id)} title="Previous split ([)">
+              <button type="button" className="prev-split" onClick={() => onGo(prev.id, null, 'end')} title="Previous split ([)">
                 <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
                 <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
               </button>

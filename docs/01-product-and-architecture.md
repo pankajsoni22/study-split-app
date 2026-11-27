@@ -113,6 +113,8 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Going back mirrors going forward (2026-11-27):** "‹ previous" (click or Enter) and **[** open the previous split
+  at its **end**, pointer on its last paragraph; going forward opens a split at its start. Contents opens at the start.
 - **Split view is one split at a time.** The text pane scrolls only within the current split. At its end a **Next
   split: N. title →** card (last split: "End of the article"), right after the text, or at the bottom of the pane when
   the split is short; no empty space below it; from split 2 on, a "‹ previous" link at the top; keys
