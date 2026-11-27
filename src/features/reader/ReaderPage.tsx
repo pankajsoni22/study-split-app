@@ -99,6 +99,9 @@ function Reader({ article }: { article: PublishedArticle }) {
     return () => window.clearTimeout(t);
   }, [current, setPrefs]);
 
+  const currentIndex = Math.max(0, sections.findIndex(x => x.id === current));
+  const currentSection = sections[currentIndex];
+
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
   // A link to the split this browser was already reading (e.g. a refresh keeps #split-… in the address bar) resumes the
   // exact place in it; a link to another split opens that split at its start.
@@ -118,14 +121,28 @@ function Reader({ article }: { article: PublishedArticle }) {
     <div className="reader-page">
       <header className="reader-bar">
         <Link to="/" className="reader-home" aria-label="Study Split home"><Logo size={28} /></Link>
-        <span className="reader-bar-title" title={article.title}>{article.title}</span>
+        {/* Breadcrumb (2026-11-27): the article, then the current split, which is also the Contents menu. */}
+        <nav className="reader-crumbs" aria-label="You are reading">
+          <span className="reader-bar-title" title={article.title}>{article.title}</span>
+          {sections.length > 1 && currentSection && (
+            <>
+              <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
+              <MenuButton label={`Contents: you are on split ${currentIndex + 1} of ${sections.length}, ${currentSection.title}. Jump to another split`}
+                align="left" buttonClassName="crumb-split"
+                trigger={(
+                  <>
+                    <ListTree size={14} aria-hidden="true" className="crumb-icon" />
+                    <span className="crumb-num">{currentIndex + 1}<small>/{sections.length}</small></span>
+                    <span className="crumb-title">{currentSection.title}</span>
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </>
+                )}>
+                {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
+              </MenuButton>
+            </>
+          )}
+        </nav>
         <span className="editor-bar-spacer" />
-        {sections.length > 1 && (
-          <MenuButton label="Contents: jump to a split" buttonClassName="btn btn-ghost btn-sm reader-contents-btn"
-            trigger={<><ListTree size={15} aria-hidden="true" /><span className="hide-narrow">Contents</span><ChevronDown size={14} aria-hidden="true" /></>}>
-            {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
-          </MenuButton>
-        )}
         {canUnfold && mode !== 'article' && (
           <button type="button" className={`btn btn-ghost btn-sm unfold-toggle${unfold ? ' is-on' : ''}`} aria-pressed={unfold}
             title={unfold ? 'Unfold is on: each drawing builds up as you read. Click to show whole drawings.' : 'Unfold: build each drawing up paragraph by paragraph'}

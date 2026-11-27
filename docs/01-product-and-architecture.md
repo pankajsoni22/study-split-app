@@ -113,6 +113,9 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Breadcrumb (2026-11-27):** the reader bar shows `Article title › [3/11 Split title ▾]` on the left. The split chip
+  is the Contents menu (the separate Contents button is gone); it follows Next/Previous in Split view and the scroll in
+  Article view. Phones show only the chip.
 - **Links to a split (2026-11-27):** the address bar always names the current split, e.g.
   `…/consistent-hashing#split-3-finding-a-keys-server`, so copying it shares that split. A **Copy link** button sits at
   the top of each split (Split view) and appears on hover beside each split (Article view). Opening a link goes to that
