@@ -131,10 +131,13 @@ The drawing **builds up as you read**: each paragraph is a step that adds its pa
   paragraph at the reading line is the current step and the drawing shows everything up to it; this step's new parts
   fade in with a teal glow. **Reading marker (revised 2026-11-27):** no background (so it is never confused with a
   Highlight box); a small teal ▸ pointer sits in the margin beside the current paragraph; paragraphs **not read yet**
-  fade to ~42%, the ones already read stay clear. **Which paragraph is current:** the reading line moves with the
-  scroll (start of the split at the top, its end at the bottom), so every paragraph gets its turn and no extra space
-  is needed below the text; empty paragraphs are skipped. **Clicking** a paragraph makes it current (until the next
-  scroll). **Article** view shows finished drawings.
+  fade to ~42%, the ones already read stay clear. **Which paragraph is current (stepped, revised
+  2026-11-27):** a split starts at its first paragraph; each wheel notch or ↓ / ↑ moves the pointer **one paragraph**
+  (a short pause between steps stops fast trackpad swipes racing ahead). The page does **not** scroll while the next
+  paragraph is in view; when the pointer reaches the bottom of the visible text, the page scrolls to bring it to ~30%
+  from the top. A paragraph taller than the pane scrolls normally until its end shows. At the last paragraph the
+  wheel scrolls on to the Next split card; at the first, back to the top. Scroll-bar drags and jumps place the pointer
+  by position; **clicking** a paragraph makes it current; empty paragraphs are skipped. **Article** view shows finished drawings.
 - **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
   and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
 - Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),

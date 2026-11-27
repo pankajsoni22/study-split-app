@@ -251,12 +251,15 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     return () => window.removeEventListener('keydown', onKey);
   }, [prev, next, onGo]);
 
-  // Unfold: which paragraph is "current". The reading line moves with the scroll: at the top it is at the start of the
-  // split, at the bottom at its end, so every paragraph (short or long, first or last) gets its turn and no extra
-  // space is needed below the text. Clicking a paragraph makes it current until the next scroll.
+  // Unfold: which paragraph is "current" (revised 2026-11-27: stepped, not free-running).
+  // - Each wheel notch / ↓ / ↑ moves the pointer one paragraph (with a short pause between steps, so a fast trackpad
+  //   swipe can't race ahead). The page does not scroll while the next paragraph is still in view; it scrolls only
+  //   when the pointer reaches the bottom of the visible text.
+  // - A paragraph taller than the pane scrolls normally until its end is visible, then stepping continues.
+  // - At the last paragraph the wheel scrolls normally (to the Next split card); at the first, back to the top.
+  // - Scroll bar drags and jumps place the pointer by position; clicking a paragraph makes it current.
   // Paragraphs after the current one fade; the ones already read stay clear.
   const [step, setStep] = useState<{ sectionId: string; index: number } | null>(null);
-  const picked = useRef<{ el: HTMLElement; at: number } | null>(null);
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -264,45 +267,111 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       root.querySelectorAll('.is-unfold-current, .is-unfold-future').forEach(el => el.classList.remove('is-unfold-current', 'is-unfold-future'));
     };
     if (!unfold || !section) { clear(); return; }
-    let raf = 0;
     // Empty paragraphs (e.g. the editor's final empty line) are not reading steps.
     const blocksOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
       .filter(el => (el.textContent ?? '').trim() !== '' || el.querySelector('img, svg, hr') || el.tagName === 'HR');
-    const show = (blocks: HTMLElement[], current: HTMLElement | null) => {
-      const at = current ? blocks.indexOf(current) : -1;
-      blocks.forEach((el, i) => {
-        el.classList.toggle('is-unfold-current', i === at);
-        el.classList.toggle('is-unfold-future', at >= 0 && i > at);
+    let at = 0;                 // index into blocksOf()
+    let quietUntil = 0;         // ignore position-based placement while our own / wheel scrolling settles
+    let acc = 0, lastStep = 0, raf = 0;
+
+    const apply = (i: number) => {
+      const blocks = blocksOf();
+      if (!blocks.length) return;
+      at = Math.max(0, Math.min(i, blocks.length - 1));
+      blocks.forEach((el, k) => {
+        el.classList.toggle('is-unfold-current', k === at);
+        el.classList.toggle('is-unfold-future', k > at);
       });
-      const id = current?.getAttribute('data-block-id') ?? current?.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
+      const cur = blocks[at]!;
+      const id = cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
       const index = id ? stepIds(section.nodes).indexOf(id) : -1;
       setStep(p => (p?.sectionId === section.id && p.index === index ? p : { sectionId: section.id, index }));
     };
-    const measure = () => {
-      const blocks = blocksOf();
-      if (picked.current && Math.abs(root.scrollTop - picked.current.at) < 4 && blocks.includes(picked.current.el)) { show(blocks, picked.current.el); return; }
-      picked.current = null;
-      const max = root.scrollHeight - root.clientHeight;
-      const progress = max > 0 ? root.scrollTop / max : 0;
-      const top = root.getBoundingClientRect().top;
-      // The line's position in the content: 0 at the top of the split, the end of the content at the bottom.
-      const line = progress * root.scrollHeight;
-      const current = blocks.filter(el => el.getBoundingClientRect().top - top + root.scrollTop <= line + 1).pop() ?? null;
-      show(blocks, current);
+    const view = () => { const b = root.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, h: b.height }; };
+    /** Scroll only if the current paragraph is (partly) out of view: bring it to ~30% from the top. */
+    const keepInView = (el: HTMLElement) => {
+      const v = view(), r = el.getBoundingClientRect();
+      if (r.bottom <= v.bottom - 24 && r.top >= v.top + 8) return;
+      quietUntil = Date.now() + 600;
+      root.scrollBy({ top: r.top - (v.top + v.h * 0.3), behavior: 'smooth' });
     };
-    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+    /** Place the pointer by scroll position (scroll bar drags, jumps): the line runs from the split's start to its end. */
+    const placeByPosition = () => {
+      const blocks = blocksOf();
+      const max = root.scrollHeight - root.clientHeight;
+      const line = (max > 0 ? root.scrollTop / max : 0) * root.scrollHeight;
+      const top = view().top;
+      let i = -1;
+      blocks.forEach((el, k) => { if (el.getBoundingClientRect().top - top + root.scrollTop <= line + 1) i = k; });
+      apply(Math.max(0, i));
+    };
+    const stepBy = (dir: 1 | -1): boolean => {
+      const blocks = blocksOf();
+      const cur = blocks[at];
+      const v = view();
+      if (!cur) return false;
+      const r = cur.getBoundingClientRect();
+      // A tall paragraph: scroll through it first.
+      if (dir === 1 && r.bottom > v.bottom - 10) return false;
+      if (dir === -1 && r.top < v.top - 10) return false;
+      const next = at + dir;
+      if (next < 0 || next >= blocks.length) return false;      // edges: normal scrolling
+      apply(next);
+      keepInView(blocks[next]!);
+      return true;
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;                                     // pinch-zoom
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * root.clientHeight : e.deltaY;
+      const dir: 1 | -1 = dy > 0 ? 1 : -1;
+      quietUntil = Date.now() + 450;
+      const blocks = blocksOf();
+      const cur = blocks[at];
+      const v = view();
+      const r = cur?.getBoundingClientRect();
+      const tall = r && (dir === 1 ? r.bottom > v.bottom - 10 : r.top < v.top - 10);
+      const edge = dir === 1 ? at >= blocks.length - 1 : at <= 0;
+      if (tall || edge) { acc = 0; return; }                    // let the page scroll normally
+      e.preventDefault();
+      acc += dy;
+      const now = Date.now();
+      if (Math.abs(acc) < 30 || now - lastStep < 260) return;
+      acc = 0;
+      lastStep = now;
+      stepBy(dir);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, [contenteditable="true"]') || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (stepBy(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
+    };
+    const onScroll = () => {
+      if (Date.now() < quietUntil) return;                       // our own scroll, or wheel scrolling at an edge / tall paragraph
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(placeByPosition);
+    };
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('a, button, summary, .collapsible > button')) return;
-      const el = blocksOf().find(b => b.contains(t));
-      if (!el) return;
-      picked.current = { el, at: root.scrollTop };
-      measure();
+      if (t.closest('a, button, summary')) return;
+      const i = blocksOf().findIndex(b => b.contains(t));
+      if (i >= 0) apply(i);
     };
-    raf = requestAnimationFrame(measure);
+
+    raf = requestAnimationFrame(() => apply(0));                 // a split starts at its first paragraph
+    root.addEventListener('wheel', onWheel, { passive: false });
     root.addEventListener('scroll', onScroll, { passive: true });
     root.addEventListener('click', onClick);
-    return () => { root.removeEventListener('scroll', onScroll); root.removeEventListener('click', onClick); cancelAnimationFrame(raf); clear(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      root.removeEventListener('wheel', onWheel);
+      root.removeEventListener('scroll', onScroll);
+      root.removeEventListener('click', onClick);
+      window.removeEventListener('keydown', onKey);
+      cancelAnimationFrame(raf);
+      clear();
+    };
   }, [unfold, section]);
 
   const slide = slideFor(sections, index);
