@@ -1,7 +1,8 @@
-import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { splitSections, textOf, type Section } from '../../domain/content.ts';
+import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
 import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
@@ -82,7 +83,16 @@ function Reader({ article }: { article: PublishedArticle }) {
 
   /** The split being read: shown alone in Split view; the one in view in Article view (drives Contents). */
   const firstId = sections[0]?.id ?? null;
-  const [current, setCurrent] = useState<string | null>(() => (sections.some(x => x.id === prefs.sectionId) ? prefs.sectionId! : firstId));
+  // A shared link (#split-3-title) opens that split, ahead of where this browser last was.
+  const [linked] = useState<string | null>(() => splitFromHash(sections, window.location.hash));
+  const [current, setCurrent] = useState<string | null>(() => linked ?? (sections.some(x => x.id === prefs.sectionId) ? prefs.sectionId! : firstId));
+  // The address bar always names the current split, so copying it shares that split.
+  useEffect(() => {
+    const i = sections.findIndex(x => x.id === current);
+    if (i < 0) return;
+    const hash = splitHash(i, sections[i]!);
+    if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash);
+  }, [current, sections]);
   useEffect(() => {
     if (!current) return;
     const t = window.setTimeout(() => setPrefs({ sectionId: current }), 300);
@@ -90,7 +100,10 @@ function Reader({ article }: { article: PublishedArticle }) {
   }, [current, setPrefs]);
 
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
-  const [jump, setJump] = useState<Jump | null>(null);
+  // A link to the split this browser was already reading (e.g. a refresh keeps #split-… in the address bar) resumes the
+  // exact place in it; a link to another split opens that split at its start.
+  const resumeLinked = !!linked && mode === 'flow' && prefs.place?.sectionId === linked;
+  const [jump, setJump] = useState<Jump | null>(() => (linked && !resumeLinked ? { sectionId: linked, sub: null, n: 1 } : null));
   const jumpTo = useCallback((sectionId: string, sub: number | null = null, arrive: 'start' | 'end' = 'start') => {
     setCurrent(sectionId);
     setJump(j => ({ sectionId, sub, arrive, n: (j?.n ?? 0) + 1 }));
@@ -135,7 +148,7 @@ function Reader({ article }: { article: PublishedArticle }) {
         )}
       </header>
       {mode === 'flow' && (
-        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={prefs.place}
+        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={!linked || resumeLinked ? prefs.place : undefined}
           setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} unfold={unfold} />
       )}
       {mode === 'article' && (
@@ -148,6 +161,34 @@ function Reader({ article }: { article: PublishedArticle }) {
 
 /** `arrive: 'end'` = going back: open the split at its end (its last paragraph), mirroring going forward. */
 interface Jump { sectionId: string; sub: number | null; arrive?: 'start' | 'end'; n: number }
+
+/** `#split-3-finding-a-keys-server`: number for humans, title so the link survives reordering. */
+const splitSlug = (title: string) => slugify(title.replace(/['’]/g, ''));   // "key's" → "keys", not "key-s"
+function splitHash(index: number, section: Section): string {
+  return `#split-${index + 1}-${splitSlug(section.title)}`;
+}
+function splitFromHash(sections: Section[], hash: string): string | null {
+  const m = /^#split-(\d+)(?:-(.+))?$/.exec(hash);
+  if (!m) return null;
+  const bySlug = m[2] ? sections.find(x => splitSlug(x.title) === m[2]) : undefined;
+  return (bySlug ?? sections[Number(m[1]) - 1])?.id ?? null;
+}
+
+/** "Copy link" to one split (shows "Copied ✓" for a moment). */
+function CopySplitLink({ index, section, compact = false }: { index: number; section: Section; compact?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    const url = `${window.location.origin}${window.location.pathname}${splitHash(index, section)}`;
+    void navigator.clipboard?.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800); }, () => window.prompt('Copy this link', url));
+  };
+  return (
+    <button type="button" className={`copy-split-link${copied ? ' is-copied' : ''}${compact ? ' is-compact' : ''}`} onClick={copy}
+      title={`Copy a link to split ${index + 1}: ${section.title}`} aria-label={`Copy a link to split ${index + 1}`}>
+      {copied ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
+      {!compact && <span>{copied ? 'Copied' : 'Copy link'}</span>}
+    </button>
+  );
+}
 
 /** Sub-headings (H3) of a split, for Contents. */
 function subHeadings(section: Section): string[] {
@@ -472,12 +513,16 @@ function FlowMode({ article, sections, views, current, jump, onGo, place, setPre
       left={(
         <div ref={scrollRef} className={`reader-scroll${unfold ? ' is-unfolding' : ''}`} id="main">
           <div className="reader-column">
-            {index === 0 ? <ArticleHeader article={article} views={views} /> : prev && (
-              <button type="button" className="prev-split" onClick={() => onGo(prev.id, null, 'end')} title="Previous split ([)">
-                <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
-                <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
-              </button>
-            )}
+            {index === 0 && <ArticleHeader article={article} views={views} />}
+            <div className="split-top">
+              {prev && (
+                <button type="button" className="prev-split" onClick={() => onGo(prev.id, null, 'end')} title="Previous split ([)">
+                  <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
+                  <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
+                </button>
+              )}
+              <CopySplitLink index={index} section={section} />
+            </div>
             <section key={section.id} data-reader-section={section.id} className="reader-section is-active">
               <SectionView nodes={section.nodes} />
             </section>
@@ -549,7 +594,8 @@ function ArticleMode({ article, sections, views, onOpen, jump, current, onActive
         <div className="reader-column">
           <ArticleHeader article={article} views={views} />
           {sections.map((s, i) => (
-            <section key={s.id} data-reader-section={s.id} className="reader-section">
+            <section key={s.id} data-reader-section={s.id} className="reader-section has-copy-link">
+              <CopySplitLink index={i} section={s} compact />
               <SectionView nodes={s.nodes} />
               {s.frameId && (
                 <figure className="slide-figure">

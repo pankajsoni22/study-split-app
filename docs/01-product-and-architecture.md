@@ -113,6 +113,11 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Links to a split (2026-11-27):** the address bar always names the current split, e.g.
+  `…/consistent-hashing#split-3-finding-a-keys-server`, so copying it shares that split. A **Copy link** button sits at
+  the top of each split (Split view) and appears on hover beside each split (Article view). Opening a link goes to that
+  split in either view (the title wins over the number, so links survive reordering); a link to the split this browser
+  was already reading resumes the exact place.
 - **Resume where you left off (2026-11-27):** Split view remembers (per article, in this browser) the split, the
   paragraph under the pointer (or, without Unfold, the paragraph at the top of the text; or the Next / previous
   button) and how far down the screen it sat. A refresh reopens exactly there. Anchored to the paragraph, not to
