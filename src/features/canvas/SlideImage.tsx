@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CanvasScene } from '../../domain/types.ts';
-import { nextSvgPrefix, scopeSvgIds } from '../../lib/svgIds.ts';
+import { nextSvgPrefix, scopeSvgFonts, scopeSvgIds, svgFontFamilies } from '../../lib/svgIds.ts';
 import { useResolvedTheme } from '../../lib/useResolvedTheme.ts';
 import { frameSize, frameToSvg } from './excalidraw.ts';
 
@@ -22,37 +22,59 @@ export default function SlideImage({ scene, frameId, label, stamp = 0, className
   const base = only && fresh?.size ? new Set([...only].filter(id => !fresh.has(id))) : only;
   const baseKey = base ? [...base].sort().join(',') : '*';
   const freshKey = fresh?.size ? [...fresh].sort().join(',') : '';
-  const baseRef = useRef<HTMLDivElement>(null);
-  const freshRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
 
-  // Both layers are rendered first and swapped in together (2026-11-27): replacing them one at a time made the
-  // previous step's parts vanish for a moment while the new pictures were still being drawn (an Unfold "flicker").
+  // Steady pictures (2026-11-27). A new picture (both Unfold layers) is built HIDDEN on top of the current one, shown
+  // only once its own fonts are decoded, and the old one is removed in the same frame. Each copy's fonts have their
+  // own names (scopeSvgFonts), so a new picture can never make text already on screen re-render or "wobble".
   useEffect(() => {
+    const stack = stackRef.current;
+    if (!stack) return;
     let cancelled = false;
+    const frame = document.createElement('div');
+    frame.className = 'slide-image-frame is-pending';
     Promise.all([renderSvg(scene, frameId, theme, stamp, baseKey), freshKey ? renderSvg(scene, frameId, theme, stamp, freshKey) : null])
-      .then(([b, f]) => {
+      .then(async ([b, f]) => {
         if (cancelled) return;
         if (b === null) { setMissing(true); return; }
-        show(baseRef.current, b);
-        const layer = freshRef.current;
-        if (!layer) return;
-        if (!f) { layer.innerHTML = ''; layer.classList.remove('is-glowing'); return; }
-        show(layer, f);
-        layer.classList.remove('is-glowing');
-        void layer.offsetWidth;   // restart the glow for the new parts
-        layer.classList.add('is-glowing');
+        const base = document.createElement('div');
+        base.className = 'slide-image-svg';
+        const families = show(base, b);
+        frame.append(base);
+        let freshLayer: HTMLDivElement | null = null;
+        if (f) {
+          freshLayer = document.createElement('div');
+          freshLayer.className = 'slide-image-svg is-fresh';
+          families.push(...show(freshLayer, f));
+          frame.append(freshLayer);
+        }
+        stack.append(frame);
+        await fontsReady(families);
+        if (cancelled) return;
+        for (const old of [...stack.children]) if (old !== frame) old.remove();
+        frame.classList.remove('is-pending');
+        freshLayer?.classList.add('is-glowing');
       }, () => { if (!cancelled) setMissing(true); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (frame.classList.contains('is-pending')) frame.remove();
+    };
   }, [scene, frameId, theme, stamp, baseKey, freshKey]);
 
   if (missing || !size) return null;
   return (
     <div className={`slide-image ${className}`} role="img" aria-label={`Drawing: ${label}`}
       style={{ aspectRatio: `${size.width} / ${size.height}`, ['--ar' as string]: size.width / size.height }}>
-      <div ref={baseRef} className="slide-image-svg" />
-      <div ref={freshRef} className="slide-image-svg is-fresh" />
+      <div ref={stackRef} className="slide-image-stack" />
     </div>
   );
+}
+
+/** Waits (at most ~1.5 s) until these font families are decoded, so text never shows in a fallback font. */
+function fontsReady(families: string[]): Promise<unknown> {
+  if (!families.length || typeof document === 'undefined' || !document.fonts) return Promise.resolve();
+  const loads = Promise.all(families.map(f => document.fonts.load(`20px "${f}"`).catch(() => [])));
+  return Promise.race([loads, new Promise(resolve => window.setTimeout(resolve, 1500))]);
 }
 
 /** The SVG markup of a slide (or only some of its parts: comma-separated ids, '' = none, '*' = all), cached. */
@@ -71,10 +93,13 @@ function renderSvg(scene: CanvasScene, frameId: string, theme: string, stamp: nu
   });
 }
 
-/** Our own Excalidraw export (no user HTML). Ids are scoped per copy: several slides share this page. */
-function show(host: HTMLDivElement | null, markup: string) {
-  if (!host) return;
-  host.innerHTML = scopeSvgIds(markup, nextSvgPrefix());
+/** Our own Excalidraw export (no user HTML). Ids and fonts are scoped per copy: several pictures share this page.
+ *  Returns the (scoped) font families the copy embeds. */
+function show(host: HTMLDivElement, markup: string): string[] {
+  const prefix = nextSvgPrefix();
+  const scoped = scopeSvgFonts(scopeSvgIds(markup, prefix), prefix);
+  host.innerHTML = scoped;
   const svg = host.querySelector('svg');
   if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('aria-hidden', 'true'); }
+  return svgFontFamilies(scoped);
 }
