@@ -31,7 +31,7 @@ one command to set up and a flag to choose local or production data.
 | Button | Username | Role | Owns |
 |---|---|---|---|
 | Admin | `dev-admin` | admin | "Welcome to Study Split" (published) |
-| Writer | `dev-writer` | writer | URL Shortener (published), **Consistent Hashing** (draft; complete 11-section article with drawings and tables), Old notes (in Trash) |
+| Writer | `dev-writer` | writer | URL Shortener (published), **Consistent Hashing** (draft; complete 11-section article with drawings and tables), **Telemetry ETL pipeline** (published; 9-split high-level design with Unfold), Old notes (in Trash) |
 | Reader | `dev-reader` | reader | nothing; can read published articles only |
 
 ---
@@ -320,3 +320,4 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 | 2026-11-25 | Quick reference links to the backup guide (setup checklist step 7). |
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
+| 2026-11-27 | New sample `telemetry-etl-pipeline` (scripts/seed/telemetry-etl.mjs): "A Distributed ETL Pipeline for Storage Telemetry", 9 splits told as one file's journey, Unfold on. An existing local database gets it without a reset by inserting it once (see the commit). |

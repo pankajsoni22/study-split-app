@@ -2,6 +2,7 @@
 // Used by scripts/build-seed.mjs (→ supabase/seed.sql) and scripts/db-refresh-samples.mjs (update in place).
 import { C, MORE, NOTE, P, UL, slideKit } from './draw.mjs';
 import { consistentHashing } from './consistent-hashing.mjs';
+import { telemetryEtl } from './telemetry-etl.mjs';
 
 export const PASSWORD = 'study-split-dev';   // local only; shown on the dev sign-in buttons
 export const users = [
@@ -64,6 +65,7 @@ export const articles = [
         NOTE('red', 'Watch out: cache 301 redirects carefully — browsers keep them forever.')] }
     ] },
   consistentHashing,
+  telemetryEtl,
   { key: 'old', owner: 1, slug: 'old-notes', title: 'Old notes (in Trash)', state: 'trash', layout: '50-50', tags: [], summary: null,
     sections: [{ title: 'Scratch', body: [P('Moved to Trash two days ago — restore it from the Trash page.')] }] },
   { key: 'welcome', owner: 0, slug: 'welcome', title: 'Welcome to Study Split', state: 'published', layout: '50-50', tags: ['meta'],
