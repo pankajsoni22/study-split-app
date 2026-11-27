@@ -110,6 +110,15 @@ All modes render from the same article data. The mode switcher sits in the top b
 - Removed: there is one version of every article. Existing flags were stripped by `20261126000000_remove_brief.sql`
   (nothing deleted).
 
+### 4.1c Reading views on the experimental branch (2026-11-27)
+
+- **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Split view is one split at a time.** The text pane scrolls only within the current split. At its end a **Next
+  split: N. title →** card (last split: "End of the article"); from split 2 on, a "‹ previous" link at the top; keys
+  **[** / **]** (or Alt+← / Alt+→). The drawing follows the split.
+- **Contents** (reader bar menu, and Article view's left list): all splits; the current one is marked and expands to
+  show its sub-headings (H3); clicking one jumps to it.
+
 ### 4.1b Unfold (EXPERIMENTAL, branch `experimental`, 2026-11-26)
 
 The drawing **builds up as you read**: each paragraph is a step that adds its part of the split's drawing.
@@ -118,9 +127,10 @@ The drawing **builds up as you read**: each paragraph is a step that adds its pa
   with drawings show a numbered step badge in the margin; the paragraph new drawings will join has a teal edge. Drawing
   bar **Step ▾** reassigns selected parts: "Show with paragraph N" or "Always visible".
 - **Reader:** an **Unfold** switch (only on articles that use it; on by default, remembered). **Split** view: the
-  paragraph at the reading line is highlighted (teal wash + bar; boxed blocks get a teal ring) and the drawing shows
-  everything up to it; this step's new parts fade in with a teal glow. **Present** view: → / ← step paragraph by
-  paragraph before changing split. **Article** view shows finished drawings.
+  paragraph at the reading line is the current step and the drawing shows everything up to it; this step's new parts
+  fade in with a teal glow. **Reading marker (revised 2026-11-27):** no background (so it is never confused with a
+  Highlight box); the split's other paragraphs fade to ~42% and a small teal ▸ pointer sits in the margin beside the
+  current one. **Article** view shows finished drawings.
 - **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
   and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
 - Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),
