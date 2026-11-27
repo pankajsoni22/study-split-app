@@ -114,7 +114,8 @@ All modes render from the same article data. The mode switcher sits in the top b
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
 - **Split view is one split at a time.** The text pane scrolls only within the current split. At its end a **Next
-  split: N. title →** card (last split: "End of the article"); from split 2 on, a "‹ previous" link at the top; keys
+  split: N. title →** card (last split: "End of the article"), right after the text, or at the bottom of the pane when
+  the split is short; no empty space below it; from split 2 on, a "‹ previous" link at the top; keys
   **[** / **]** (or Alt+← / Alt+→). The drawing follows the split.
 - **Contents** (reader bar menu, and Article view's left list): all splits; the current one is marked and expands to
   show its sub-headings (H3); clicking one jumps to it.
@@ -129,8 +130,11 @@ The drawing **builds up as you read**: each paragraph is a step that adds its pa
 - **Reader:** an **Unfold** switch (only on articles that use it; on by default, remembered). **Split** view: the
   paragraph at the reading line is the current step and the drawing shows everything up to it; this step's new parts
   fade in with a teal glow. **Reading marker (revised 2026-11-27):** no background (so it is never confused with a
-  Highlight box); the split's other paragraphs fade to ~42% and a small teal ▸ pointer sits in the margin beside the
-  current one. **Article** view shows finished drawings.
+  Highlight box); a small teal ▸ pointer sits in the margin beside the current paragraph; paragraphs **not read yet**
+  fade to ~42%, the ones already read stay clear. **Which paragraph is current:** the reading line moves with the
+  scroll (start of the split at the top, its end at the bottom), so every paragraph gets its turn and no extra space
+  is needed below the text; empty paragraphs are skipped. **Clicking** a paragraph makes it current (until the next
+  scroll). **Article** view shows finished drawings.
 - **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
   and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
 - Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),

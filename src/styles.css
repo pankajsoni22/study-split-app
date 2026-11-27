@@ -1138,10 +1138,11 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 /* reader: Unfold switch */
 .unfold-toggle { gap: 6px; }
 .unfold-toggle.is-on { background: var(--accent-soft); color: var(--accent-strong); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
-/* reader: the paragraph being read (2026-11-27: "reading focus", deliberately unlike Highlight boxes). No background:
-   the other paragraphs of the split fade back and a small teal pointer sits in the margin beside the current one. */
-.is-unfolding .ProseMirror > :not(h2) { transition: opacity 0.3s ease; }
-.is-unfolding.has-unfold-current .ProseMirror > :not(h2):not(.is-unfold-current) { opacity: 0.42; }
+/* reader: the paragraph being read (revised 2026-11-27: "reading focus", deliberately unlike Highlight boxes). No
+   background: a small teal pointer sits in the margin beside the current paragraph; paragraphs not read yet are faded,
+   the ones already read stay clear. Paragraphs can be clicked to make them current. */
+.is-unfolding .ProseMirror > :not(h2) { transition: opacity 0.3s ease; cursor: pointer; }
+.is-unfolding .ProseMirror > .is-unfold-future { opacity: 0.42; }
 .is-unfolding .ProseMirror > .is-unfold-current { position: relative; }
 .is-unfolding .ProseMirror > .is-unfold-current::after {
   content: ""; position: absolute; left: -20px; top: 0.55em; width: 0; height: 0;
@@ -1203,3 +1204,9 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .split-end-note { margin: 0; padding: 14px 18px; border: 1px dashed var(--border-strong); border-radius: 14px; color: var(--muted); font-size: 14px; text-align: center; }
 .split-end-count { align-self: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .contents-num { flex: none; min-width: 1.4em; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 650; }
+
+/* Split view (one split at a time): no empty space below the text; the Next split card follows the content, or sits at
+   the bottom of the pane when the split is short. */
+.reader-scroll { display: flex; flex-direction: column; }
+.reader-scroll > .reader-column { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; padding-bottom: 24px; }
+.reader-scroll .split-end { margin-top: auto; padding-top: 32px; }

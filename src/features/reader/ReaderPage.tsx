@@ -251,33 +251,58 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     return () => window.removeEventListener('keydown', onKey);
   }, [prev, next, onGo]);
 
-  // Unfold: the paragraph at the reading line (38% down the text pane) is the current step.
+  // Unfold: which paragraph is "current". The reading line moves with the scroll: at the top it is at the start of the
+  // split, at the bottom at its end, so every paragraph (short or long, first or last) gets its turn and no extra
+  // space is needed below the text. Clicking a paragraph makes it current until the next scroll.
+  // Paragraphs after the current one fade; the ones already read stay clear.
   const [step, setStep] = useState<{ sectionId: string; index: number } | null>(null);
+  const picked = useRef<{ el: HTMLElement; at: number } | null>(null);
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
     const clear = () => {
-      root.querySelectorAll('.is-unfold-current').forEach(el => el.classList.remove('is-unfold-current'));
-      root.classList.remove('has-unfold-current');
+      root.querySelectorAll('.is-unfold-current, .is-unfold-future').forEach(el => el.classList.remove('is-unfold-current', 'is-unfold-future'));
     };
     if (!unfold || !section) { clear(); return; }
     let raf = 0;
-    const measure = () => {
-      const box = root.getBoundingClientRect();
-      const line = box.top + box.height * 0.38;
-      const blocks = [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')];
-      const current = blocks.filter(el => el.getBoundingClientRect().top <= line).pop() ?? null;
-      root.querySelectorAll('.is-unfold-current').forEach(el => { if (el !== current) el.classList.remove('is-unfold-current'); });
-      current?.classList.add('is-unfold-current');
-      root.classList.toggle('has-unfold-current', !!current);
+    // Empty paragraphs (e.g. the editor's final empty line) are not reading steps.
+    const blocksOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
+      .filter(el => (el.textContent ?? '').trim() !== '' || el.querySelector('img, svg, hr') || el.tagName === 'HR');
+    const show = (blocks: HTMLElement[], current: HTMLElement | null) => {
+      const at = current ? blocks.indexOf(current) : -1;
+      blocks.forEach((el, i) => {
+        el.classList.toggle('is-unfold-current', i === at);
+        el.classList.toggle('is-unfold-future', at >= 0 && i > at);
+      });
       const id = current?.getAttribute('data-block-id') ?? current?.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
-      const at = id ? stepIds(section.nodes).indexOf(id) : -1;
-      setStep(p => (p?.sectionId === section.id && p.index === at ? p : { sectionId: section.id, index: at }));
+      const index = id ? stepIds(section.nodes).indexOf(id) : -1;
+      setStep(p => (p?.sectionId === section.id && p.index === index ? p : { sectionId: section.id, index }));
+    };
+    const measure = () => {
+      const blocks = blocksOf();
+      if (picked.current && Math.abs(root.scrollTop - picked.current.at) < 4 && blocks.includes(picked.current.el)) { show(blocks, picked.current.el); return; }
+      picked.current = null;
+      const max = root.scrollHeight - root.clientHeight;
+      const progress = max > 0 ? root.scrollTop / max : 0;
+      const top = root.getBoundingClientRect().top;
+      // The line's position in the content: 0 at the top of the split, the end of the content at the bottom.
+      const line = progress * root.scrollHeight;
+      const current = blocks.filter(el => el.getBoundingClientRect().top - top + root.scrollTop <= line + 1).pop() ?? null;
+      show(blocks, current);
     };
     const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest('a, button, summary, .collapsible > button')) return;
+      const el = blocksOf().find(b => b.contains(t));
+      if (!el) return;
+      picked.current = { el, at: root.scrollTop };
+      measure();
+    };
     raf = requestAnimationFrame(measure);
     root.addEventListener('scroll', onScroll, { passive: true });
-    return () => { root.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); clear(); };
+    root.addEventListener('click', onClick);
+    return () => { root.removeEventListener('scroll', onScroll); root.removeEventListener('click', onClick); cancelAnimationFrame(raf); clear(); };
   }, [unfold, section]);
 
   const slide = slideFor(sections, index);
