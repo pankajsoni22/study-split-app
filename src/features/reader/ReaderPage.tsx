@@ -361,10 +361,18 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
         if (!cur) return;
         // Enter on the split buttons = click; on a collapsible = open / close it.
         const target = isButton(cur) ? cur : cur.matches('.collapsible, [data-type="details"]') ? cur.querySelector<HTMLElement>(':scope > button') : null;
-        if (target) { e.preventDefault(); target.click(); }
+        if (!target) return;
+        e.preventDefault();
+        // Opening / closing changes the page height and nudges the scroll: keep the pointer on this collapsible.
+        if (!isButton(cur)) quietUntil = Date.now() + 900;
+        target.click();
+        if (!isButton(cur)) { const keep = at; requestAnimationFrame(() => apply(keep)); }
         return;
       }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      // Like the wheel: arrow-key scrolling never re-places the pointer by position (e.g. ↓ on the Next split card,
+      // where there is nothing further to step to, must not send the pointer back up).
+      quietUntil = Date.now() + 500;
       if (stepBy(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     };
     const onScroll = () => {
