@@ -121,6 +121,9 @@ All modes render from the same article data. The mode switcher sits in the top b
   re-rendered while it decoded. Now every copy gets private font names (`scopeSvgFonts` in src/lib/svgIds.ts), and a
   new picture is built hidden and revealed only once its fonts are decoded (max 1.5 s wait), replacing the old one in
   the same frame.
+  Final form: in Unfold, the split's whole font set is taken from ONE full export and declared once (hidden <style>,
+  private names); step pictures are exported with `skipInliningFonts` and point at it, so stepping declares or loads
+  no font at all. Other pictures (thumbnails, Article view) keep their own scoped fonts.
 - **Editor spotlight (2026-11-27):** with Unfold on, the drawing parts of the paragraph the cursor is in glow (touching
   parts merge into one outline) and the rest of the split fades. Display only: nothing is selected or saved. While
   drawing there is no fade; selecting parts lights up their paragraph in the text (and scrolls it into view) and glows
