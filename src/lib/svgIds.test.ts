@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scopeSvgFonts, scopeSvgIds, svgFontFamilies } from './svgIds.ts';
+import { scopeSvgFonts, scopeSvgIds, svgFontFaces, svgFontFamilies } from './svgIds.ts';
 
 describe('scopeSvgIds', () => {
   const svg = '<svg><defs><clipPath id="f3"><rect/></clipPath><linearGradient id="g"/></defs>'
@@ -49,5 +49,17 @@ describe('scopeSvgFonts', () => {
   });
   it('leaves markup without embedded fonts unchanged', () => {
     expect(scopeSvgFonts('<svg><text font-family="Excalifont">a</text></svg>', 's1_')).toBe('<svg><text font-family="Excalifont">a</text></svg>');
+  });
+});
+
+describe('shared fonts (Unfold)', () => {
+  it('svgFontFaces keeps only the @font-face rules', () => {
+    const css = svgFontFaces('<svg><style>@font-face { font-family: Excalifont; src: url(a); } .x { fill: red; }</style></svg>');
+    expect(css).toBe('@font-face { font-family: Excalifont; src: url(a); }');
+  });
+  it('scopes text to fonts declared elsewhere when the family list is given', () => {
+    const layer = '<svg><text font-family="Excalifont, Xiaolai, Segoe UI Emoji">a</text></svg>';
+    expect(scopeSvgFonts(layer, 's9_')).toBe(layer);
+    expect(scopeSvgFonts(layer, 's9_', ['Excalifont'])).toContain(`font-family="'s9_Excalifont', Xiaolai, Segoe UI Emoji"`);
   });
 });

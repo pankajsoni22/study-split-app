@@ -84,11 +84,12 @@ export const sceneSignature = (elements: readonly Element[]) => hashElementsVers
 
 /** SVG of one frame (Article mode, mobile). */
 type ExportToSvg = (opts: {
-  elements: readonly Element[]; files: never; exportPadding?: number; exportingFrame?: Element;
+  elements: readonly Element[]; files: never; exportPadding?: number; exportingFrame?: Element; skipInliningFonts?: true;
   appState: { exportBackground: boolean; exportWithDarkMode: boolean };
 }) => Promise<SVGSVGElement>;
 
-export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean, only?: ReadonlySet<string>): Promise<SVGSVGElement | null> {
+/** `noFonts`: leave the fonts out (Unfold steps share one font set per split; see SlideImage). */
+export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean, only?: ReadonlySet<string>, noFonts = false): Promise<SVGSVGElement | null> {
   // restoreElements fills defaults/repairs bindings (same as Excalidraw does when loading), so older or
   // partial scenes export correctly.
   const elements = restoreElements(scene.elements as never, null, { repairBindings: true }) as unknown as Element[];
@@ -101,7 +102,8 @@ export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean, o
     files: scene.files as never,
     appState: { exportBackground: false, exportWithDarkMode: dark },
     exportingFrame: frame,
-    exportPadding: 0
+    exportPadding: 0,
+    ...(noFonts ? { skipInliningFonts: true as const } : {})
   });
 }
 

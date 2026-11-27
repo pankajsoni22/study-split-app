@@ -28,8 +28,9 @@ export function nextSvgPrefix(): string {
 // 2026-11-27). Renaming the families per rendered copy keeps each SVG's fonts to itself.
 
 /** Renames every font family declared by an @font-face in the markup (and every use of it) with a unique prefix. */
-export function scopeSvgFonts(markup: string, prefix: string): string {
-  const declared = new Set<string>();
+export function scopeSvgFonts(markup: string, prefix: string, families?: Iterable<string>): string {
+  // `families`: scope these names even though the markup does not declare them (fonts declared once elsewhere).
+  const declared = new Set<string>(families);
   for (const m of markup.matchAll(/@font-face\s*\{[^}]*?font-family:\s*([^;]+);/g)) declared.add(unquote(m[1]!));
   if (declared.size === 0) return markup;
   const scopeList = (list: string) => list.split(',').map(f => {
@@ -39,6 +40,11 @@ export function scopeSvgFonts(markup: string, prefix: string): string {
   return markup
     .replace(/(font-family=")([^"]*)(")/g, (_, a: string, list: string, b: string) => `${a}${scopeList(list).replace(/"/g, "'")}${b}`)
     .replace(/(font-family:\s*)([^;}]+)(;|\})/g, (_, a: string, list: string, b: string) => `${a}${scopeList(list)}${b}`);
+}
+
+/** Just the @font-face rules of an exported SVG (to declare a picture's fonts once, apart from the picture). */
+export function svgFontFaces(markup: string): string {
+  return [...markup.matchAll(/@font-face\s*\{[^}]*\}/g)].map(m => m[0]).join('\n');
 }
 
 /** The font families an SVG's text asks for after scoping (to wait for them before showing it). */
