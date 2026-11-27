@@ -669,6 +669,8 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 
 .slide-image { position: relative; background: var(--surface); border-radius: 6px; overflow: hidden; }
 .slide-image-svg, .slide-image-svg svg { width: 100%; height: 100%; display: block; }
+.slide-image-stack, .slide-image-frame { position: absolute; inset: 0; }
+.slide-image-frame.is-pending { visibility: hidden; }
 .slide-image.is-thumb { height: 100%; max-width: 100%; box-shadow: 0 1px 2px rgb(15 26 28 / 0.12); }
 .slide-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 20px; container-type: size; }
 .slide-image.is-stage {
@@ -1151,14 +1153,15 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 }
 @keyframes unfold-pointer { from { transform: translateX(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
 /* drawing: this step's new parts fade in with a teal glow that settles */
-.slide-image-svg.is-fresh { position: absolute; inset: 0; animation: unfold-glow 1.6s ease-out both; }
+.slide-image-svg.is-fresh { position: absolute; inset: 0; pointer-events: none; }
+.slide-image-svg.is-fresh.is-glowing { animation: unfold-glow 1.6s ease-out both; }
 @keyframes unfold-glow {
   0% { opacity: 0; filter: drop-shadow(0 0 0 transparent); }
   22% { opacity: 1; filter: drop-shadow(0 0 7px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
   100% { opacity: 1; filter: drop-shadow(0 0 0 transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .slide-image-svg.is-fresh, .is-unfolding .ProseMirror > .is-unfold-current::after { animation: none; }
+  .slide-image-svg.is-fresh.is-glowing, .is-unfolding .ProseMirror > .is-unfold-current::after { animation: none; }
   .is-unfolding .ProseMirror > :not(h2) { transition: none; }
 }
 

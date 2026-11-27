@@ -21,3 +21,31 @@ export function nextSvgPrefix(): string {
   counter += 1;
   return `s${counter}_`;
 }
+
+// Excalidraw exports embed each font as an @font-face holding ONLY the glyphs that export uses, under the shared
+// name (e.g. "Excalifont"). Inline SVG styles are page-wide, so every new export re-declared "Excalifont" for the
+// whole page and all text already on screen re-rendered while the new subset decoded (Unfold steps "wobbled",
+// 2026-11-27). Renaming the families per rendered copy keeps each SVG's fonts to itself.
+
+/** Renames every font family declared by an @font-face in the markup (and every use of it) with a unique prefix. */
+export function scopeSvgFonts(markup: string, prefix: string): string {
+  const declared = new Set<string>();
+  for (const m of markup.matchAll(/@font-face\s*\{[^}]*?font-family:\s*([^;]+);/g)) declared.add(unquote(m[1]!));
+  if (declared.size === 0) return markup;
+  const scopeList = (list: string) => list.split(',').map(f => {
+    const name = unquote(f);
+    return declared.has(name) ? `"${prefix}${name}"` : f.trim();
+  }).join(', ');
+  return markup
+    .replace(/(font-family=")([^"]*)(")/g, (_, a: string, list: string, b: string) => `${a}${scopeList(list).replace(/"/g, "'")}${b}`)
+    .replace(/(font-family:\s*)([^;}]+)(;|\})/g, (_, a: string, list: string, b: string) => `${a}${scopeList(list)}${b}`);
+}
+
+/** The font families an SVG's text asks for after scoping (to wait for them before showing it). */
+export function svgFontFamilies(markup: string): string[] {
+  const out = new Set<string>();
+  for (const m of markup.matchAll(/@font-face\s*\{[^}]*?font-family:\s*([^;]+);/g)) out.add(unquote(m[1]!));
+  return [...out];
+}
+
+const unquote = (s: string) => s.trim().replace(/^["']|["']$/g, '');

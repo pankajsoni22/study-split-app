@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scopeSvgIds } from './svgIds.ts';
+import { scopeSvgFonts, scopeSvgIds, svgFontFamilies } from './svgIds.ts';
 
 describe('scopeSvgIds', () => {
   const svg = '<svg><defs><clipPath id="f3"><rect/></clipPath><linearGradient id="g"/></defs>'
@@ -28,5 +28,26 @@ describe('scopeSvgIds', () => {
 
   it('returns markup without ids unchanged', () => {
     expect(scopeSvgIds('<svg><path/></svg>', 'x_')).toBe('<svg><path/></svg>');
+  });
+});
+
+describe('scopeSvgFonts', () => {
+  const svg = '<svg><style>@font-face { font-family: Excalifont; src: url(data:font/woff2;base64,AAA); } @font-face { font-family: "Lilita One"; src: url(x); }</style>'
+    + '<text font-family="Excalifont, Xiaolai, Segoe UI Emoji">a</text><text font-family="Lilita One, Segoe UI Emoji">b</text>'
+    + '<text font-family="Arial">c</text></svg>';
+  it('renames declared families in @font-face rules and in text, leaving fallbacks and other fonts alone', () => {
+    const out = scopeSvgFonts(svg, 's7_');
+    expect(out).toContain('font-family: "s7_Excalifont";');
+    expect(out).toContain('font-family: "s7_Lilita One";');
+    expect(out).toContain(`font-family="'s7_Excalifont', Xiaolai, Segoe UI Emoji"`);
+    expect(out).toContain(`font-family="'s7_Lilita One', Segoe UI Emoji"`);
+    expect(out).toContain('font-family="Arial"');
+    expect(svgFontFamilies(out)).toEqual(['s7_Excalifont', 's7_Lilita One']);
+  });
+  it('two copies of the same export no longer share a family name', () => {
+    expect(svgFontFamilies(scopeSvgFonts(svg, 's1_'))).not.toEqual(svgFontFamilies(scopeSvgFonts(svg, 's2_')));
+  });
+  it('leaves markup without embedded fonts unchanged', () => {
+    expect(scopeSvgFonts('<svg><text font-family="Excalifont">a</text></svg>', 's1_')).toBe('<svg><text font-family="Excalifont">a</text></svg>');
   });
 });
