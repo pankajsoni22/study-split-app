@@ -12,13 +12,17 @@ type Rect = { left: number; top: number; width: number; height: number };
  * "Fit split" or Shift+1 brings the whole drawing back. Readers still see slides as fixed pictures.
  * `onSceneChange` fires only when elements really change, not on pointer moves or selection.
  */
-export default function Canvas({ initialScene, slideId, showNativeProps = false, onApi, onSceneChange }: {
+export default function Canvas({ initialScene, slideId, showNativeProps = false, onApi, onSceneChange, spotlight, onSelectStep }: {
   initialScene: CanvasScene;
   slideId: string | null;
   /** Show Excalidraw's own properties panel (normally replaced by the Study Split format bar). */
   showNativeProps?: boolean;
   onApi?: (api: ExcalidrawImperativeAPI) => void;
   onSceneChange?: (scene: CanvasScene) => void;
+  /** Unfold: glow on the drawing parts of this paragraph; `fade` also dims the rest of the split (display only). */
+  spotlight?: { blockId: string | null; fade: boolean } | null;
+  /** Unfold: the paragraph the selected drawing parts belong to (null: none, or parts of several paragraphs). */
+  onSelectStep?: (blockId: string | null) => void;
 }) {
   const theme = useResolvedTheme();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,31 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   const userMoved = useRef(false);
   const fitting = useRef(false);
   const [paper, setPaper] = useState<Rect | null>(null);
+  /** Unfold spotlight: on-screen boxes of the current paragraph's drawing parts. */
+  const [spotBoxes, setSpotBoxes] = useState<Rect[]>([]);
+  const spotFrame = useRef(0);
+  const spotRef = useRef(spotlight);
+  useEffect(() => { spotRef.current = spotlight; });
+  const placeSpot = useCallback(() => {
+    cancelAnimationFrame(spotFrame.current);
+    spotFrame.current = requestAnimationFrame(() => {
+      const a = apiRef.current, id = spotRef.current?.blockId;
+      if (!a || !id) { setSpotBoxes(b => (b.length ? [] : b)); return; }
+      const st = a.getAppState(), z = st.zoom.value;
+      const els = a.getSceneElements() as unknown as SpotEl[];
+      const own = new Set(els.filter(e => e.customData?.unfold === id).map(e => e.id));
+      const boxes = els.filter(e => own.has(e.id) || (e.containerId && own.has(e.containerId)))
+        .map(e => { const b = sceneBounds(e); const pad = 5; return { left: (b.x1 + st.scrollX) * z - pad, top: (b.y1 + st.scrollY) * z - pad, width: (b.x2 - b.x1) * z + pad * 2, height: (b.y2 - b.y1) * z + pad * 2 }; });
+      const merged = mergeTouching(boxes);
+      setSpotBoxes(prev => (JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged));
+    });
+  }, []);
+  useEffect(() => { placeSpot(); }, [placeSpot, spotlight?.blockId, api]);
+  useEffect(() => () => cancelAnimationFrame(spotFrame.current), []);
+  /** Reverse link: which paragraph the selected parts belong to. */
+  const lastPicked = useRef<string | null | undefined>(undefined);
+  const onSelectStepRef = useRef(onSelectStep);
+  useEffect(() => { onSelectStepRef.current = onSelectStep; });
 
   const initialData = useMemo(() => ({
     elements: initialScene.elements as never,
@@ -143,6 +172,22 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
   return (
     <div ref={hostRef} className={`canvas-host dot-grid is-slide${showNativeProps ? ' show-native-props' : ''}`}>
       {paper && <div className="slide-paper" style={paper} aria-hidden="true" />}
+      {spotlight?.blockId && spotBoxes.length > 0 && (
+        <svg className={`unfold-spotlight${spotlight.fade ? ' is-fading' : ''}`} aria-hidden="true">
+          {spotlight.fade && paper && (
+            <>
+              <defs>
+                <mask id="unfold-spot-mask">
+                  <rect x="0" y="0" width="100%" height="100%" fill="#fff" />
+                  {spotBoxes.map((b, i) => <rect key={i} x={b.left} y={b.top} width={b.width} height={b.height} rx="8" fill="#000" />)}
+                </mask>
+              </defs>
+              <rect className="unfold-veil" x={paper.left} y={paper.top} width={paper.width} height={paper.height} mask="url(#unfold-spot-mask)" />
+            </>
+          )}
+          {spotBoxes.map((b, i) => <rect key={i} className="unfold-glow" x={b.left} y={b.top} width={b.width} height={b.height} rx="8" />)}
+        </svg>
+      )}
       {slideId && (
         <button type="button" className="btn btn-ghost btn-sm fit-slide" onClick={fit} title="Show this split's whole drawing (Shift+1)">
           <Maximize size={14} aria-hidden="true" /> Fit split
@@ -158,10 +203,15 @@ export default function Canvas({ initialScene, slideId, showNativeProps = false,
           canvasActions: { loadScene: false, saveToActiveFile: false, export: false, toggleTheme: null, clearCanvas: false, changeViewBackgroundColor: false },
           tools: { image: true }
         }}
-        onScrollChange={() => { if (!fitting.current) userMoved.current = true; placePaper(); }}
+        onScrollChange={() => { if (!fitting.current) userMoved.current = true; placePaper(); placeSpot(); }}
         onChange={(elements, appState, files) => {
           // Excalidraw hands out its API before initialData is applied; announce it after loading.
           if (appState.isLoading || !alive.current) return;
+          if (spotRef.current?.blockId) placeSpot();
+          if (onSelectStepRef.current) {
+            const picked = stepOfSelection(elements as unknown as SpotEl[], appState.selectedElementIds);
+            if (picked !== lastPicked.current) { lastPicked.current = picked; onSelectStepRef.current(picked); }
+          }
           const sig = sceneSignature(elements);
           if (lastSig.current === null) {
             lastSig.current = sig;
@@ -199,4 +249,52 @@ function topmostAt(elements: ShapeLike[], px: number, py: number): ShapeLike | n
     if (inside) return el;
   }
   return null;
+}
+
+// ---- Unfold spotlight helpers ----
+interface SpotEl { id: string; type: string; x: number; y: number; width: number; height: number; angle?: number; isDeleted?: boolean;
+  points?: readonly (readonly [number, number])[]; containerId?: string | null; customData?: Record<string, unknown> }
+
+/** Axis-aligned scene box of an element (lines/arrows by their points; rotation taken into account). */
+function sceneBounds(e: SpotEl): { x1: number; y1: number; x2: number; y2: number } {
+  const pts: [number, number][] = e.points?.length
+    ? e.points.map(([px, py]) => [e.x + px, e.y + py])
+    : [[e.x, e.y], [e.x + e.width, e.y], [e.x + e.width, e.y + e.height], [e.x, e.y + e.height]];
+  const xs0 = pts.map(p => p[0]), ys0 = pts.map(p => p[1]);
+  const cx = (Math.min(...xs0) + Math.max(...xs0)) / 2, cy = (Math.min(...ys0) + Math.max(...ys0)) / 2;
+  const a = e.angle ?? 0, cos = Math.cos(a), sin = Math.sin(a);
+  const rot = a ? pts.map(([x, y]) => [cx + (x - cx) * cos - (y - cy) * sin, cy + (x - cx) * sin + (y - cy) * cos]) : pts;
+  const xs = rot.map(p => p[0]!), ys = rot.map(p => p[1]!);
+  return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
+}
+
+/** The one paragraph all selected parts belong to (a shape's label counts as the shape); null if none or several. */
+function stepOfSelection(elements: SpotEl[], selected: Record<string, boolean>): string | null {
+  const byId = new Map(elements.map(e => [e.id, e]));
+  const tags = new Set<string | null>();
+  for (const [id, on] of Object.entries(selected)) {
+    if (!on) continue;
+    let e = byId.get(id);
+    if (!e || e.isDeleted || e.type === 'frame') continue;
+    if (e.containerId) e = byId.get(e.containerId) ?? e;
+    tags.add((e.customData?.unfold as string | undefined) ?? null);
+  }
+  return tags.size === 1 ? [...tags][0]! : null;
+}
+
+/** Overlapping / touching boxes become one (a table glows as one box; separate parts keep their own). */
+function mergeTouching(boxes: Rect[]): Rect[] {
+  const out = boxes.map(b => ({ ...b }));
+  const touch = (a: Rect, b: Rect) => a.left <= b.left + b.width + 2 && b.left <= a.left + a.width + 2 && a.top <= b.top + b.height + 2 && b.top <= a.top + a.height + 2;
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let i = 0; i < out.length && !changed; i++) for (let j = i + 1; j < out.length; j++) {
+      const a = out[i]!, b = out[j]!;
+      if (!touch(a, b)) continue;
+      const left = Math.min(a.left, b.left), top = Math.min(a.top, b.top);
+      out[i] = { left, top, width: Math.max(a.left + a.width, b.left + b.width) - left, height: Math.max(a.top + a.height, b.top + b.height) - top };
+      out.splice(j, 1); changed = true; break;
+    }
+  }
+  return out.map(b => ({ left: Math.round(b.left), top: Math.round(b.top), width: Math.round(b.width), height: Math.round(b.height) }));
 }

@@ -113,6 +113,10 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Editor spotlight (2026-11-27):** with Unfold on, the drawing parts of the paragraph the cursor is in glow (touching
+  parts merge into one outline) and the rest of the split fades. Display only: nothing is selected or saved. While
+  drawing there is no fade; selecting parts lights up their paragraph in the text (and scrolls it into view) and glows
+  that whole step. Overlay in `Canvas.tsx` (`spotlight`, `onSelectStep`); `unfold-linked` decoration in unfoldMarks.ts.
 - **Breadcrumb (2026-11-27):** the reader bar shows `Article title › [3/11 Split title ▾]` on the left. The split chip
   is the Contents menu (the separate Contents button is gone); it follows Next/Previous in Split view and the scroll in
   Article view. Phones show only the chip.
