@@ -113,6 +113,10 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Resume where you left off (2026-11-27):** Split view remembers (per article, in this browser) the split, the
+  paragraph under the pointer (or, without Unfold, the paragraph at the top of the text; or the Next / previous
+  button) and how far down the screen it sat. A refresh reopens exactly there. Anchored to the paragraph, not to
+  pixels, so it survives window-size changes.
 - **Going back mirrors going forward (2026-11-27):** "‹ previous" (click or Enter) and **[** open the previous split
   at its **end**, pointer on its last paragraph; going forward opens a split at its start. Contents opens at the start.
 - **Split view is one split at a time.** The text pane scrolls only within the current split. At its end a **Next

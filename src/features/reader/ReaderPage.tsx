@@ -23,7 +23,9 @@ import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
 
 type Mode = 'flow' | 'article';
-interface ReadPrefs { mode?: Mode | 'present'; sectionId?: string; layout?: LayoutId; unfold?: boolean }
+/** Where the reader was in Split view: the split, the paragraph (or 'prev' / 'next' button) and its distance from the top. */
+interface ReadPlace { sectionId: string; blockId: string; offset: number }
+interface ReadPrefs { mode?: Mode | 'present'; sectionId?: string; layout?: LayoutId; unfold?: boolean; place?: ReadPlace }
 
 /** The slide shown with a section: its own, else the closest earlier one, else the first slide. */
 function slideFor(sections: Section[], index: number): Section | null {
@@ -133,7 +135,7 @@ function Reader({ article }: { article: PublishedArticle }) {
         )}
       </header>
       {mode === 'flow' && (
-        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo}
+        <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={prefs.place}
           setPrefs={setPrefs} layout={layout} authorLayout={authorLayout} unfold={unfold} />
       )}
       {mode === 'article' && (
@@ -220,8 +222,8 @@ function ArticleHeader({ article, views }: { article: PublishedArticle; views: n
 }
 
 // ---------------------------------------------------------------- Split view: one split at a time (2026-11-27)
-function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, layout, authorLayout, unfold }: {
-  article: PublishedArticle; sections: Section[]; views: number; current: string | null; jump: Jump | null;
+function FlowMode({ article, sections, views, current, jump, onGo, place, setPrefs, layout, authorLayout, unfold }: {
+  article: PublishedArticle; sections: Section[]; views: number; current: string | null; jump: Jump | null; place?: ReadPlace;
   onGo: (sectionId: string, sub?: number | null, arrive?: 'start' | 'end') => void; setPrefs: (p: ReadPrefs) => void;
   layout: LayoutId; authorLayout: LayoutId; unfold: boolean;
 }) {
@@ -230,6 +232,37 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
   const section = sections[index];
   const prev = sections[index - 1], next = sections[index + 1];
 
+  // Resume where the reader left off (2026-11-27): the saved place is used once, when the page opens on that split.
+  const [restoreOnce] = useState<ReadPlace | undefined>(place);
+  const restoreRef = useRef<ReadPlace | undefined>(restoreOnce);
+  const anchorEl = useCallback((root: HTMLElement, blockId: string): HTMLElement | null => {
+    if (blockId === 'prev') return root.querySelector<HTMLElement>('.prev-split');
+    if (blockId === 'next') return root.querySelector<HTMLElement>('.next-split-cta');
+    return root.querySelector<HTMLElement>(`.ProseMirror > [data-block-id="${CSS.escape(blockId)}"]`);
+  }, []);
+  /** Remember the place: the pointer's stop (Unfold) or the first paragraph in view, and how far down it sits. */
+  const saveTimer = useRef(0);
+  const rememberPlace = useCallback(() => {
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      const root = scrollRef.current;
+      if (!root || !section) return;
+      const top = root.getBoundingClientRect().top;
+      const el = root.querySelector<HTMLElement>('.is-unfold-current')
+        ?? [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id]')].find(b => b.getBoundingClientRect().bottom > top + 1) ?? null;
+      if (!el) return;
+      const blockId = el.classList.contains('prev-split') ? 'prev' : el.classList.contains('next-split-cta') ? 'next' : el.getAttribute('data-block-id');
+      if (!blockId) return;
+      setPrefs({ place: { sectionId: section.id, blockId, offset: Math.round(el.getBoundingClientRect().top - top) } });
+    }, 400);
+  }, [section, setPrefs]);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    root.addEventListener('scroll', rememberPlace, { passive: true });
+    return () => { root.removeEventListener('scroll', rememberPlace); window.clearTimeout(saveTimer.current); };
+  }, [rememberPlace]);
+
   // A new split starts at its top; going back opens it at its end; a jump to a sub-heading scrolls to it.
   const arriveAtEnd = !!(jump && section && jump.sectionId === section.id && jump.arrive === 'end');
   const arriveAtEndRef = useRef(arriveAtEnd);
@@ -237,10 +270,13 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
   useEffect(() => {
     const root = scrollRef.current;
     if (!root || !section) return;
+    const restore = !jump && restoreRef.current?.sectionId === section.id ? restoreRef.current : undefined;
+    const el = restore ? anchorEl(root, restore.blockId) : null;
     if (jump && jump.sectionId === section.id && jump.sub !== null) scrollToTarget(root, section.id, jump.sub, 'smooth');
+    else if (el && restore) root.scrollTop += el.getBoundingClientRect().top - root.getBoundingClientRect().top - restore.offset;
     else if (arriveAtEndRef.current) root.scrollTop = root.scrollHeight;
     else root.scrollTop = 0;
-  }, [section, jump]);
+  }, [section, jump, anchorEl]);
 
   // [ and ] (or Alt+← / Alt+→): previous / next split.
   useEffect(() => {
@@ -300,6 +336,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       const id = isButton(cur) ? null : cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
       const ids = stepIds(section.nodes);
       const index = onPrev ? -1 : isButton(cur) ? ids.length - 1 : id ? ids.indexOf(id) : -1;
+      rememberPlace();
       setStep(p => (p?.sectionId === section.id && p.index === index ? p : { sectionId: section.id, index }));
     };
     const view = () => { const b = root.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, h: b.height }; };
@@ -392,11 +429,16 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (i >= 0) apply(i);
     };
 
-    // A split starts at its first paragraph; arriving from the next split (going back), at its last one.
-    if (arriveAtEndRef.current) quietUntil = Date.now() + 700;
+    // A split starts at its first paragraph; arriving from the next split (going back), at its last one; after a
+    // refresh, where the reader left off.
+    const restore = restoreRef.current?.sectionId === section.id ? restoreRef.current : undefined;
+    const arriveEnd = arriveAtEndRef.current;
+    if (arriveEnd || restore) quietUntil = Date.now() + 700;
     raf = requestAnimationFrame(() => {
       const paras = paragraphsOf();
-      apply(blocksOf().indexOf((arriveAtEndRef.current ? paras[paras.length - 1] : paras[0])!));
+      const restored = restore ? anchorEl(root, restore.blockId) : null;
+      const start = restored ?? (arriveEnd ? paras[paras.length - 1] : paras[0]);
+      apply(Math.max(0, blocksOf().indexOf(start!)));
     });
     root.addEventListener('wheel', onWheel, { passive: false });
     root.addEventListener('scroll', onScroll, { passive: true });
@@ -410,7 +452,10 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       cancelAnimationFrame(raf);
       clear();
     };
-  }, [unfold, section]);
+  }, [unfold, section, anchorEl, rememberPlace]);
+  // The saved place applies to the split it belongs to; forget it once the reader moves to another split. (Not cleared
+  // right after use: React's development mode runs effects twice, and the second run must still find it.)
+  useEffect(() => { if (restoreRef.current && restoreRef.current.sectionId !== section?.id) restoreRef.current = undefined; }, [section]);
 
   const slide = slideFor(sections, index);
   const parts = useMemo(() => {
