@@ -113,6 +113,9 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views on the experimental branch (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Steady drawing while stepping (2026-11-27):** `SlideImage` renders the "already seen" and "new" layers first and
+  swaps both in together, so the previous step's parts never vanish while the next picture is being drawn (they used
+  to blink out for ~100 ms). The glow restarts on the new layer via the `is-glowing` class.
 - **Editor spotlight (2026-11-27):** with Unfold on, the drawing parts of the paragraph the cursor is in glow (touching
   parts merge into one outline) and the rest of the split fades. Display only: nothing is selected or saved. While
   drawing there is no fade; selecting parts lights up their paragraph in the text (and scrolls it into view) and glows

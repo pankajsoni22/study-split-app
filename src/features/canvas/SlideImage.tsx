@@ -20,50 +20,61 @@ export default function SlideImage({ scene, frameId, label, stamp = 0, className
   const [missing, setMissing] = useState(false);
   const size = frameSize(scene, frameId);
   const base = only && fresh?.size ? new Set([...only].filter(id => !fresh.has(id))) : only;
+  const baseKey = base ? [...base].sort().join(',') : '*';
   const freshKey = fresh?.size ? [...fresh].sort().join(',') : '';
+  const baseRef = useRef<HTMLDivElement>(null);
+  const freshRef = useRef<HTMLDivElement>(null);
+
+  // Both layers are rendered first and swapped in together (2026-11-27): replacing them one at a time made the
+  // previous step's parts vanish for a moment while the new pictures were still being drawn (an Unfold "flicker").
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([renderSvg(scene, frameId, theme, stamp, baseKey), freshKey ? renderSvg(scene, frameId, theme, stamp, freshKey) : null])
+      .then(([b, f]) => {
+        if (cancelled) return;
+        if (b === null) { setMissing(true); return; }
+        show(baseRef.current, b);
+        const layer = freshRef.current;
+        if (!layer) return;
+        if (!f) { layer.innerHTML = ''; layer.classList.remove('is-glowing'); return; }
+        show(layer, f);
+        layer.classList.remove('is-glowing');
+        void layer.offsetWidth;   // restart the glow for the new parts
+        layer.classList.add('is-glowing');
+      }, () => { if (!cancelled) setMissing(true); });
+    return () => { cancelled = true; };
+  }, [scene, frameId, theme, stamp, baseKey, freshKey]);
 
   if (missing || !size) return null;
   return (
     <div className={`slide-image ${className}`} role="img" aria-label={`Drawing: ${label}`}
       style={{ aspectRatio: `${size.width} / ${size.height}`, ['--ar' as string]: size.width / size.height }}>
-      <SvgLayer scene={scene} frameId={frameId} theme={theme} stamp={stamp} only={base} onMissing={() => setMissing(true)} />
-      {freshKey && <SvgLayer key={freshKey} scene={scene} frameId={frameId} theme={theme} stamp={stamp} only={fresh} className="is-fresh" />}
+      <div ref={baseRef} className="slide-image-svg" />
+      <div ref={freshRef} className="slide-image-svg is-fresh" />
     </div>
   );
 }
 
-function SvgLayer({ scene, frameId, theme, stamp, only, className = '', onMissing }: {
-  scene: CanvasScene; frameId: string; theme: string; stamp: number; only?: ReadonlySet<string>; className?: string; onMissing?: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const onlyKey = only ? [...only].sort().join(',') : '*';
-  const missingRef = useRef(onMissing);
-  useEffect(() => { missingRef.current = onMissing; });
+/** The SVG markup of a slide (or only some of its parts: comma-separated ids, '' = none, '*' = all), cached. */
+function renderSvg(scene: CanvasScene, frameId: string, theme: string, stamp: number, onlyKey: string): Promise<string | null> {
+  const key = `${frameId}:${theme}:${stamp}:${onlyKey}`;
+  let perScene = cache.get(scene);
+  if (!perScene) { perScene = new Map(); cache.set(scene, perScene); }
+  const cached = perScene.get(key);
+  if (cached) return Promise.resolve(cached);
+  const ids = onlyKey === '*' ? undefined : new Set(onlyKey ? onlyKey.split(',') : []);
+  return frameToSvg(scene, frameId, theme === 'dark', ids).then(svg => {
+    if (!svg) return null;
+    const markup = svg.outerHTML;
+    perScene.set(key, markup);
+    return markup;
+  });
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    const key = `${frameId}:${theme}:${stamp}:${onlyKey}`;
-    let perScene = cache.get(scene);
-    if (!perScene) { perScene = new Map(); cache.set(scene, perScene); }
-    const cached = perScene.get(key);
-    const show = (markup: string) => {
-      const host = ref.current;
-      if (cancelled || !host) return;
-      // Our own Excalidraw export (no user HTML). Ids are scoped per copy: several slides share this page.
-      host.innerHTML = scopeSvgIds(markup, nextSvgPrefix());
-      const svg = host.querySelector('svg');
-      if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('aria-hidden', 'true'); }
-    };
-    if (cached) { show(cached); return; }
-    const ids = onlyKey === '*' ? undefined : new Set(onlyKey ? onlyKey.split(',') : []);
-    frameToSvg(scene, frameId, theme === 'dark', ids).then(svg => {
-      if (!svg) { if (!cancelled) missingRef.current?.(); return; }
-      const markup = svg.outerHTML;
-      perScene.set(key, markup);
-      show(markup);
-    }, () => { if (!cancelled) missingRef.current?.(); });
-    return () => { cancelled = true; };
-  }, [scene, frameId, theme, stamp, onlyKey]);
-
-  return <div ref={ref} className={`slide-image-svg ${className}`} />;
+/** Our own Excalidraw export (no user HTML). Ids are scoped per copy: several slides share this page. */
+function show(host: HTMLDivElement | null, markup: string) {
+  if (!host) return;
+  host.innerHTML = scopeSvgIds(markup, nextSvgPrefix());
+  const svg = host.querySelector('svg');
+  if (svg) { svg.removeAttribute('width'); svg.removeAttribute('height'); svg.setAttribute('aria-hidden', 'true'); }
 }

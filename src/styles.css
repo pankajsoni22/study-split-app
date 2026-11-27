@@ -1151,14 +1151,15 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 }
 @keyframes unfold-pointer { from { transform: translateX(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
 /* drawing: this step's new parts fade in with a teal glow that settles */
-.slide-image-svg.is-fresh { position: absolute; inset: 0; animation: unfold-glow 1.6s ease-out both; }
+.slide-image-svg.is-fresh { position: absolute; inset: 0; pointer-events: none; }
+.slide-image-svg.is-fresh.is-glowing { animation: unfold-glow 1.6s ease-out both; }
 @keyframes unfold-glow {
   0% { opacity: 0; filter: drop-shadow(0 0 0 transparent); }
   22% { opacity: 1; filter: drop-shadow(0 0 7px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
   100% { opacity: 1; filter: drop-shadow(0 0 0 transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .slide-image-svg.is-fresh, .is-unfolding .ProseMirror > .is-unfold-current::after { animation: none; }
+  .slide-image-svg.is-fresh.is-glowing, .is-unfolding .ProseMirror > .is-unfold-current::after { animation: none; }
   .is-unfolding .ProseMirror > :not(h2) { transition: none; }
 }
 
