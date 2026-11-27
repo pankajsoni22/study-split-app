@@ -137,7 +137,10 @@ The drawing **builds up as you read**: each paragraph is a step that adds its pa
   paragraph is in view; when the pointer reaches the bottom of the visible text, the page scrolls to bring it to ~30%
   from the top. A paragraph taller than the pane scrolls normally until its end shows. At the last paragraph the
   wheel scrolls on to the Next split card; at the first, back to the top. Scroll-bar drags and jumps place the pointer
-  by position; **clicking** a paragraph makes it current; empty paragraphs are skipped. **Article** view shows finished drawings.
+  by position; **clicking** a paragraph makes it current; empty paragraphs are skipped.
+  **Enter (2026-11-27):** on a collapsible it opens / closes it (its hint reads "press Enter to expand"); the pointer
+  also stops on the **‹ previous** link (up from the first paragraph) and the **Next split** card (down from the
+  last), which show "Enter ↵" and a teal ring; Enter there = click. **Article** view shows finished drawings.
 - **Data:** every top-level block has a stable `blockId` (added on open; kept unique by the editor). Untagged parts,
   and parts of deleted paragraphs, are always visible; a label follows its shape. No database change.
 - Code: `src/domain/unfold.ts` (rules, tested), `editor/unfoldMarks.ts`, `EditorPage` (tagging), `SlideImage` (layers),

@@ -1210,3 +1210,27 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .reader-scroll { display: flex; flex-direction: column; }
 .reader-scroll > .reader-column { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; padding-bottom: 24px; }
 .reader-scroll .split-end { margin-top: auto; padding-top: 32px; }
+
+/* ---- Unfold pointer on the split buttons and collapsibles (2026-11-27) ---- */
+.unfold-enter { display: none; font: 600 10.5px/1 var(--font-mono, monospace); padding: 3px 6px; border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); background: var(--surface); color: var(--accent-strong); }
+.next-split-cta:has(.unfold-enter) { grid-template-columns: 1fr auto auto; }
+.next-split-cta .unfold-enter { grid-row: 1 / span 2; grid-column: 2; }
+.next-split-cta:has(.unfold-enter) svg { grid-column: 3; }
+.reader-scroll .prev-split { align-self: flex-start; }   /* hug its text, even when the pointer rings it */
+.next-split-cta { position: relative; }
+.prev-split { position: relative; gap: 6px; }
+.is-unfolding .next-split-cta.is-unfold-current, .is-unfolding .prev-split.is-unfold-current {
+  border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.is-unfolding .prev-split.is-unfold-current { background: var(--accent-soft); color: var(--accent-strong); }
+.is-unfolding .is-unfold-current .unfold-enter { display: inline-block; }
+.is-unfolding .next-split-cta.is-unfold-current::after, .is-unfolding .prev-split.is-unfold-current::after {
+  content: ""; position: absolute; left: -20px; top: 50%; margin-top: -6px; width: 0; height: 0;
+  border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 8px solid var(--accent);
+  animation: unfold-pointer 0.3s ease-out;
+}
+.is-unfolding .prev-split.is-unfold-current::after { left: -14px; }
+/* collapsible under the pointer: say Enter works */
+.is-unfolding .collapsible.is-unfold-current:not(.is-open) summary::after { content: " · press Enter to expand"; color: var(--accent-strong); }
+.is-unfolding .collapsible.is-unfold-current.is-open summary::after { content: " · press Enter to collapse"; font-weight: 400; font-size: 0.85em; color: var(--accent-strong); }

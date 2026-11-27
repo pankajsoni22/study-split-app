@@ -268,8 +268,15 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     };
     if (!unfold || !section) { clear(); return; }
     // Empty paragraphs (e.g. the editor's final empty line) are not reading steps.
-    const blocksOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
+    const paragraphsOf = () => [...root.querySelectorAll<HTMLElement>('.ProseMirror > [data-block-id], .ProseMirror > .tableWrapper')]
       .filter(el => (el.textContent ?? '').trim() !== '' || el.querySelector('img, svg, hr') || el.tagName === 'HR');
+    // The pointer's stops: the "previous split" link, every paragraph, then the "Next split" card (Enter = click).
+    const blocksOf = () => {
+      const prevBtn = root.querySelector<HTMLElement>('.prev-split');
+      const nextBtn = root.querySelector<HTMLElement>('.next-split-cta');
+      return [...(prevBtn ? [prevBtn] : []), ...paragraphsOf(), ...(nextBtn ? [nextBtn] : [])];
+    };
+    const isButton = (el: HTMLElement | undefined) => !!el && el.tagName === 'BUTTON';
     let at = 0;                 // index into blocksOf()
     let quietUntil = 0;         // ignore position-based placement while our own / wheel scrolling settles
     let acc = 0, lastStep = 0, raf = 0;
@@ -278,13 +285,16 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       const blocks = blocksOf();
       if (!blocks.length) return;
       at = Math.max(0, Math.min(i, blocks.length - 1));
+      const cur = blocks[at]!;
+      const onPrev = isButton(cur) && cur.classList.contains('prev-split');
       blocks.forEach((el, k) => {
         el.classList.toggle('is-unfold-current', k === at);
-        el.classList.toggle('is-unfold-future', k > at);
+        el.classList.toggle('is-unfold-future', !onPrev && !isButton(el) && k > at);   // on "previous": nothing read yet, nothing faded
       });
-      const cur = blocks[at]!;
-      const id = cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
-      const index = id ? stepIds(section.nodes).indexOf(id) : -1;
+      // The drawing: on "previous" nothing of this split yet; on "Next split" all of it.
+      const id = isButton(cur) ? null : cur.getAttribute('data-block-id') ?? cur.querySelector('[data-block-id]')?.getAttribute('data-block-id') ?? null;
+      const ids = stepIds(section.nodes);
+      const index = onPrev ? -1 : isButton(cur) ? ids.length - 1 : id ? ids.indexOf(id) : -1;
       setStep(p => (p?.sectionId === section.id && p.index === index ? p : { sectionId: section.id, index }));
     };
     const view = () => { const b = root.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, h: b.height }; };
@@ -297,13 +307,14 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     };
     /** Place the pointer by scroll position (scroll bar drags, jumps): the line runs from the split's start to its end. */
     const placeByPosition = () => {
-      const blocks = blocksOf();
+      const all = blocksOf();
+      const blocks = paragraphsOf();
       const max = root.scrollHeight - root.clientHeight;
       const line = (max > 0 ? root.scrollTop / max : 0) * root.scrollHeight;
       const top = view().top;
       let i = -1;
       blocks.forEach((el, k) => { if (el.getBoundingClientRect().top - top + root.scrollTop <= line + 1) i = k; });
-      apply(Math.max(0, i));
+      apply(all.indexOf(blocks[Math.max(0, i)]!));
     };
     const stepBy = (dir: 1 | -1): boolean => {
       const blocks = blocksOf();
@@ -312,8 +323,8 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       if (!cur) return false;
       const r = cur.getBoundingClientRect();
       // A tall paragraph: scroll through it first.
-      if (dir === 1 && r.bottom > v.bottom - 10) return false;
-      if (dir === -1 && r.top < v.top - 10) return false;
+      if (!isButton(cur) && dir === 1 && r.bottom > v.bottom - 10) return false;
+      if (!isButton(cur) && dir === -1 && r.top < v.top - 10) return false;
       const next = at + dir;
       if (next < 0 || next >= blocks.length) return false;      // edges: normal scrolling
       apply(next);
@@ -330,7 +341,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
       const cur = blocks[at];
       const v = view();
       const r = cur?.getBoundingClientRect();
-      const tall = r && (dir === 1 ? r.bottom > v.bottom - 10 : r.top < v.top - 10);
+      const tall = r && !isButton(cur) && (dir === 1 ? r.bottom > v.bottom - 10 : r.top < v.top - 10);
       const edge = dir === 1 ? at >= blocks.length - 1 : at <= 0;
       if (tall || edge) { acc = 0; return; }                    // let the page scroll normally
       e.preventDefault();
@@ -344,6 +355,15 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t?.closest('input, textarea, select, [contenteditable="true"]') || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'Enter') {
+        if (t?.closest('button, a, [role="menu"]')) return;   // a focused control handles its own Enter
+        const cur = blocksOf()[at];
+        if (!cur) return;
+        // Enter on the split buttons = click; on a collapsible = open / close it.
+        const target = isButton(cur) ? cur : cur.matches('.collapsible, [data-type="details"]') ? cur.querySelector<HTMLElement>(':scope > button') : null;
+        if (target) { e.preventDefault(); target.click(); }
+        return;
+      }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       if (stepBy(e.key === 'ArrowDown' ? 1 : -1)) e.preventDefault();
     };
@@ -355,11 +375,11 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (t.closest('a, button, summary')) return;
-      const i = blocksOf().findIndex(b => b.contains(t));
+      const i = blocksOf().findIndex(b => !isButton(b) && b.contains(t));
       if (i >= 0) apply(i);
     };
 
-    raf = requestAnimationFrame(() => apply(0));                 // a split starts at its first paragraph
+    raf = requestAnimationFrame(() => apply(blocksOf().indexOf(paragraphsOf()[0]!)));   // a split starts at its first paragraph
     root.addEventListener('wheel', onWheel, { passive: false });
     root.addEventListener('scroll', onScroll, { passive: true });
     root.addEventListener('click', onClick);
@@ -392,6 +412,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
             {index === 0 ? <ArticleHeader article={article} views={views} /> : prev && (
               <button type="button" className="prev-split" onClick={() => onGo(prev.id)} title="Previous split ([)">
                 <ChevronLeft size={15} aria-hidden="true" /> {index}. {prev.title}
+                <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
               </button>
             )}
             <section key={section.id} data-reader-section={section.id} className="reader-section is-active">
@@ -402,6 +423,7 @@ function FlowMode({ article, sections, views, current, jump, onGo, setPrefs, lay
                 <button type="button" className="next-split-cta" onClick={() => onGo(next.id)} title="Next split (])">
                   <span className="next-split-label">Next split</span>
                   <span className="next-split-title">{index + 2}. {next.title}</span>
+                  <kbd className="unfold-enter" aria-hidden="true">Enter ↵</kbd>
                   <ChevronRight size={18} aria-hidden="true" />
                 </button>
               ) : (
