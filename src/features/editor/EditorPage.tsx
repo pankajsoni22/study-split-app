@@ -84,6 +84,11 @@ export default function EditorPage() {
   const knownIds = useRef<Set<string> | null>(null);
   const marksKey = useRef('');
   const onActiveBlock = useCallback((blockId: string | null) => { activeBlockRef.current = blockId; setActiveBlock(blockId); }, []);
+  /** Spotlight (2026-11-27): the paragraph whose drawing parts glow. Writing: the cursor's paragraph, the rest of the
+   *  drawing fades. Drawing: no fade; selecting a part lights up its paragraph (`linked`) and its whole step glows. */
+  const [spotMode, setSpotMode] = useState<'write' | 'draw'>('write');
+  const [linkedBlock, setLinkedBlock] = useState<string | null>(null);
+  const linkedRef = useRef<string | null>(null);
 
   /** Unfold bookkeeping on every drawing change: tag new parts with the current paragraph; refresh the step badges. */
   const unfoldAfterChange = useCallback((scene: CanvasScene) => {
@@ -101,8 +106,8 @@ export default function EditorPage() {
     }
     if (editor) {
       const counts = countsByStep(parts);
-      const key = `${unfoldRef.current}|${[...counts].join(',')}`;
-      if (key !== marksKey.current) { marksKey.current = key; setUnfoldMarks(editor.view, { on: unfoldRef.current, counts }); }
+      const key = `${unfoldRef.current}|${linkedRef.current}|${[...counts].join(',')}`;
+      if (key !== marksKey.current) { marksKey.current = key; setUnfoldMarks(editor.view, { on: unfoldRef.current, counts, linked: linkedRef.current }); }
     }
   }, [api, editor]);
 
@@ -122,6 +127,18 @@ export default function EditorPage() {
     marksKey.current = '';
     unfoldAfterChange({ ...(canvasRef.current ?? draft?.canvas ?? { elements: [], files: {} }), elements: api.getSceneElements() as unknown[] });
   }, [api, editor, unfoldOn, unfoldAfterChange, canvasRef, draft]);
+
+  /** Selecting drawing parts lights up their paragraph in the text (and brings it into view). */
+  const onSelectStep = useCallback((blockId: string | null) => {
+    linkedRef.current = blockId;
+    setLinkedBlock(blockId);
+    if (!api || !editor) return;
+    marksKey.current = '';
+    unfoldAfterChange({ ...(canvasRef.current ?? { files: {} }), elements: api.getSceneElements() as unknown[] });
+    if (blockId) requestAnimationFrame(() => {
+      editor.view.dom.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }, [api, editor, canvasRef, unfoldAfterChange]);
 
   /** A shape finished on mouse/key release often reports no further change, so check again right after release. */
   const unfoldCheckSoon = useCallback(() => {
@@ -429,14 +446,15 @@ export default function EditorPage() {
         leftLabel="Text" rightLabel="Drawing"
         focus={fullscreen.pane === 'text' ? 'left' : fullscreen.pane === 'canvas' ? 'right' : null}
         left={(
-          <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => editorView.activity('write')}>
+          <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => { editorView.activity('write'); setSpotMode('write'); }}>
             <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} onActiveBlock={onActiveBlock}
               trailing={<FullscreenButton on={fullscreen.pane === 'text'} what="writing" onClick={() => fullscreen.toggle('text')} />} />
           </div>
         )}
         right={(
           <div className="slide-pane">
-            <div className="canvas-zone" onPointerUpCapture={() => { editorView.activity('draw'); unfoldCheckSoon(); }} onKeyUpCapture={unfoldCheckSoon}>
+            <div className="canvas-zone" onPointerDownCapture={() => setSpotMode('draw')}
+              onPointerUpCapture={() => { editorView.activity('draw'); unfoldCheckSoon(); }} onKeyUpCapture={unfoldCheckSoon}>
               <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)}
                 unfold={unfoldOn ? {
                   step: stepOfBlock(activeBlock),
@@ -449,7 +467,9 @@ export default function EditorPage() {
                 trailing={<FullscreenButton on={fullscreen.pane === 'canvas'} what="drawing" onClick={() => fullscreen.toggle('canvas')} />} />
               <Suspense fallback={<Loading label="Loading canvas" />}>
                 <Canvas key={`c${sessionKey}`} initialScene={draft.canvas} slideId={activeSlide?.frameId ?? null}
-                  onApi={onCanvasApi} onSceneChange={onCanvasChange} />
+                  onApi={onCanvasApi} onSceneChange={onCanvasChange}
+                  spotlight={unfoldOn ? { blockId: spotMode === 'draw' ? linkedBlock : activeBlock, fade: spotMode === 'write' } : null}
+                  onSelectStep={unfoldOn ? onSelectStep : undefined} />
               </Suspense>
             </div>
             {!stripPinned && strip}

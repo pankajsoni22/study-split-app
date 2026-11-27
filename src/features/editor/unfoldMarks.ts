@@ -7,7 +7,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
  * number in the margin, and the paragraph the cursor is in (where new drawings go) gets a teal edge.
  * The drawing side sends the counts with `setUnfoldMarks(editor, { on, counts })`.
  */
-export interface UnfoldMarksState { on: boolean; counts: Map<string, number> }
+/** `linked`: the paragraph whose drawing parts are selected on the canvas (lit up in the text). */
+export interface UnfoldMarksState { on: boolean; counts: Map<string, number>; linked?: string | null }
 export const unfoldMarksKey = new PluginKey<UnfoldMarksState>('unfoldMarks');
 
 export const UnfoldMarks = Extension.create({
@@ -36,6 +37,7 @@ export const UnfoldMarks = Extension.create({
             const cls: string[] = [];
             if (n > 0) { cls.push('unfold-has'); attrs['data-unfold-step'] = String(step); attrs.title = `Unfold step ${step}: ${n} drawing part${n === 1 ? '' : 's'} appear with this paragraph`; }
             if (pos === current) cls.push('unfold-target');
+            if (id && id === marks.linked) cls.push('unfold-linked');
             if (cls.length) decos.push(Decoration.node(pos, pos + node.nodeSize, { ...attrs, class: cls.join(' ') }));
           });
           return DecorationSet.create(state.doc, decos);
