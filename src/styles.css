@@ -4,6 +4,8 @@
    own brand: Verdigris teal accent + Marker amber highlight (docs §14).
    ========================================================================== */
 :root {
+  --read-col: 740px;      /* text column width: the reader and the editor use the same one (2026-11-28) */
+  --read-font: 17px;     /* article text size: same in reader and editor, so the editor is a true preview */
   --pane-bar-h: 44px;   /* text toolbar and drawing format bar: always the same height */
   --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -507,7 +509,8 @@ body.is-resizing { cursor: col-resize; user-select: none; }
    Article text (shared by editor and reader)
    ========================================================================== */
 .prose { font-size: 16.5px; line-height: 1.72; color: var(--text); overflow-wrap: anywhere; }
-.prose-edit { padding: 16px 28px 40vh; outline: none; min-height: 100%; }
+/* Same column and text size as the reader (.reader-column, .prose-read): what you write wraps exactly as readers see it. */
+.prose-edit { padding: 16px 28px 40vh; outline: none; min-height: 100%; max-width: var(--read-col); margin-inline: auto; font-size: var(--read-font); }
 .prose :where(p, ul, ol, pre) { margin: 0; }     /* resets with zero weight, so the spacing rule below always wins */
 /* Space between blocks, like a normal article: a clear gap between paragraphs, lists, code, tables and boxes.
    (Before 2026-11-26 a stronger `p { margin: 0 }` cancelled this, so paragraphs ran together.) */
@@ -554,14 +557,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .reader-bar-title { font-weight: 650; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 40vw; }
 .reader-scroll, .reader-article { flex: 1; min-height: 0; overflow-y: auto; }
 .reader-scroll { background: var(--surface); }
-.reader-column { max-width: 740px; margin: 0 auto; padding: 28px 28px 30vh; }
+.reader-column { max-width: var(--read-col); margin: 0 auto; padding: 28px 28px 30vh; }
 .reader-message { padding: 40px 16px; }
 .article-head { margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px; }
 .article-head h1 { font-size: clamp(26px, 3.2vw, 38px); letter-spacing: -0.02em; line-height: 1.15; }
 .article-summary { font-size: 17px; color: var(--text-2); }
 .reader-section { position: relative; padding-left: 0; transition: opacity 0.2s; }
 .reader-section + .reader-section { margin-top: 18px; }
-.prose-read { font-size: 17px; }
+.prose-read { font-size: var(--read-font); }
 .reader-article .reader-column { padding-bottom: 80px; }
 
 .link-button { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent-strong); cursor: pointer; }
@@ -1009,7 +1012,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .editor-page.is-fullscreen .editor-bar, .editor-page.is-fullscreen-text .slide-strip.is-docked { display: none; }
 .editor-page.is-fullscreen .timed-toast { top: 12px; }
 /* Writing full screen: keep a comfortable reading width */
-.editor-page.is-fullscreen-text .prose-edit { max-width: 880px; margin-inline: auto; padding-top: 32px; }
+.editor-page.is-fullscreen-text .prose-edit { padding-top: 32px; }
 
 /* ---- Local development only (src/dev/; never rendered in production builds) ---- */
 .dev-badge {

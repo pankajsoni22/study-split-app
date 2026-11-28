@@ -122,6 +122,9 @@ All modes render from the same article data. The mode switcher sits in the top b
     every layout: the text toolbar is one row (labels shorten in narrow panes; sideways scroll as a last resort; its
     Style/Insert menus open above the page via `MenuButton fixed`).
   Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
+- **Editor text = reader text (2026-11-28):** the editor's text column uses the reader's width and text size
+  (`--read-col` 740 px incl. 28 px padding, `--read-font` 17 px; centred when the pane is wider, also in full-screen
+  writing), so every line wraps exactly as readers will see it.
 - **Steady drawing while stepping (2026-11-27):** `SlideImage` renders the "already seen" and "new" layers first and
   swaps both in together, so the previous step's parts never vanish while the next picture is being drawn (they used
   to blink out for ~100 ms). The glow restarts on the new layer via the `is-glowing` class.
