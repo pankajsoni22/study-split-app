@@ -24,7 +24,8 @@ one command to set up and a flag to choose local or production data.
 | Update the sample articles in the local database **without** a reset | `npm run db:refresh-samples` (or `-- consistent-hashing` for one) |
 | Apply new migrations to **production** | `npm run db:prod -- push` (see [§7](#7-applying-migrations-to-production)) |
 | Production backups: download, check, restore, capacity | `docs/02-setup-checklist.md` step 7 |
-| Checks before pushing | `npm run lint && npm test && npm run test:db && npm run build` |
+| Run the **browser tests** (real Chromium, local data) | `npm run test:e2e` (or `-- reader` / `-- editor` for some; see [§13](#13-browser-tests)) |
+| Checks before pushing | `npm run lint && npm test && npm run test:db && npm run build`, plus `npm run test:e2e` for UI changes |
 
 **Test users** (local only, password `study-split-dev`). The sign-in page has a button for each:
 
@@ -286,6 +287,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 | A Supabase feature (edge function, storage use, realtime) | Enable it in `supabase/config.jsonc`, note it in §1 and §10 |
 | An npm script | Quick reference (§0) |
 | A test user or sample article | `scripts/seed/` → `npm run db:refresh-samples` (or `db:reset`) → commit `scripts/seed/` and `seed.sql`; table in §0 |
+| A user-facing feature or a UI fix | A check in `tests/e2e/` (an existing file, or a new one: §13); run `npm run test:e2e` |
 
 ---
 
@@ -308,7 +310,41 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 ---
 
-## 13. Change log
+## 13. Browser tests
+
+`npm run test:e2e` drives a real (headless) Chromium through the app, against the **local** database and its sample
+articles. It checks the things unit tests cannot see: the reading pointer and keys, steady Unfold drawings, menus,
+toolbar alignment, the editor matching the reader, navigation, theme. About 4 minutes; 72 checks.
+
+**Needs:** the local database running (`npm run db:start`) and a Chromium. `playwright-core` is a dev dependency but does
+not download a browser; install one once with `npx playwright-core install chromium-headless-shell` (or set
+`PW_CHROMIUM=/path/to/chrome`).
+
+**What the runner (`scripts/e2e.mjs`) does:** resets the two sample articles (`consistent-hashing`,
+`telemetry-etl-pipeline`), starts its own dev server on port **5199** (your `npm run dev` on 5173 is untouched), runs
+each `tests/e2e/*.mjs` file, resets the samples again (tests may switch modes in the editor, which autosaves) and prints
+a summary. `npm run test:e2e -- editor` runs only files whose name contains "editor". Screenshots go to
+`<temp>/study-split-e2e/`.
+
+| File | Covers |
+|---|---|
+| `reader.mjs` | pointer stepping, Enter on collapsibles and split buttons, going back to a split's end, resume after refresh, split links, Copy link, breadcrumb |
+| `reader-drawing.mjs` | Unfold drawings stay steady: nothing vanishes, no text waits on a font, no font loads while stepping |
+| `menus.mjs` | reader and editor top bars (Layout, Mode, ⋯), toolbars same height in all layouts, Insert menu not clipped |
+| `editor-nav.mjs` | breadcrumb + Contents, sub-section jump + flash, drawing follows the split in view, full-screen sidebar, split panel preview |
+| `editor-preview.mjs` | editor text = reader text (margins, size, line wrapping) |
+| `editor-spotlight.mjs` | Unfold spotlight both ways |
+| `theme.mjs` | the chosen theme survives a refresh |
+
+**Writing a test:** copy an existing file. `tests/e2e/lib.mjs` gives `run(name, body)`, `check(ok, message)`, `BASE`,
+`IDS` (sample article ids by slug), `page()`, `signIn(page)`, `shot()`, and helpers for the bar menus. Click like a
+person (`clickAt`, mouse coordinates) where it matters: Playwright's `locator.click()` scrolls things into view first,
+which has hidden real bugs before (a menu clipped off-screen still "worked" in a test). Not run in CI (it needs Docker
+and the local stack).
+
+---
+
+## 14. Change log
 
 | Date | Change |
 |---|---|
@@ -321,3 +357,4 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 | 2026-11-25 | Production Postgres verified as 17.12 (matches local). `.env.prod-db.local` created; `db:prod status` works; baseline pending. CLI v4 flag note. |
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
 | 2026-11-27 | New sample `telemetry-etl-pipeline` (scripts/seed/telemetry-etl.mjs): "A Distributed ETL Pipeline for Storage Telemetry", 9 splits told as one file's journey, Unfold on. An existing local database gets it without a reset by inserting it once (see the commit). |
+| 2026-11-28 | Browser tests in the repo: `tests/e2e/*.mjs` + `npm run test:e2e` (`scripts/e2e.mjs`, own dev server on port 5199, resets the samples before and after); `playwright-core` dev dependency; §13. |

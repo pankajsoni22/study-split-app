@@ -130,7 +130,8 @@ All modes render from the same article data. The mode switcher sits in the top b
     ProseMirror redraws the heading) and puts the cursor at its end.
   - **The drawing follows the split you are looking at** (decided 2026-11-28, option A): scrolling shows the split at
     the top quarter of the text unless the cursor is visible (then the cursor's split). So it is right after leaving
-    full screen too. Starting to draw (pointer down on the drawing side) while the cursor is in another split moves
+    full screen too. While a jump scrolls, following waits until the heading has arrived (or the reader's own
+    wheel/touch/key), so splits passed on the way are ignored. Starting to draw (pointer down on the drawing side) while the cursor is in another split moves
     the cursor to the first on-screen paragraph of the split you see, so Unfold gives new shapes to that split.
   - Split panel: hovering (or focusing) a thumbnail shows a larger preview of its drawing.
 - **Editor text = reader text (2026-11-28):** the editor's text column uses the reader's width and text size
