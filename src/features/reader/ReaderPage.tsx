@@ -1,10 +1,10 @@
-import { ArrowUp, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Ellipsis, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { splitSections, textOf, type Section } from '../../domain/content.ts';
 import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
-import { layoutById, type LayoutId } from '../../domain/layouts.ts';
+import { layoutById, layoutRatio, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
 import { getServices } from '../../data/services.ts';
 import { useQuery } from '../../data/useQuery.ts';
@@ -13,6 +13,7 @@ import { formatCount, formatDate } from '../../lib/text.ts';
 import { useIsNarrow } from '../../lib/useMediaQuery.ts';
 import { shouldRecordView } from '../../lib/viewCounter.ts';
 import Avatar from '../../ui/Avatar.tsx';
+import BarMenu, { MenuChoice } from '../../ui/BarMenu.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import MenuButton from '../../ui/MenuButton.tsx';
 import Logo from '../../ui/Logo.tsx';
@@ -74,7 +75,7 @@ function Reader({ article }: { article: PublishedArticle }) {
   // Two views (Present was removed 2026-11-27): Split (one split at a time, text beside its drawing) and Article.
   const mode: Mode = narrow || prefs.mode === 'article' ? 'article' : 'flow';
   const sections = useMemo<Section[]>(() => splitSections(article.doc), [article.doc]);
-  // Unfold (experimental): offered when the writer built the drawings paragraph by paragraph; on by default.
+  // Unfold: offered when the writer built the drawings paragraph by paragraph; on by default.
   const canUnfold = useMemo(() => usesUnfold(article.canvas), [article.canvas]);
   const unfold = canUnfold && prefs.unfold !== false && mode !== 'article';
   const [views, setViews] = useState(article.views);
@@ -110,7 +111,7 @@ function Reader({ article }: { article: PublishedArticle }) {
   const jumpTo = useCallback((sectionId: string, sub: number | null = null, arrive: 'start' | 'end' = 'start') => {
     setCurrent(sectionId);
     setJump(j => ({ sectionId, sub, arrive, n: (j?.n ?? 0) + 1 }));
-  }, []);
+  }, [setCurrent]);
 
   // FR-24: one view per browser per article per day. Fire and forget.
   useEffect(() => {
@@ -143,26 +144,55 @@ function Reader({ article }: { article: PublishedArticle }) {
           )}
         </nav>
         <span className="editor-bar-spacer" />
-        {canUnfold && mode !== 'article' && (
-          <button type="button" className={`btn btn-ghost btn-sm unfold-toggle${unfold ? ' is-on' : ''}`} aria-pressed={unfold}
-            title={unfold ? 'Unfold is on: each drawing builds up as you read. Click to show whole drawings.' : 'Unfold: build each drawing up paragraph by paragraph'}
-            onClick={() => setPrefs({ unfold: !unfold })}>
-            <Layers size={15} aria-hidden="true" /><span className="hide-narrow">Unfold</span>
-          </button>
-        )}
+        {/* Layout, Mode and Settings (2026-11-28): the same three menus as the editor, each showing what is set. */}
         {!narrow && (
-          <div className="segmented segmented-sm" role="radiogroup" aria-label="Reading mode">
-            <ModeButton current={mode} value="flow" label="Split" Icon={Columns2} onPick={m => setPrefs({ mode: m })} />
-            <ModeButton current={mode} value="article" label="Article" Icon={BookOpen} onPick={m => setPrefs({ mode: m })} />
+          <div className="bar-menus">
+            <BarMenu label="Layout" Icon={Columns2} value={prefs.layout ? layoutRatio(layout) : 'Auto'}
+              disabled={mode === 'article'} disabledHint="Layout applies to Split view">
+              {() => (
+                <>
+                  <MenuChoice checked={!prefs.layout} title="Auto" hint={`The writer's layout (${layoutRatio(authorLayout)})`} onPick={() => setPrefs({ layout: undefined })} />
+                  <MenuChoice checked={!!prefs.layout} title="Manual" hint="Keep the split you pick below" onPick={() => setPrefs({ layout })} />
+                  <div className="menu-section">
+                    <span className="menu-label">Text : drawing</span>
+                    <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" />
+                  </div>
+                </>
+              )}
+            </BarMenu>
+            <BarMenu label="Mode" Icon={Eye}
+              value={mode === 'article' ? 'Article' : unfold ? 'Split · Unfold' : 'Split'} className={`mode-menu${unfold ? ' is-unfold' : ''}`}>
+              {() => (
+                <>
+                  <MenuChoice checked={mode !== 'article'} title="Split" hint="One split at a time, text beside its drawing" onPick={() => setPrefs({ mode: 'flow' })} />
+                  <MenuChoice checked={mode === 'article'} title="Article" hint="The whole article on one page" onPick={() => setPrefs({ mode: 'article' })} />
+                  {canUnfold && (
+                    <>
+                      <div className="menu-sep" role="separator" />
+                      <button type="button" role="menuitemcheckbox" aria-checked={unfold} className="menu-item unfold-toggle" disabled={mode === 'article'}
+                        onClick={() => setPrefs({ unfold: !unfold })}>
+                        <Layers size={16} aria-hidden="true" />
+                        <span className="menu-item-text">Unfold<small>{mode === 'article' ? 'Available in Split view' : 'Drawings build up as you read'}</small></span>
+                        <span className={`switch${unfold ? ' is-on' : ''}`} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </BarMenu>
           </div>
         )}
-        {!narrow && mode !== 'article' && (
-          <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" />
-        )}
-        {!narrow && <ThemeSwitch compact />}
         {article.isOwner && !narrow && (
           <Link className="btn btn-ghost btn-sm" to={`/write/${article.id}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
         )}
+        <MenuButton label="Settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+          {() => (
+            <div className="menu-section">
+              <span className="menu-label">Theme</span>
+              <ThemeSwitch />
+            </div>
+          )}
+        </MenuButton>
       </header>
       {mode === 'flow' && (
         <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={!linked || resumeLinked ? prefs.place : undefined}
@@ -249,14 +279,6 @@ function scrollToTarget(root: HTMLElement | null, sectionId: string, sub: number
   if (!root || !sec) return;
   const target = sub === null ? sec : sec.querySelectorAll<HTMLElement>('.ProseMirror > h3')[sub] ?? sec;
   target.scrollIntoView({ behavior, block: 'start' });
-}
-
-function ModeButton({ current, value, label, Icon, onPick }: { current: Mode; value: Mode; label: string; Icon: typeof BookOpen; onPick: (m: Mode) => void }) {
-  return (
-    <button type="button" role="radio" aria-checked={current === value} onClick={() => onPick(value)} title={label}>
-      <Icon size={15} aria-hidden="true" /><span className="hide-narrow">{label}</span>
-    </button>
-  );
 }
 
 function ArticleHeader({ article, views }: { article: PublishedArticle; views: number }) {

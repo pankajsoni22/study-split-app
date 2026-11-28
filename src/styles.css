@@ -1127,7 +1127,7 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .style-opacity output { width: 44px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .style-actions { display: flex; align-items: center; gap: 6px; }
 
-/* ---- Unfold (experimental) ---- */
+/* ---- Unfold ---- */
 .menu-tag { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--accent-strong); background: var(--accent-soft); vertical-align: 1px; }
 /* editor: step badge in the margin for paragraphs that have drawings; teal edge on the paragraph new drawings join */
@@ -1284,3 +1284,25 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 }
 /* text: the paragraph whose drawing parts are selected on the canvas */
 .prose-edit .unfold-linked { background: var(--accent-soft); border-radius: 6px; box-shadow: 0 0 0 4px var(--accent-soft), -12px 0 0 -9px var(--accent); transition: background 0.2s; }
+
+/* ---- Top-bar menus: Layout · Mode (· Settings in ⋯), same in editor and reader (2026-11-28) ---- */
+.bar-menus { display: flex; align-items: center; gap: 6px; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--border); }
+.bar-menu {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 9px 0 10px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13.5px; white-space: nowrap; cursor: pointer;
+}
+.bar-menu:hover:not(:disabled), .bar-menu.is-open { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); }
+.bar-menu-icon, .bar-menu-chevron { flex: none; color: var(--muted); }
+.bar-menu-label { color: var(--muted); font-weight: 600; }
+.bar-menu-value { font-weight: 700; color: var(--text); }
+.bar-menu.is-unfold .bar-menu-value, .bar-menu.is-unfold .bar-menu-icon { color: var(--accent-strong); }
+.bar-menu.is-disabled { opacity: 0.55; cursor: default; }
+.bar-menus .menu-panel { width: 320px; }
+/* radio choices inside a bar menu */
+.menu-heading { display: block; padding: 6px 10px 2px; }
+.menu-choice { align-items: flex-start; }
+.menu-radio { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 2px solid var(--border-strong); border-radius: 50%; }
+.menu-choice.is-checked .menu-radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3.5px, transparent 4.5px); }
+.menu-choice.is-checked { color: var(--text); }
+.menu-item:disabled { opacity: 0.5; cursor: default; background: transparent; }
+@media (max-width: 1180px) { .bar-menu-label { display: none; } }

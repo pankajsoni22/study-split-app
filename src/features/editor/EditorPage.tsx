@@ -1,8 +1,8 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, Ellipsis, ExternalLink, Layers, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CloudUpload, Columns2, Ellipsis, ExternalLink, Eye, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
+import { DEFAULT_LAYOUT, layoutById, layoutRatio, type LayoutId } from '../../domain/layouts.ts';
 import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
 import { readJson, writeJson } from '../../lib/storage.ts';
@@ -10,6 +10,7 @@ import Dialog from '../../ui/Dialog.tsx';
 import TimedToast from '../../ui/TimedToast.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import MenuButton from '../../ui/MenuButton.tsx';
+import BarMenu, { MenuChoice } from '../../ui/BarMenu.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
@@ -73,7 +74,7 @@ export default function EditorPage() {
   useEffect(() => { layoutRef.current = articleLayout; }, [articleLayout]);
   const viewLayout: LayoutId = editorView.view ?? articleLayout;
 
-  // ---- Unfold (experimental): the drawing builds up paragraph by paragraph for readers. Per article, stored with
+  // ---- Unfold: the drawing builds up paragraph by paragraph for readers. Per article, stored with
   //      the canvas. While on, new drawing parts belong to the paragraph the cursor is in. ----
   const [unfoldPick, setUnfoldPick] = useState<{ key: number; on: boolean } | null>(null);
   const unfoldOn = unfoldPick?.key === sessionKey ? unfoldPick.on : !!draft?.canvas.unfold;
@@ -366,6 +367,37 @@ export default function EditorPage() {
           </div>
         </div>
         <span className="editor-bar-spacer" />
+        {/* Layout, Mode and Settings (2026-11-28): the same three menus as the reader, each showing what is set. */}
+        <div className="bar-menus">
+          <BarMenu label="Layout" Icon={Columns2} value={editorView.auto ? 'Auto' : layoutRatio(viewLayout)}>
+            {close => (
+              <>
+                <MenuChoice checked={editorView.auto} title="Auto" hint="60:40 while you write, 40:60 while you draw" onPick={editorView.toggleAuto} />
+                <MenuChoice checked={!editorView.auto} title="Manual" hint="Keep the split you pick below" onPick={editorView.toggleAuto} />
+                <div className="menu-section">
+                  <span className="menu-label">Text : drawing</span>
+                  <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
+                </div>
+                <div className="menu-sep" role="separator" />
+                <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('text'); }}>
+                  <PanelLeft size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: writing</span>
+                </button>
+                <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('canvas'); }}>
+                  <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
+                </button>
+              </>
+            )}
+          </BarMenu>
+          <BarMenu label="Mode" Icon={Eye} value={unfoldOn ? 'Unfold' : 'Standard'} className={unfoldOn ? 'is-unfold' : ''}>
+            {() => (
+              <>
+                <span className="menu-label menu-heading">How readers see the drawings</span>
+                <MenuChoice checked={!unfoldOn} title="Standard" hint="Each drawing is shown whole" onPick={toggleUnfold} />
+                <MenuChoice checked={unfoldOn} title="Unfold" hint="Drawings build up paragraph by paragraph. What you draw joins the paragraph your cursor is in." onPick={toggleUnfold} />
+              </>
+            )}
+          </BarMenu>
+        </div>
         {session.status === 'published' && (
           <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
             <ExternalLink size={15} aria-hidden="true" /> View
@@ -383,38 +415,11 @@ export default function EditorPage() {
           <Upload size={15} aria-hidden="true" />
           {session.publishing ? 'Publishing…' : session.status === 'published' ? 'Publish update' : 'Publish'}
         </button>
-        <MenuButton label="More options" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+        <MenuButton label="Settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
           {close => (
-            <>
-              <button type="button" role="menuitemcheckbox" aria-checked={editorView.auto} className="menu-item" onClick={editorView.toggleAuto}
-                title={'More room for text while you write (60:40), more room for the canvas while you draw (40:60).\nPicking a layout yourself turns it off.'}>
-                <Sparkles size={16} aria-hidden="true" />
-                <span className="menu-item-text">Auto layout<small>Resize for writing or drawing</small></span>
-                <span className={`switch${editorView.auto ? ' is-on' : ''}`} aria-hidden="true" />
-              </button>
-              <div className="menu-section">
-                <span className="menu-label">Editor layout (text : drawing)</span>
-                <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
-              </div>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('text'); }}>
-                <PanelLeft size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: writing</span>
-              </button>
-              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('canvas'); }}>
-                <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
-              </button>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitemcheckbox" aria-checked={unfoldOn} className="menu-item" onClick={toggleUnfold}
-                title="Readers see each drawing build up paragraph by paragraph. While on, what you draw belongs to the paragraph your cursor is in.">
-                <Layers size={16} aria-hidden="true" />
-                <span className="menu-item-text">Unfold <em className="menu-tag">experimental</em><small>Drawings build up paragraph by paragraph</small></span>
-                <span className={`switch${unfoldOn ? ' is-on' : ''}`} aria-hidden="true" />
-              </button>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
-                <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
-              </button>
-            </>
+            <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
+              <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
+            </button>
           )}
         </MenuButton>
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}

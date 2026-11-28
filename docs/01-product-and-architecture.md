@@ -110,9 +110,14 @@ All modes render from the same article data. The mode switcher sits in the top b
 - Removed: there is one version of every article. Existing flags were stripped by `20261126000000_remove_brief.sql`
   (nothing deleted).
 
-### 4.1c Reading views on the experimental branch (2026-11-27)
+### 4.1c Reading views (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Top-bar menus (2026-11-28):** the editor and the reader show the same three menus, each displaying what is set:
+  **Layout ▾** (Auto / Manual + text:drawing picker; editor also has Full screen writing/drawing; reader Auto = the
+  writer's layout, greyed out in Article view), **Mode ▾** (editor: Standard / Unfold for readers; reader: Split /
+  Article + the Unfold switch) and **⋯** = Settings only (editor: Article settings; reader: Theme, now also on
+  phones). Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
 - **Steady drawing while stepping (2026-11-27):** `SlideImage` renders the "already seen" and "new" layers first and
   swaps both in together, so the previous step's parts never vanish while the next picture is being drawn (they used
   to blink out for ~100 ms). The glow restarts on the new layer via the `is-glowing` class.
@@ -149,7 +154,7 @@ All modes render from the same article data. The mode switcher sits in the top b
 - **Contents** (reader bar menu, and Article view's left list): all splits; the current one is marked and expands to
   show its sub-headings (H3); clicking one jumps to it.
 
-### 4.1b Unfold (EXPERIMENTAL, branch `experimental`, 2026-11-26)
+### 4.1b Unfold (2026-11-26; a regular feature since 2026-11-28, no longer experimental)
 
 The drawing **builds up as you read**: each paragraph is a step that adds its part of the split's drawing.
 - **Writer:** ⋯ menu → **Unfold** (per article, stored in the canvas JSON as `unfold: true`). While on, whatever is

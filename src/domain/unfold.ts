@@ -1,4 +1,4 @@
-// Unfold (experimental, 2026-11-26): a split's drawing builds up paragraph by paragraph as the reader goes.
+// Unfold (2026-11-26; no longer experimental since 2026-11-28): a split's drawing builds up paragraph by paragraph as the reader goes.
 // Pure rules, no Excalidraw/React imports (unit-tested in unfold.test.ts).
 //
 // - Every top-level block (paragraph, list, quote, code, highlight, collapsible, table, divider, sub-heading) has a

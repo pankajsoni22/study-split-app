@@ -24,6 +24,9 @@ export const LAYOUTS: Layout[] = [
 
 export const DEFAULT_LAYOUT: LayoutId = '50-50';
 
+/** "60-40" → "60:40" (short form for menus). */
+export const layoutRatio = (id: string) => id.replace('-', ':');
+
 export function layoutById(id: string | null | undefined): Layout {
   return LAYOUTS.find(l => l.id === id) ?? LAYOUTS.find(l => l.id === DEFAULT_LAYOUT)!;
 }
