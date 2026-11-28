@@ -244,8 +244,9 @@ export default function EditorPage() {
     return hits[0] ?? null;
   }, [editor]);
 
-  /** While a jump scrolls, the "follow what you see" tracking waits (it would pick splits passed on the way). */
-  const quietUntil = useRef(0);
+  /** While a jump scrolls, "follow what you see" waits until the heading has arrived (it would pick splits passed on
+   *  the way); the reader's own wheel, touch or key ends the wait at once. */
+  const jumping = useRef<{ el: HTMLElement; until: number } | null>(null);
   /**
    * Jump to a split, or its n-th sub-heading (Contents, breadcrumb, split panel): the heading comes to the top of the
    * text, flashes briefly, and the cursor goes to its end. The drawing shows that split.
@@ -262,11 +263,11 @@ export default function EditorPage() {
     }
     const node = editor.state.doc.nodeAt(target);
     setActiveSectionId(sectionId);
-    quietUntil.current = Date.now() + 900;
     // No focus(): browsing splits shouldn't count as "writing" for Auto layout.
     editor.commands.setTextSelection(target + (node?.nodeSize ?? 2) - 1);
     const dom = editor.view.nodeDOM(target);
     if (dom instanceof HTMLElement) {
+      jumping.current = { el: dom, until: Date.now() + 2500 };
       dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
       // The flash is a separate layer over the heading: the editor redraws the heading itself when the cursor lands in
       // it, which would wipe a class set on it.
@@ -290,30 +291,45 @@ export default function EditorPage() {
     const scroller = editor.view.dom.closest<HTMLElement>('.editor-scroll');
     if (!scroller) return;
     let raf = 0;
+    const userInput = () => { jumping.current = null; };
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        if (Date.now() < quietUntil.current || editor.isDestroyed) return;
+        if (editor.isDestroyed) return;
         const box = scroller.getBoundingClientRect();
+        const jump = jumping.current;
+        if (jump) {
+          const offset = jump.el.getBoundingClientRect().top - box.top;
+          const arrived = Math.abs(offset - 18) < 4 || scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1 || scroller.scrollTop <= 0;
+          if (!arrived && Date.now() < jump.until) return;
+          jumping.current = null;
+        }
+        let cursorVisible = false;
         try {
           const c = editor.view.coordsAtPos(editor.state.selection.head);
-          if (c.top >= box.top && c.bottom <= box.bottom) return;   // working where you look: keep the cursor's split
+          cursorVisible = c.top >= box.top && c.bottom <= box.bottom;
         } catch { /* position not rendered */ }
+        const head = editor.state.selection.head;
         const line = box.top + box.height * 0.25;
-        let first: string | null = null, viewed: string | null = null;
+        let first: string | null = null, viewed: string | null = null, cursorSplit: string | null = null;
         editor.state.doc.forEach((node, pos) => {
           if (node.type.name !== 'heading' || node.attrs.level !== 2 || !node.attrs.sectionId) return;
-          const el = editor.view.nodeDOM(pos);
-          if (!(el instanceof HTMLElement)) return;
           first ??= node.attrs.sectionId as string;
-          if (el.getBoundingClientRect().top <= line) viewed = node.attrs.sectionId as string;
+          if (pos <= head) cursorSplit = node.attrs.sectionId as string;
+          const el = editor.view.nodeDOM(pos);
+          if (el instanceof HTMLElement && el.getBoundingClientRect().top <= line) viewed = node.attrs.sectionId as string;
         });
-        const id = viewed ?? first;
+        // Working where you look (cursor on screen): the cursor's split. Otherwise the split you are looking at.
+        const id = (cursorVisible ? cursorSplit : viewed) ?? first;
         if (id) setActiveSectionId(id);
       });
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => { scroller.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+    for (const ev of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) scroller.addEventListener(ev, userInput, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf);
+      for (const ev of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) scroller.removeEventListener(ev, userInput);
+    };
   }, [editor]);
 
   /**
