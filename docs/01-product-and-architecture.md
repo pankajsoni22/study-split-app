@@ -110,9 +110,32 @@ All modes render from the same article data. The mode switcher sits in the top b
 - Removed: there is one version of every article. Existing flags were stripped by `20261126000000_remove_brief.sql`
   (nothing deleted).
 
-### 4.1c Reading views on the experimental branch (2026-11-27)
+### 4.1c Reading views (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
+- **Top bars (2026-11-28, revised the same day):** both bars show what is set.
+  - **Reader:** the layout choices (text:drawing) sit **directly in the bar** under a "Layout" label, starting on the
+    writer's layout (greyed out in Article view); **Mode ▾** = Split / Article + the Unfold switch; **⋯** = Theme.
+  - **Editor:** **Layout ▾** (Auto / Manual + picker + Full screen writing/drawing), **Mode ▾** (Standard / Unfold),
+    Save, Publish, and **⋯** = View article, Theme, Article settings.
+  - The text toolbar and the drawing format bar are always the **same height** (`--pane-bar-h`, 44 px) and line up in
+    every layout: the text toolbar is one row (labels shorten in narrow panes; sideways scroll as a last resort; its
+    Style/Insert menus open above the page via `MenuButton fixed`).
+  Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
+- **Editor navigation = reader navigation (2026-11-28):** one habit for reading and writing.
+  - The editor bar shows the reader's breadcrumb after the title (`› [3/9 Split title ▾]`, opens Contents with the
+    current split's sub-sections); full-screen writing shows the reader's Article-view "Splits" sidebar. Shared
+    components `src/features/reader/Contents.tsx` (`Contents`, `SplitCrumb`).
+  - Jumping (Contents, sidebar, split panel) brings the heading to the top of the text, flashes it (an overlay, since
+    ProseMirror redraws the heading) and puts the cursor at its end.
+  - **The drawing follows the split you are looking at** (decided 2026-11-28, option A): scrolling shows the split at
+    the top quarter of the text unless the cursor is visible (then the cursor's split). So it is right after leaving
+    full screen too. Starting to draw (pointer down on the drawing side) while the cursor is in another split moves
+    the cursor to the first on-screen paragraph of the split you see, so Unfold gives new shapes to that split.
+  - Split panel: hovering (or focusing) a thumbnail shows a larger preview of its drawing.
+- **Editor text = reader text (2026-11-28):** the editor's text column uses the reader's width and text size
+  (`--read-col` 740 px incl. 28 px padding, `--read-font` 17 px; centred when the pane is wider, also in full-screen
+  writing), so every line wraps exactly as readers will see it.
 - **Steady drawing while stepping (2026-11-27):** `SlideImage` renders the "already seen" and "new" layers first and
   swaps both in together, so the previous step's parts never vanish while the next picture is being drawn (they used
   to blink out for ~100 ms). The glow restarts on the new layer via the `is-glowing` class.
@@ -149,7 +172,7 @@ All modes render from the same article data. The mode switcher sits in the top b
 - **Contents** (reader bar menu, and Article view's left list): all splits; the current one is marked and expands to
   show its sub-headings (H3); clicking one jumps to it.
 
-### 4.1b Unfold (EXPERIMENTAL, branch `experimental`, 2026-11-26)
+### 4.1b Unfold (2026-11-26; a regular feature since 2026-11-28, no longer experimental)
 
 The drawing **builds up as you read**: each paragraph is a step that adds its part of the split's drawing.
 - **Writer:** ⋯ menu → **Unfold** (per article, stored in the canvas JSON as `unfold: true`). While on, whatever is

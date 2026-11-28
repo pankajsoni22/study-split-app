@@ -107,7 +107,7 @@ export function frameToSvg(scene: CanvasScene, frameId: string, dark: boolean, o
   });
 }
 
-// ---------------------------------------------------------------- Unfold (experimental; see domain/unfold.ts)
+// ---------------------------------------------------------------- Unfold (see domain/unfold.ts)
 
 /** Sets (blockId) or clears (null) the Unfold paragraph of these elements. Bookkeeping: not an undo step. */
 export function tagElements(api: ExcalidrawImperativeAPI, ids: Iterable<string>, blockId: string | null) {

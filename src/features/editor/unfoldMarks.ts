@@ -3,7 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 /**
- * Unfold markers in the editor (experimental): with Unfold on, each paragraph that has drawings shows its step
+ * Unfold markers in the editor: with Unfold on, each paragraph that has drawings shows its step
  * number in the margin, and the paragraph the cursor is in (where new drawings go) gets a teal edge.
  * The drawing side sends the counts with `setUnfoldMarks(editor, { on, counts })`.
  */

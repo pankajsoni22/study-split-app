@@ -1,7 +1,7 @@
-import { ArrowUp, BookOpen, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Ellipsis, Eye, Layers, Link2, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { splitSections, textOf, type Section } from '../../domain/content.ts';
+import { splitSections, type Section } from '../../domain/content.ts';
 import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
 import { layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -13,6 +13,7 @@ import { formatCount, formatDate } from '../../lib/text.ts';
 import { useIsNarrow } from '../../lib/useMediaQuery.ts';
 import { shouldRecordView } from '../../lib/viewCounter.ts';
 import Avatar from '../../ui/Avatar.tsx';
+import BarMenu, { MenuChoice } from '../../ui/BarMenu.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import MenuButton from '../../ui/MenuButton.tsx';
 import Logo from '../../ui/Logo.tsx';
@@ -22,6 +23,7 @@ import ThemeSwitch from '../../ui/ThemeSwitch.tsx';
 import SlideImage from '../canvas/SlideImage.tsx';
 import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
+import { Contents, SplitCrumb } from './Contents.tsx';
 
 type Mode = 'flow' | 'article';
 /** Where the reader was in Split view: the split, the paragraph (or 'prev' / 'next' button) and its distance from the top. */
@@ -74,7 +76,7 @@ function Reader({ article }: { article: PublishedArticle }) {
   // Two views (Present was removed 2026-11-27): Split (one split at a time, text beside its drawing) and Article.
   const mode: Mode = narrow || prefs.mode === 'article' ? 'article' : 'flow';
   const sections = useMemo<Section[]>(() => splitSections(article.doc), [article.doc]);
-  // Unfold (experimental): offered when the writer built the drawings paragraph by paragraph; on by default.
+  // Unfold: offered when the writer built the drawings paragraph by paragraph; on by default.
   const canUnfold = useMemo(() => usesUnfold(article.canvas), [article.canvas]);
   const unfold = canUnfold && prefs.unfold !== false && mode !== 'article';
   const [views, setViews] = useState(article.views);
@@ -99,8 +101,6 @@ function Reader({ article }: { article: PublishedArticle }) {
     return () => window.clearTimeout(t);
   }, [current, setPrefs]);
 
-  const currentIndex = Math.max(0, sections.findIndex(x => x.id === current));
-  const currentSection = sections[currentIndex];
 
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
   // A link to the split this browser was already reading (e.g. a refresh keeps #split-… in the address bar) resumes the
@@ -110,7 +110,7 @@ function Reader({ article }: { article: PublishedArticle }) {
   const jumpTo = useCallback((sectionId: string, sub: number | null = null, arrive: 'start' | 'end' = 'start') => {
     setCurrent(sectionId);
     setJump(j => ({ sectionId, sub, arrive, n: (j?.n ?? 0) + 1 }));
-  }, []);
+  }, [setCurrent]);
 
   // FR-24: one view per browser per article per day. Fire and forget.
   useEffect(() => {
@@ -124,45 +124,50 @@ function Reader({ article }: { article: PublishedArticle }) {
         {/* Breadcrumb (2026-11-27): the article, then the current split, which is also the Contents menu. */}
         <nav className="reader-crumbs" aria-label="You are reading">
           <span className="reader-bar-title" title={article.title}>{article.title}</span>
-          {sections.length > 1 && currentSection && (
-            <>
-              <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
-              <MenuButton label={`Contents: you are on split ${currentIndex + 1} of ${sections.length}, ${currentSection.title}. Jump to another split`}
-                align="left" buttonClassName="crumb-split"
-                trigger={(
-                  <>
-                    <ListTree size={14} aria-hidden="true" className="crumb-icon" />
-                    <span className="crumb-num">{currentIndex + 1}<small>/{sections.length}</small></span>
-                    <span className="crumb-title">{currentSection.title}</span>
-                    <ChevronDown size={14} aria-hidden="true" />
-                  </>
-                )}>
-                {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
-              </MenuButton>
-            </>
-          )}
+          <SplitCrumb sections={sections} current={current} onPick={(id, sub) => jumpTo(id, sub)} />
         </nav>
         <span className="editor-bar-spacer" />
-        {canUnfold && mode !== 'article' && (
-          <button type="button" className={`btn btn-ghost btn-sm unfold-toggle${unfold ? ' is-on' : ''}`} aria-pressed={unfold}
-            title={unfold ? 'Unfold is on: each drawing builds up as you read. Click to show whole drawings.' : 'Unfold: build each drawing up paragraph by paragraph'}
-            onClick={() => setPrefs({ unfold: !unfold })}>
-            <Layers size={15} aria-hidden="true" /><span className="hide-narrow">Unfold</span>
-          </button>
-        )}
+        {/* Layout, Mode and Settings (2026-11-28): the same three menus as the editor, each showing what is set. */}
         {!narrow && (
-          <div className="segmented segmented-sm" role="radiogroup" aria-label="Reading mode">
-            <ModeButton current={mode} value="flow" label="Split" Icon={Columns2} onPick={m => setPrefs({ mode: m })} />
-            <ModeButton current={mode} value="article" label="Article" Icon={BookOpen} onPick={m => setPrefs({ mode: m })} />
+          <div className="bar-menus">
+            {/* Readers pick the layout directly (2026-11-28: no Auto/Manual here). It starts on the writer's layout. */}
+            <div className={`bar-layout${mode === 'article' ? ' is-disabled' : ''}`} title={mode === 'article' ? 'Layout applies to Split view' : undefined}>
+              <span className="bar-menu-label">Layout</span>
+              <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" disabled={mode === 'article'} />
+            </div>
+            <BarMenu label="Mode" Icon={Eye}
+              value={mode === 'article' ? 'Article' : unfold ? 'Split · Unfold' : 'Split'} className={`mode-menu${unfold ? ' is-unfold' : ''}`}>
+              {() => (
+                <>
+                  <MenuChoice checked={mode !== 'article'} title="Split" hint="One split at a time, text beside its drawing" onPick={() => setPrefs({ mode: 'flow' })} />
+                  <MenuChoice checked={mode === 'article'} title="Article" hint="The whole article on one page" onPick={() => setPrefs({ mode: 'article' })} />
+                  {canUnfold && (
+                    <>
+                      <div className="menu-sep" role="separator" />
+                      <button type="button" role="menuitemcheckbox" aria-checked={unfold} className="menu-item unfold-toggle" disabled={mode === 'article'}
+                        onClick={() => setPrefs({ unfold: !unfold })}>
+                        <Layers size={16} aria-hidden="true" />
+                        <span className="menu-item-text">Unfold<small>{mode === 'article' ? 'Available in Split view' : 'Drawings build up as you read'}</small></span>
+                        <span className={`switch${unfold ? ' is-on' : ''}`} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </BarMenu>
           </div>
         )}
-        {!narrow && mode !== 'article' && (
-          <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" />
-        )}
-        {!narrow && <ThemeSwitch compact />}
         {article.isOwner && !narrow && (
           <Link className="btn btn-ghost btn-sm" to={`/write/${article.id}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
         )}
+        <MenuButton label="Settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+          {() => (
+            <div className="menu-section">
+              <span className="menu-label">Theme</span>
+              <ThemeSwitch />
+            </div>
+          )}
+        </MenuButton>
       </header>
       {mode === 'flow' && (
         <FlowMode article={article} sections={sections} views={views} current={current ?? firstId} jump={jump} onGo={jumpTo} place={!linked || resumeLinked ? prefs.place : undefined}
@@ -207,56 +212,12 @@ function CopySplitLink({ index, section, compact = false }: { index: number; sec
   );
 }
 
-/** Sub-headings (H3) of a split, for Contents. */
-function subHeadings(section: Section): string[] {
-  return section.nodes.filter(n => n.type === 'heading' && n.attrs?.level === 3).map(n => textOf(n).trim() || 'Untitled');
-}
-
-/** Contents: every split; the current one expands to show its sub-headings. Used in the reader bar menu and Article view. */
-function Contents({ sections, current, onPick, menu = false }: {
-  sections: Section[]; current: string | null; onPick: (sectionId: string, sub: number | null) => void; menu?: boolean;
-}) {
-  return (
-    <ol className={`contents${menu ? ' contents-menu' : ''}`}>
-      {sections.map((sec, i) => {
-        const on = sec.id === current;
-        const subs = on ? subHeadings(sec) : [];
-        return (
-          <li key={sec.id} className={on ? 'is-current' : ''}>
-            <button type="button" role={menu ? 'menuitem' : undefined} className={`contents-split${on ? ' is-on' : ''}`}
-              aria-current={on ? 'location' : undefined} onClick={() => onPick(sec.id, null)}>
-              <span className="contents-num">{i + 1}</span><span className="contents-title">{sec.title}</span>
-            </button>
-            {subs.length > 0 && (
-              <ol className="contents-subs">
-                {subs.map((t, j) => (
-                  <li key={j}>
-                    <button type="button" role={menu ? 'menuitem' : undefined} className="contents-sub" onClick={() => onPick(sec.id, j)}>{t}</button>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 /** Scrolls a split (and optionally its n-th sub-heading) into view inside `root`. */
 function scrollToTarget(root: HTMLElement | null, sectionId: string, sub: number | null, behavior: ScrollBehavior) {
   const sec = root?.querySelector<HTMLElement>(`[data-reader-section="${CSS.escape(sectionId)}"]`);
   if (!root || !sec) return;
   const target = sub === null ? sec : sec.querySelectorAll<HTMLElement>('.ProseMirror > h3')[sub] ?? sec;
   target.scrollIntoView({ behavior, block: 'start' });
-}
-
-function ModeButton({ current, value, label, Icon, onPick }: { current: Mode; value: Mode; label: string; Icon: typeof BookOpen; onPick: (m: Mode) => void }) {
-  return (
-    <button type="button" role="radio" aria-checked={current === value} onClick={() => onPick(value)} title={label}>
-      <Icon size={15} aria-hidden="true" /><span className="hide-narrow">{label}</span>
-    </button>
-  );
 }
 
 function ArticleHeader({ article, views }: { article: PublishedArticle; views: number }) {

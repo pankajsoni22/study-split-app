@@ -4,6 +4,9 @@
    own brand: Verdigris teal accent + Marker amber highlight (docs §14).
    ========================================================================== */
 :root {
+  --read-col: 740px;      /* text column width: the reader and the editor use the same one (2026-11-28) */
+  --read-font: 17px;     /* article text size: same in reader and editor, so the editor is a true preview */
+  --pane-bar-h: 44px;   /* text toolbar and drawing format bar: always the same height */
   --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -506,7 +509,8 @@ body.is-resizing { cursor: col-resize; user-select: none; }
    Article text (shared by editor and reader)
    ========================================================================== */
 .prose { font-size: 16.5px; line-height: 1.72; color: var(--text); overflow-wrap: anywhere; }
-.prose-edit { padding: 16px 28px 40vh; outline: none; min-height: 100%; }
+/* Same column and text size as the reader (.reader-column, .prose-read): what you write wraps exactly as readers see it. */
+.prose-edit { padding: 16px 28px 40vh; outline: none; min-height: 100%; max-width: var(--read-col); margin-inline: auto; font-size: var(--read-font); }
 .prose :where(p, ul, ol, pre) { margin: 0; }     /* resets with zero weight, so the spacing rule below always wins */
 /* Space between blocks, like a normal article: a clear gap between paragraphs, lists, code, tables and boxes.
    (Before 2026-11-26 a stronger `p { margin: 0 }` cancelled this, so paragraphs ran together.) */
@@ -553,14 +557,14 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .reader-bar-title { font-weight: 650; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 40vw; }
 .reader-scroll, .reader-article { flex: 1; min-height: 0; overflow-y: auto; }
 .reader-scroll { background: var(--surface); }
-.reader-column { max-width: 740px; margin: 0 auto; padding: 28px 28px 30vh; }
+.reader-column { max-width: var(--read-col); margin: 0 auto; padding: 28px 28px 30vh; }
 .reader-message { padding: 40px 16px; }
 .article-head { margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px; }
 .article-head h1 { font-size: clamp(26px, 3.2vw, 38px); letter-spacing: -0.02em; line-height: 1.15; }
 .article-summary { font-size: 17px; color: var(--text-2); }
 .reader-section { position: relative; padding-left: 0; transition: opacity 0.2s; }
 .reader-section + .reader-section { margin-top: 18px; }
-.prose-read { font-size: 17px; }
+.prose-read { font-size: var(--read-font); }
 .reader-article .reader-column { padding-bottom: 80px; }
 
 .link-button { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent-strong); cursor: pointer; }
@@ -689,11 +693,11 @@ body.is-resizing { cursor: col-resize; user-select: none; }
    ========================================================================== */
 .canvas-host.is-slide:not(.show-native-props) .App-menu__left { display: none !important; }
 .format-bar {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; height: 44px; padding: 0 10px; flex: none;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; height: var(--pane-bar-h); padding: 0 10px; flex: none;
   background: var(--surface-2); border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: visible; scrollbar-width: none;
 }
 .format-bar::-webkit-scrollbar { display: none; }
-.format-bar.is-empty { height: 44px; }
+.format-bar.is-empty { height: var(--pane-bar-h); }
 .fb-sep { width: 1px; height: 22px; margin: 0 4px; background: var(--border-strong); flex: none; }
 .fb-pop { position: static; flex: none; }
 .fb-trigger { width: auto; min-width: 34px; padding: 0 5px; gap: 2px; display: inline-flex; align-items: center; }
@@ -1008,7 +1012,7 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .editor-page.is-fullscreen .editor-bar, .editor-page.is-fullscreen-text .slide-strip.is-docked { display: none; }
 .editor-page.is-fullscreen .timed-toast { top: 12px; }
 /* Writing full screen: keep a comfortable reading width */
-.editor-page.is-fullscreen-text .prose-edit { max-width: 880px; margin-inline: auto; padding-top: 32px; }
+.editor-page.is-fullscreen-text .prose-edit { padding-top: 32px; }
 
 /* ---- Local development only (src/dev/; never rendered in production builds) ---- */
 .dev-badge {
@@ -1043,8 +1047,23 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .prose [data-type="detailsContent"] > * + * { margin-top: 0.75em; }
 
 /* ---- Compact formatting toolbar (2026-11-26): Style ▾ · B I <> link · Insert ▾ · block options ---- */
-/* wraps on narrow widths (no overflow: it would clip the Style / Insert menus) */
-.toolbar { flex-wrap: wrap; gap: 6px; padding: 6px 14px; position: relative; z-index: 20; }
+/* One row, exactly as tall as the drawing's format bar (2026-11-28: the two must line up). Labels shorten when the text
+   pane is narrow; as a last resort it scrolls sideways (its Style / Insert menus open above the page, so nothing clips). */
+.toolbar {
+  flex-wrap: nowrap; gap: 6px; height: var(--pane-bar-h); padding: 0 14px; position: relative; z-index: 20;
+  border-block: none; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+.toolbar > * { flex: none; }
+.toolbar .tb-trailing { margin-left: auto; }
+.editor-text { container-type: inline-size; }
+@container (max-width: 640px) { .toolbar .tb-style-label { display: none; } }
+@container (max-width: 520px) {
+  .toolbar { gap: 2px; padding: 0 8px; }
+  .toolbar .tb-group { gap: 0; padding-right: 4px; }
+  .toolbar .tb-btn { width: 29px; }
+  .toolbar .tb-style { padding: 0 6px; gap: 3px; }
+}
 .tb-style {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
@@ -1127,7 +1146,7 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .style-opacity output { width: 44px; text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .style-actions { display: flex; align-items: center; gap: 6px; }
 
-/* ---- Unfold (experimental) ---- */
+/* ---- Unfold ---- */
 .menu-tag { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--accent-strong); background: var(--accent-soft); vertical-align: 1px; }
 /* editor: step badge in the margin for paragraphs that have drawings; teal edge on the paragraph new drawings join */
@@ -1284,3 +1303,52 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 }
 /* text: the paragraph whose drawing parts are selected on the canvas */
 .prose-edit .unfold-linked { background: var(--accent-soft); border-radius: 6px; box-shadow: 0 0 0 4px var(--accent-soft), -12px 0 0 -9px var(--accent); transition: background 0.2s; }
+
+/* ---- Top-bar menus: Layout · Mode (· Settings in ⋯), same in editor and reader (2026-11-28) ---- */
+.bar-menus { display: flex; align-items: center; gap: 6px; padding-right: 6px; margin-right: 2px; border-right: 1px solid var(--border); }
+.bar-menu {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 9px 0 10px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface); color: var(--text); font: inherit; font-size: 13.5px; white-space: nowrap; cursor: pointer;
+}
+.bar-menu:hover:not(:disabled), .bar-menu.is-open { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); }
+.bar-menu-icon, .bar-menu-chevron { flex: none; color: var(--muted); }
+.bar-menu-label { color: var(--muted); font-weight: 600; }
+.bar-menu-value { font-weight: 700; color: var(--text); }
+.bar-menu.is-unfold .bar-menu-value, .bar-menu.is-unfold .bar-menu-icon { color: var(--accent-strong); }
+.bar-menu.is-disabled { opacity: 0.55; cursor: default; }
+.bar-menus .menu-panel { width: 320px; }
+/* radio choices inside a bar menu */
+.menu-heading { display: block; padding: 6px 10px 2px; }
+.menu-choice { align-items: flex-start; }
+.menu-radio { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 2px solid var(--border-strong); border-radius: 50%; }
+.menu-choice.is-checked .menu-radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 3.5px, transparent 4.5px); }
+.menu-choice.is-checked { color: var(--text); }
+.menu-item:disabled { opacity: 0.5; cursor: default; background: transparent; }
+@media (max-width: 1180px) { .bar-menu-label { display: none; } }
+
+/* reader: the layout picker sits directly in the bar (2026-11-28) */
+.bar-layout { display: inline-flex; align-items: center; gap: 8px; }
+.bar-layout.is-disabled { opacity: 0.5; }
+.layout-picker button:disabled { cursor: default; }
+.menu-item.is-static { cursor: default; opacity: 0.6; }
+.menu-item.is-static:hover { background: transparent; color: var(--text-2); }
+a.menu-item { text-decoration: none; }
+
+/* ---- Editor navigation, same as the reader (2026-11-28) ---- */
+.editor-crumbs { margin-left: 4px; }
+.prose-edit > h2, .prose-edit > h3 { scroll-margin-top: 18px; }
+/* the heading you jumped to flashes briefly */
+.editor-scroll { position: relative; }
+.editor-scroll > .jump-flash { position: absolute; z-index: 1; pointer-events: none; border-radius: 6px; animation: jump-flash 1.5s ease-out forwards; }
+@keyframes jump-flash {
+  0%, 35% { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .editor-scroll > .jump-flash { display: none; } }
+/* full-screen writing: the Article-view "Splits" sidebar, just left of the text column (as in the reader) */
+.editor-text { position: relative; }
+.editor-toc {
+  position: absolute; z-index: 5; top: var(--pane-bar-h); left: max(0px, calc(50% - var(--read-col) / 2 - 28px - 260px));
+  width: 260px; max-height: calc(100% - var(--pane-bar-h)); justify-self: auto;
+}
+@media (max-width: 1099.98px) { .editor-toc { display: none; } }

@@ -1,15 +1,19 @@
 import type { Editor } from '@tiptap/core';
-import { ArrowLeft, CircleAlert, CloudUpload, Ellipsis, ExternalLink, Layers, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Selection } from '@tiptap/pm/state';
+import { ArrowLeft, CircleAlert, CloudUpload, Columns2, Ellipsis, ExternalLink, Eye, Loader2, Maximize2, Minimize2, PanelLeft, PanelRight, Settings2, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { DEFAULT_LAYOUT, layoutById, type LayoutId } from '../../domain/layouts.ts';
+import { DEFAULT_LAYOUT, layoutById, layoutRatio, type LayoutId } from '../../domain/layouts.ts';
 import { templateByKey } from '../../domain/templates.ts';
 import type { CanvasScene } from '../../domain/types.ts';
+import { splitSections, type Section } from '../../domain/content.ts';
 import { readJson, writeJson } from '../../lib/storage.ts';
 import Dialog from '../../ui/Dialog.tsx';
 import TimedToast from '../../ui/TimedToast.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import MenuButton from '../../ui/MenuButton.tsx';
+import ThemeSwitch from '../../ui/ThemeSwitch.tsx';
+import BarMenu, { MenuChoice } from '../../ui/BarMenu.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
@@ -21,6 +25,7 @@ import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasConte
 import { countsByStep, UNFOLD_KEY } from '../../domain/unfold.ts';
 import { setUnfoldMarks } from './unfoldMarks.ts';
 import FormatBar from '../canvas/FormatBar.tsx';
+import { Contents, SplitCrumb } from '../reader/Contents.tsx';
 import ArticleSettingsDialog from './ArticleSettingsDialog.tsx';
 import SlideStrip, { type LinkTarget, type SlideRef } from './SlideStrip.tsx';
 import TextEditor from './TextEditor.tsx';
@@ -73,7 +78,7 @@ export default function EditorPage() {
   useEffect(() => { layoutRef.current = articleLayout; }, [articleLayout]);
   const viewLayout: LayoutId = editorView.view ?? articleLayout;
 
-  // ---- Unfold (experimental): the drawing builds up paragraph by paragraph for readers. Per article, stored with
+  // ---- Unfold: the drawing builds up paragraph by paragraph for readers. Per article, stored with
   //      the canvas. While on, new drawing parts belong to the paragraph the cursor is in. ----
   const [unfoldPick, setUnfoldPick] = useState<{ key: number; on: boolean } | null>(null);
   const unfoldOn = unfoldPick?.key === sessionKey ? unfoldPick.on : !!draft?.canvas.unfold;
@@ -211,8 +216,15 @@ export default function EditorPage() {
 
   useEffect(() => { syncSlides(); }, [syncSlides, sessionKey]);
 
+  // Outline for Contents (the same list and chip as the reader), refreshed shortly after typing stops.
+  const [outlineTag, setOutlineTag] = useState<{ key: number; sections: Section[] } | null>(null);
+  const outlineTimer = useRef<number | undefined>(undefined);
+  const outline = useMemo(() => (outlineTag?.key === sessionKey ? outlineTag.sections : draft ? splitSections(draft.doc) : []), [outlineTag, sessionKey, draft]);
+
   const onTextChange = useCallback((doc: Parameters<typeof setDoc>[0]) => {
     setDoc(doc, sessionKey);
+    window.clearTimeout(outlineTimer.current);
+    outlineTimer.current = window.setTimeout(() => setOutlineTag({ key: sessionKey, sections: splitSections(doc) }), 250);
     window.clearTimeout(syncTimer.current);
     syncTimer.current = window.setTimeout(syncSlides, 300);
   }, [sessionKey, setDoc, syncSlides]);
@@ -232,13 +244,102 @@ export default function EditorPage() {
     return hits[0] ?? null;
   }, [editor]);
 
-  const selectSlide = useCallback((sectionId: string) => {
+  /** While a jump scrolls, the "follow what you see" tracking waits (it would pick splits passed on the way). */
+  const quietUntil = useRef(0);
+  /**
+   * Jump to a split, or its n-th sub-heading (Contents, breadcrumb, split panel): the heading comes to the top of the
+   * text, flashes briefly, and the cursor goes to its end. The drawing shows that split.
+   */
+  const jumpTo = useCallback((sectionId: string, sub: number | null = null) => {
     const h = headingPos(sectionId);
     if (!editor || !h) return;
+    let target = h.pos, inSection = false, n = -1;
+    if (sub !== null) {
+      editor.state.doc.forEach((node, pos) => {
+        if (node.type.name === 'heading' && node.attrs.level === 2) inSection = pos === h.pos;
+        else if (inSection && node.type.name === 'heading' && node.attrs.level === 3 && ++n === sub) target = pos;
+      });
+    }
+    const node = editor.state.doc.nodeAt(target);
     setActiveSectionId(sectionId);
-    // No focus(): browsing slides shouldn't count as "writing" for Auto layout.
-    editor.chain().setTextSelection(h.pos + h.size - 1).scrollIntoView().run();
+    quietUntil.current = Date.now() + 900;
+    // No focus(): browsing splits shouldn't count as "writing" for Auto layout.
+    editor.commands.setTextSelection(target + (node?.nodeSize ?? 2) - 1);
+    const dom = editor.view.nodeDOM(target);
+    if (dom instanceof HTMLElement) {
+      dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // The flash is a separate layer over the heading: the editor redraws the heading itself when the cursor lands in
+      // it, which would wipe a class set on it.
+      const scroller = dom.closest<HTMLElement>('.editor-scroll');
+      if (scroller) {
+        scroller.querySelector('.jump-flash')?.remove();
+        const r = dom.getBoundingClientRect(), b = scroller.getBoundingClientRect();
+        const flash = document.createElement('div');
+        flash.className = 'jump-flash';
+        Object.assign(flash.style, { top: `${r.top - b.top + scroller.scrollTop}px`, left: `${r.left - b.left}px`, width: `${r.width}px`, height: `${r.height}px` });
+        scroller.append(flash);
+        window.setTimeout(() => flash.remove(), 1600);
+      }
+    }
   }, [editor, headingPos]);
+
+  // The drawing follows the split you are looking at (decided 2026-11-28): scrolling the text shows the split at the
+  // top part of the screen, unless the cursor is visible (then its split, as before). Also correct after full screen.
+  useEffect(() => {
+    if (!editor) return;
+    const scroller = editor.view.dom.closest<HTMLElement>('.editor-scroll');
+    if (!scroller) return;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (Date.now() < quietUntil.current || editor.isDestroyed) return;
+        const box = scroller.getBoundingClientRect();
+        try {
+          const c = editor.view.coordsAtPos(editor.state.selection.head);
+          if (c.top >= box.top && c.bottom <= box.bottom) return;   // working where you look: keep the cursor's split
+        } catch { /* position not rendered */ }
+        const line = box.top + box.height * 0.25;
+        let first: string | null = null, viewed: string | null = null;
+        editor.state.doc.forEach((node, pos) => {
+          if (node.type.name !== 'heading' || node.attrs.level !== 2 || !node.attrs.sectionId) return;
+          const el = editor.view.nodeDOM(pos);
+          if (!(el instanceof HTMLElement)) return;
+          first ??= node.attrs.sectionId as string;
+          if (el.getBoundingClientRect().top <= line) viewed = node.attrs.sectionId as string;
+        });
+        const id = viewed ?? first;
+        if (id) setActiveSectionId(id);
+      });
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => { scroller.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
+  }, [editor]);
+
+  /**
+   * Starting to draw while looking at another split than the cursor's: move the cursor into the split you see (its
+   * first paragraph on screen), so Unfold gives new shapes to a paragraph of THIS split.
+   */
+  const cursorToViewedSplit = useCallback(() => {
+    if (!editor || !activeSectionId) return;
+    const head = editor.state.selection.head;
+    let cursorSection: string | null = null, inViewed = false;
+    const blocks: number[] = [];   // top-level blocks of the split you see
+    editor.state.doc.forEach((node, pos) => {
+      if (node.type.name === 'heading' && node.attrs.level === 2) {
+        if (pos <= head) cursorSection = node.attrs.sectionId as string;
+        inViewed = node.attrs.sectionId === activeSectionId;
+        return;
+      }
+      if (inViewed) blocks.push(pos);
+    });
+    if (cursorSection === activeSectionId || !blocks.length) return;
+    const scroller = editor.view.dom.closest<HTMLElement>('.editor-scroll');
+    const top = scroller?.getBoundingClientRect().top ?? 0;
+    const onScreen = blocks.find(pos => { const el = editor.view.nodeDOM(pos); return el instanceof HTMLElement && el.getBoundingClientRect().top >= top; });
+    const pos = onScreen ?? blocks[0]!;
+    editor.chain().command(({ tr }) => { tr.setSelection(Selection.near(tr.doc.resolve(pos + 1))); return true; }).run();
+  }, [editor, activeSectionId]);
 
   /** New section + slide right after the current section (or at the end). */
   const addSlide = useCallback(() => {
@@ -333,7 +434,7 @@ export default function EditorPage() {
 
   const strip = (
     <SlideStrip slides={slides} activeSectionId={activeSlide?.sectionId ?? null}
-      scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={selectSlide} onAdd={addSlide}
+      scene={thumbScene?.key === sessionKey ? thumbScene.scene : draft.canvas} onSelect={jumpTo} onAdd={addSlide}
       pinned={stripPinned} onPinnedChange={pinStrip} orphans={orphans} onAdopt={adoptSlide} onDeleteOrphan={deleteOrphan} />
   );
 
@@ -365,12 +466,42 @@ export default function EditorPage() {
             )}
           </div>
         </div>
+        {/* Same breadcrumb as the reader (2026-11-28): the current split, which also opens Contents. */}
+        <nav className="reader-crumbs editor-crumbs" aria-label="You are editing">
+          <SplitCrumb sections={outline} current={activeSlide?.sectionId ?? null} onPick={jumpTo} />
+        </nav>
         <span className="editor-bar-spacer" />
-        {session.status === 'published' && (
-          <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
-            <ExternalLink size={15} aria-hidden="true" /> View
-          </a>
-        )}
+        {/* Layout, Mode and Settings (2026-11-28): the same three menus as the reader, each showing what is set. */}
+        <div className="bar-menus">
+          <BarMenu label="Layout" Icon={Columns2} value={editorView.auto ? 'Auto' : layoutRatio(viewLayout)}>
+            {close => (
+              <>
+                <MenuChoice checked={editorView.auto} title="Auto" hint="60:40 while you write, 40:60 while you draw" onPick={editorView.toggleAuto} />
+                <MenuChoice checked={!editorView.auto} title="Manual" hint="Keep the split you pick below" onPick={editorView.toggleAuto} />
+                <div className="menu-section">
+                  <span className="menu-label">Text : drawing</span>
+                  <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
+                </div>
+                <div className="menu-sep" role="separator" />
+                <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('text'); }}>
+                  <PanelLeft size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: writing</span>
+                </button>
+                <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('canvas'); }}>
+                  <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
+                </button>
+              </>
+            )}
+          </BarMenu>
+          <BarMenu label="Mode" Icon={Eye} value={unfoldOn ? 'Unfold' : 'Standard'} className={unfoldOn ? 'is-unfold' : ''}>
+            {() => (
+              <>
+                <span className="menu-label menu-heading">How readers see the drawings</span>
+                <MenuChoice checked={!unfoldOn} title="Standard" hint="Each drawing is shown whole" onPick={toggleUnfold} />
+                <MenuChoice checked={unfoldOn} title="Unfold" hint="Drawings build up paragraph by paragraph. What you draw joins the paragraph your cursor is in." onPick={toggleUnfold} />
+              </>
+            )}
+          </BarMenu>
+        </div>
         <button type="button" className="btn btn-ghost btn-sm" disabled={session.saveState === 'saved' || session.saveState === 'saving'}
           onClick={() => void session.save()} title="Save (Ctrl+S)">
           {session.saveState === 'saving' ? <Loader2 size={15} className="spin-icon" aria-hidden="true" /> : <CloudUpload size={15} aria-hidden="true" />}
@@ -383,33 +514,24 @@ export default function EditorPage() {
           <Upload size={15} aria-hidden="true" />
           {session.publishing ? 'Publishing…' : session.status === 'published' ? 'Publish update' : 'Publish'}
         </button>
-        <MenuButton label="More options" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+        {/* ⋯ (2026-11-28): View, Theme and Article settings; keeps the bar short. */}
+        <MenuButton label="More: view, theme, settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
           {close => (
             <>
-              <button type="button" role="menuitemcheckbox" aria-checked={editorView.auto} className="menu-item" onClick={editorView.toggleAuto}
-                title={'More room for text while you write (60:40), more room for the canvas while you draw (40:60).\nPicking a layout yourself turns it off.'}>
-                <Sparkles size={16} aria-hidden="true" />
-                <span className="menu-item-text">Auto layout<small>Resize for writing or drawing</small></span>
-                <span className={`switch${editorView.auto ? ' is-on' : ''}`} aria-hidden="true" />
-              </button>
+              {session.status === 'published' ? (
+                <a role="menuitem" className="menu-item" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer" onClick={close}>
+                  <ExternalLink size={16} aria-hidden="true" /><span className="menu-item-text">View article<small>Opens the published version in a new tab</small></span>
+                </a>
+              ) : (
+                <span className="menu-item is-static" role="menuitem" aria-disabled="true">
+                  <ExternalLink size={16} aria-hidden="true" /><span className="menu-item-text">View article<small>Available after you publish</small></span>
+                </span>
+              )}
+              <div className="menu-sep" role="separator" />
               <div className="menu-section">
-                <span className="menu-label">Editor layout (text : drawing)</span>
-                <LayoutPicker value={viewLayout} onChange={editorView.pick} label="Editor layout (text : drawing)" />
+                <span className="menu-label">Theme</span>
+                <ThemeSwitch />
               </div>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('text'); }}>
-                <PanelLeft size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: writing</span>
-              </button>
-              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); fullscreen.enter('canvas'); }}>
-                <PanelRight size={16} aria-hidden="true" /><span className="menu-item-text">Full screen: drawing</span>
-              </button>
-              <div className="menu-sep" role="separator" />
-              <button type="button" role="menuitemcheckbox" aria-checked={unfoldOn} className="menu-item" onClick={toggleUnfold}
-                title="Readers see each drawing build up paragraph by paragraph. While on, what you draw belongs to the paragraph your cursor is in.">
-                <Layers size={16} aria-hidden="true" />
-                <span className="menu-item-text">Unfold <em className="menu-tag">experimental</em><small>Drawings build up paragraph by paragraph</small></span>
-                <span className={`switch${unfoldOn ? ' is-on' : ''}`} aria-hidden="true" />
-              </button>
               <div className="menu-sep" role="separator" />
               <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
                 <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
@@ -447,13 +569,19 @@ export default function EditorPage() {
         focus={fullscreen.pane === 'text' ? 'left' : fullscreen.pane === 'canvas' ? 'right' : null}
         left={(
           <div className="editor-text" key={`t${sessionKey}`} onFocusCapture={() => { editorView.activity('write'); setSpotMode('write'); }}>
+            {fullscreen.pane === 'text' && outline.length > 1 && (
+              <nav className="article-toc editor-toc" aria-label="Splits in this article">
+                <p className="article-toc-title">Splits</p>
+                <Contents sections={outline} current={activeSlide?.sectionId ?? null} onPick={jumpTo} />
+              </nav>
+            )}
             <TextEditor initialDoc={draft.doc} onReady={onEditorReady} onChange={onTextChange} onActiveSection={onActiveSection} onActiveBlock={onActiveBlock}
               trailing={<FullscreenButton on={fullscreen.pane === 'text'} what="writing" onClick={() => fullscreen.toggle('text')} />} />
           </div>
         )}
         right={(
           <div className="slide-pane">
-            <div className="canvas-zone" onPointerDownCapture={() => setSpotMode('draw')}
+            <div className="canvas-zone" onPointerDownCapture={() => { setSpotMode('draw'); cursorToViewedSplit(); }}
               onPointerUpCapture={() => { editorView.activity('draw'); unfoldCheckSoon(); }} onKeyUpCapture={unfoldCheckSoon}>
               <FormatBar api={api} slideId={activeSlide?.frameId ?? null} nativeOpen={nativeProps} onToggleNative={() => setNativeProps(o => !o)}
                 unfold={unfoldOn ? {
