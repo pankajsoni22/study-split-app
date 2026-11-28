@@ -1,7 +1,7 @@
-import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Ellipsis, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Ellipsis, Eye, Layers, Link2, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { splitSections, textOf, type Section } from '../../domain/content.ts';
+import { splitSections, type Section } from '../../domain/content.ts';
 import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
 import { layoutById, type LayoutId } from '../../domain/layouts.ts';
@@ -23,6 +23,7 @@ import ThemeSwitch from '../../ui/ThemeSwitch.tsx';
 import SlideImage from '../canvas/SlideImage.tsx';
 import SlideStage from '../canvas/SlideStage.tsx';
 import SectionView from './SectionView.tsx';
+import { Contents, SplitCrumb } from './Contents.tsx';
 
 type Mode = 'flow' | 'article';
 /** Where the reader was in Split view: the split, the paragraph (or 'prev' / 'next' button) and its distance from the top. */
@@ -100,8 +101,6 @@ function Reader({ article }: { article: PublishedArticle }) {
     return () => window.clearTimeout(t);
   }, [current, setPrefs]);
 
-  const currentIndex = Math.max(0, sections.findIndex(x => x.id === current));
-  const currentSection = sections[currentIndex];
 
   /** A jump request (Contents, Previous/Next, keys): which split, and optionally which sub-heading in it. */
   // A link to the split this browser was already reading (e.g. a refresh keeps #split-… in the address bar) resumes the
@@ -125,23 +124,7 @@ function Reader({ article }: { article: PublishedArticle }) {
         {/* Breadcrumb (2026-11-27): the article, then the current split, which is also the Contents menu. */}
         <nav className="reader-crumbs" aria-label="You are reading">
           <span className="reader-bar-title" title={article.title}>{article.title}</span>
-          {sections.length > 1 && currentSection && (
-            <>
-              <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
-              <MenuButton label={`Contents: you are on split ${currentIndex + 1} of ${sections.length}, ${currentSection.title}. Jump to another split`}
-                align="left" buttonClassName="crumb-split"
-                trigger={(
-                  <>
-                    <ListTree size={14} aria-hidden="true" className="crumb-icon" />
-                    <span className="crumb-num">{currentIndex + 1}<small>/{sections.length}</small></span>
-                    <span className="crumb-title">{currentSection.title}</span>
-                    <ChevronDown size={14} aria-hidden="true" />
-                  </>
-                )}>
-                {close => <Contents sections={sections} current={current} onPick={(id, sub) => { close(); jumpTo(id, sub); }} menu />}
-              </MenuButton>
-            </>
-          )}
+          <SplitCrumb sections={sections} current={current} onPick={(id, sub) => jumpTo(id, sub)} />
         </nav>
         <span className="editor-bar-spacer" />
         {/* Layout, Mode and Settings (2026-11-28): the same three menus as the editor, each showing what is set. */}
@@ -226,42 +209,6 @@ function CopySplitLink({ index, section, compact = false }: { index: number; sec
       {copied ? <Check size={14} aria-hidden="true" /> : <Link2 size={14} aria-hidden="true" />}
       {!compact && <span>{copied ? 'Copied' : 'Copy link'}</span>}
     </button>
-  );
-}
-
-/** Sub-headings (H3) of a split, for Contents. */
-function subHeadings(section: Section): string[] {
-  return section.nodes.filter(n => n.type === 'heading' && n.attrs?.level === 3).map(n => textOf(n).trim() || 'Untitled');
-}
-
-/** Contents: every split; the current one expands to show its sub-headings. Used in the reader bar menu and Article view. */
-function Contents({ sections, current, onPick, menu = false }: {
-  sections: Section[]; current: string | null; onPick: (sectionId: string, sub: number | null) => void; menu?: boolean;
-}) {
-  return (
-    <ol className={`contents${menu ? ' contents-menu' : ''}`}>
-      {sections.map((sec, i) => {
-        const on = sec.id === current;
-        const subs = on ? subHeadings(sec) : [];
-        return (
-          <li key={sec.id} className={on ? 'is-current' : ''}>
-            <button type="button" role={menu ? 'menuitem' : undefined} className={`contents-split${on ? ' is-on' : ''}`}
-              aria-current={on ? 'location' : undefined} onClick={() => onPick(sec.id, null)}>
-              <span className="contents-num">{i + 1}</span><span className="contents-title">{sec.title}</span>
-            </button>
-            {subs.length > 0 && (
-              <ol className="contents-subs">
-                {subs.map((t, j) => (
-                  <li key={j}>
-                    <button type="button" role={menu ? 'menuitem' : undefined} className="contents-sub" onClick={() => onPick(sec.id, j)}>{t}</button>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

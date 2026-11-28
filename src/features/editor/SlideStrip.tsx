@@ -88,6 +88,19 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
   useEffect(() => {
     listRef.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [activeSectionId]);
+  // Hover (or keyboard focus) on a split shows a bigger preview of its drawing above the panel (2026-11-28).
+  const [peek, setPeek] = useState<{ index: number; top: number; left: number } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
+  const startPeek = (index: number, el: HTMLElement) => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => {
+      const box = el.getBoundingClientRect();
+      setPeek({ index, top: Math.max(8, box.top - PEEK_HEIGHT - 12), left: Math.max(8, Math.min(box.left + box.width / 2 - PEEK_WIDTH / 2, window.innerWidth - PEEK_WIDTH - 8)) });
+    }, 250);
+  };
+  const stopPeek = () => { window.clearTimeout(peekTimer.current); setPeek(null); };
+  const peeked = peek ? slides[peek.index] : undefined;
 
   return (
     <nav className={`slide-strip${docked ? ' is-docked' : ''}`} aria-label="Splits">
@@ -97,7 +110,9 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
           return (
             <li key={s.sectionId}>
               <button type="button" className={`slide-thumb${active ? ' is-on' : ''}`} aria-current={active}
-                onClick={() => onSelect(s.sectionId)} title={`${i + 1}. ${s.title}`}>
+                onClick={() => { stopPeek(); onSelect(s.sectionId); }} aria-label={`${i + 1}. ${s.title}`}
+                onMouseEnter={e => startPeek(i, e.currentTarget)} onMouseLeave={stopPeek}
+                onFocus={e => startPeek(i, e.currentTarget)} onBlur={stopPeek}>
                 <span className="slide-thumb-box">
                   <SlideImage scene={scene} frameId={s.frameId} label={s.title} className="is-thumb" />
                 </span>
@@ -123,6 +138,12 @@ function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinn
           </button>
         </li>
       </ol>
+      {peek && peeked && (
+        <div className="slide-peek" style={{ top: peek.top, left: peek.left }} aria-hidden="true">
+          <SlideImage scene={scene} frameId={peeked.frameId} label={peeked.title} className="is-peek" />
+          <span className="slide-peek-label"><b>{peek.index + 1}.</b> {peeked.title}</span>
+        </div>
+      )}
       <button type="button" className="icon-btn icon-btn-plain strip-pin" onClick={() => onPinnedChange(!pinned)}
         aria-pressed={pinned} title={pinned ? 'Unpin: hide the splits behind a button' : 'Pin: keep the splits visible'}>
         {pinned ? <PinOff size={16} aria-hidden="true" /> : <Pin size={16} aria-hidden="true" />}

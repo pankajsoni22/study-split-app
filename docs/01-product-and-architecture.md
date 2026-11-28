@@ -122,6 +122,17 @@ All modes render from the same article data. The mode switcher sits in the top b
     every layout: the text toolbar is one row (labels shorten in narrow panes; sideways scroll as a last resort; its
     Style/Insert menus open above the page via `MenuButton fixed`).
   Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
+- **Editor navigation = reader navigation (2026-11-28):** one habit for reading and writing.
+  - The editor bar shows the reader's breadcrumb after the title (`› [3/9 Split title ▾]`, opens Contents with the
+    current split's sub-sections); full-screen writing shows the reader's Article-view "Splits" sidebar. Shared
+    components `src/features/reader/Contents.tsx` (`Contents`, `SplitCrumb`).
+  - Jumping (Contents, sidebar, split panel) brings the heading to the top of the text, flashes it (an overlay, since
+    ProseMirror redraws the heading) and puts the cursor at its end.
+  - **The drawing follows the split you are looking at** (decided 2026-11-28, option A): scrolling shows the split at
+    the top quarter of the text unless the cursor is visible (then the cursor's split). So it is right after leaving
+    full screen too. Starting to draw (pointer down on the drawing side) while the cursor is in another split moves
+    the cursor to the first on-screen paragraph of the split you see, so Unfold gives new shapes to that split.
+  - Split panel: hovering (or focusing) a thumbnail shows a larger preview of its drawing.
 - **Editor text = reader text (2026-11-28):** the editor's text column uses the reader's width and text size
   (`--read-col` 740 px incl. 28 px padding, `--read-font` 17 px; centred when the pane is wider, also in full-screen
   writing), so every line wraps exactly as readers will see it.
