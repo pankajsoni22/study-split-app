@@ -122,6 +122,29 @@ All modes render from the same article data. The mode switcher sits in the top b
     every layout: the text toolbar is one row (labels shorten in narrow panes; sideways scroll as a last resort; its
     Style/Insert menus open above the page via `MenuButton fixed`).
   Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
+- **Article links by a permanent short id (2026-11-28):** addresses no longer contain titles or usernames.
+
+  | Page | Address |
+  |---|---|
+  | Home | `/` |
+  | My articles | `/me/articles` |
+  | New article | `/write/new` |
+  | Editor | `/write/{id}` |
+  | Trash | `/me/trash` |
+  | Settings | `/settings` |
+  | Read | `/read/{id}` or `/read/{slug}` |
+  | Writer profile | `/{username}` (unchanged) |
+
+  - **id** (`articles.public_id`): 12 random characters `[A-Za-z0-9]` (~71 bits, unbiased, from `gen_random_uuid()`),
+    made by the database (`new_public_id()`), always containing a capital letter. Unique, never changed (trigger), never
+    reused: rows are never deleted by the app ("Delete forever" only hides), and an admin's permanent erase records the
+    id in `retired_public_ids`, which new ids and hand-made inserts are checked against. Not guessable or sequential.
+  - **slug**: optional second link `/read/{slug}`, empty until the writer sets one (Article settings → Slug), lowercase
+    `a-z 0-9 -`, unique across the site (`slug_taken()`, unique index); "Delete forever" frees it. A key with a capital
+    letter is only ever an id, so a slug can never shadow an id.
+  - `#split-…` part of links unchanged. Old `/{username}/{slug}` links were dropped (app still in development).
+  - "read" is a reserved username. Migration `20261128000000_article_ids.sql`; sample articles have fixed ids
+    (`CnsHashing01`, `EtlPipeline1`, …) in `scripts/seed/`.
 - **Editor navigation = reader navigation (2026-11-28):** one habit for reading and writing.
   - The editor bar shows the reader's breadcrumb after the title (`› [3/9 Split title ▾]`, opens Contents with the
     current split's sub-sections); full-screen writing shows the reader's Article-view "Splits" sidebar. Shared

@@ -8,7 +8,7 @@ import { chromium } from 'playwright-core';
 
 /** Base URL of the dev server (set by scripts/e2e.mjs). */
 export const BASE = process.env.E2E_BASE ?? 'http://localhost:5173/study-split-app';
-/** Sample article ids in the local database, by slug (set by scripts/e2e.mjs). */
+/** Sample articles' short ids (as in /read/{id} and /write/{id}), by sample name (set by scripts/e2e.mjs). */
 export const IDS = JSON.parse(process.env.E2E_IDS ?? '{}');
 /** Where tests save screenshots (outside the repo). */
 export const SHOTS = process.env.E2E_SHOTS ?? join(tmpdir(), 'study-split-e2e');

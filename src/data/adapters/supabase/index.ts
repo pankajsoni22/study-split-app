@@ -11,7 +11,7 @@ import {
 } from './mappers.ts';
 
 interface DraftRow {
-  id: string; title: string; slug: string; summary: string | null; tags: string[]; deleted_at: string | null;
+  id: string; public_id: string; title: string; slug: string | null; summary: string | null; tags: string[]; deleted_at: string | null;
   visibility: ArticleDraft['meta']['visibility']; status: ArticleDraft['status'];
   template_key: string | null; published_version: number | null; published_draft_version: number | null;
   owner: { username: string } | { username: string }[] | null;
@@ -108,12 +108,18 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
       },
 
       async create({ title, templateKey, doc }) {
-        return unwrap(await sb.rpc('create_article', { p_title: title, p_template_key: templateKey, p_doc: doc })) as string;
+        const id = unwrap(await sb.rpc('create_article', { p_title: title, p_template_key: templateKey, p_doc: doc })) as string;
+        const row = unwrap(await sb.from('articles').select('public_id').eq('id', id).single<{ public_id: string }>());
+        return row.public_id;
+      },
+      async resolveId(publicId) {
+        const row = unwrap(await sb.from('articles').select('id').eq('public_id', publicId).is('purged_at', null).maybeSingle<{ id: string }>());
+        return row?.id ?? null;
       },
       async getDraft(articleId) {
         // One query: metadata + owner + draft body (docs §11.3 "Open editor: 1 call").
         const row = unwrap(await sb.from('articles')
-          .select('id, title, slug, summary, tags, visibility, status, template_key, published_version, published_draft_version, deleted_at,' +
+          .select('id, public_id, title, slug, summary, tags, visibility, status, template_key, published_version, published_draft_version, deleted_at,' +
             ' owner:profiles!inner(username), draft:article_drafts(doc, canvas, version, updated_at)')
           .eq('id', articleId).is('purged_at', null).maybeSingle<DraftRow>());   // deleted forever = gone (even for admins)
         if (!row) return null;
@@ -122,7 +128,8 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
         if (!draft) return null;
         const result: ArticleDraft = {
           id: row.id,
-          meta: { title: row.title, slug: row.slug, summary: row.summary ?? '', tags: row.tags, visibility: row.visibility },
+          publicId: row.public_id,
+          meta: { title: row.title, slug: row.slug ?? '', summary: row.summary ?? '', tags: row.tags, visibility: row.visibility },
           status: row.status,
           templateKey: row.template_key,
           publishedVersion: row.published_version,
@@ -165,8 +172,8 @@ export function createSupabaseServices(url: string, anonKey: string): Services {
           .order('deleted_at', { ascending: false }).returns<ArticleSummaryRow[]>());
         return rows.map(toArticleSummary);
       },
-      async getPublished(username, slug) {
-        const data = unwrap(await sb.rpc('get_published_article', { p_username: username, p_slug: slug })) as PublishedArticle | null;
+      async getPublished(key) {
+        const data = unwrap(await sb.rpc('get_published_article', { p_key: key })) as PublishedArticle | null;
         return data ?? null;
       }
     },

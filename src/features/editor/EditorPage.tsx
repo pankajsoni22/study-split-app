@@ -19,8 +19,7 @@ import SplitPane from '../../ui/SplitPane.tsx';
 import { ErrorState, Loading } from '../../ui/States.tsx';
 import { errorMessage } from '../../data/errors.ts';
 import { getServices } from '../../data/services.ts';
-import { invalidate } from '../../data/useQuery.ts';
-import { useAuth } from '../auth/useAuth.ts';
+import { invalidate, useQuery } from '../../data/useQuery.ts';
 import { createSlide, deleteFrameIfEmpty, deleteSlide, listFrames, slideHasContent, tagElements, updateFrames, type ExcalidrawImperativeAPI } from '../canvas/excalidraw.ts';
 import { countsByStep, UNFOLD_KEY } from '../../domain/unfold.ts';
 import { setUnfoldMarks } from './unfoldMarks.ts';
@@ -37,10 +36,29 @@ import { useFullscreenPane } from './useFullscreenPane.ts';
 const Canvas = lazy(() => import('../canvas/Canvas.tsx'));
 
 /** The split editor: text on the left, Excalidraw on the right, sections linked to frames. */
+/**
+ * /write/{short id} (2026-11-28): links use the article's permanent short id; the editor works with the internal id,
+ * looked up once here.
+ */
 export default function EditorPage() {
-  const articleId = useParams().articleId ?? '';
+  const publicId = useParams().articleId ?? '';
+  const resolved = useQuery(`article-id:${publicId}`, s => s.articles.resolveId(publicId));
+  if (resolved.error) return <div className="editor-page"><main className="narrow" style={{ margin: '40px auto' }}><ErrorState error={resolved.error} /></main></div>;
+  if (resolved.data === undefined) return <div className="editor-page"><Loading label="Opening article" /></div>;
+  if (resolved.data === null) {
+    return (
+      <div className="editor-page"><main className="narrow state" style={{ margin: '40px auto' }}>
+        <h1>Article not found</h1>
+        <p className="muted">There is no article of yours at this link.</p>
+        <Link className="btn btn-ghost" to="/me/articles">Back to my articles</Link>
+      </main></div>
+    );
+  }
+  return <ArticleEditor key={resolved.data} articleId={resolved.data} />;
+}
+
+function ArticleEditor({ articleId }: { articleId: string }) {
   const session = useDraftSession(articleId);
-  const { profile } = useAuth();
   const navigate = useNavigate();
   // Editor and canvas are tagged with the session they belong to: after a restore (new session) the old,
   // unmounted ones must never be used (the old canvas reports an EMPTY scene once it unmounts).
@@ -269,6 +287,15 @@ export default function EditorPage() {
     if (dom instanceof HTMLElement) {
       jumping.current = { el: dom, until: Date.now() + 2500 };
       dom.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // A smooth scroll can be cancelled by another scroll starting at the same moment: if it did not arrive, finish
+      // the jump at once.
+      window.setTimeout(() => {
+        const sc = dom.closest<HTMLElement>('.editor-scroll');
+        if (!sc || !dom.isConnected) return;
+        const off = dom.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+        const atEnd = sc.scrollTop >= sc.scrollHeight - sc.clientHeight - 1;
+        if (Math.abs(off - 18) > 6 && !atEnd && jumping.current?.el === dom) dom.scrollIntoView({ block: 'start' });
+      }, 1100);
       // The flash is a separate layer over the heading: the editor redraws the heading itself when the cursor lands in
       // it, which would wipe a class set on it.
       const scroller = dom.closest<HTMLElement>('.editor-scroll');
@@ -442,7 +469,7 @@ export default function EditorPage() {
     setLeaveAsk(true);
   };
 
-  const viewUrl = useMemo(() => (session.meta && profile ? `/${draft?.ownerUsername || profile.username}/${session.meta.slug}` : ''), [draft, profile, session.meta]);
+  const viewUrl = draft ? `/read/${draft.publicId}` : '';
 
   if (session.loadError) return <div className="editor-page"><main className="narrow" style={{ margin: '40px auto' }}><ErrorState error={session.loadError} /><Link to={backTo}>← Back to my articles</Link></main></div>;
   if (!draft || !session.meta) return <div className="editor-page"><Loading label="Opening article" /></div>;
@@ -637,7 +664,7 @@ export default function EditorPage() {
       )}
 
       {settingsOpen && (
-        <ArticleSettingsDialog session={session} username={draft.ownerUsername || profile?.username || ''}
+        <ArticleSettingsDialog session={session}
           articleLayout={articleLayout} onArticleLayout={changeArticleLayout}
           onClose={() => setSettingsOpen(false)}
           onTrashed={title => void navigate(backTo, { replace: true, state: { trashed: { id: articleId, title } } })} />

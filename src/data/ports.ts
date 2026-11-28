@@ -36,6 +36,7 @@ export interface ArticleRepo {
   recordView(articleId: string): Promise<number>;
 
   // ---- Editor (writers) ----
+  /** Creates an article; returns its short id (for /write/{publicId}). */
   create(input: { title: string; templateKey: string | null; doc: Doc }): Promise<string>;
   getDraft(articleId: string): Promise<ArticleDraft | null>;
   /** Optimistic lock: throws AppError CONFLICT when `expectedVersion` is stale. Returns the new version. */
@@ -54,7 +55,10 @@ export interface ArticleRepo {
 
   // ---- Reader ----
   /** Everything the reader page needs, in one call. Null when missing or not visible to the caller. */
-  getPublished(username: string, slug: string): Promise<PublicArticleOrNull>;
+  /** By the article's short id or its slug (/read/{key}). */
+  getPublished(key: string): Promise<PublicArticleOrNull>;
+  /** The internal id of the signed-in user's article with this short id (null if none they can open). */
+  resolveId(publicId: string): Promise<string | null>;
 }
 
 export interface TagRepo {

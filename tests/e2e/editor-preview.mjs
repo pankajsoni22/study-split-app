@@ -15,7 +15,7 @@ await run('editor-preview', async ({ page, signIn }) => {
   }, sel);
   for (const layout of ['70-30', '50-50', '40-60']) {
     const i = LAYOUTS.indexOf(layout);
-    await p.goto(BASE + '/dev-writer/telemetry-etl-pipeline#split-1-the-problem'); await p.waitForTimeout(3000);
+    await p.goto(BASE + '/read/EtlPipeline1#split-1-the-problem'); await p.waitForTimeout(3000);
     await p.locator('.reader-bar .layout-picker [role="radio"]').nth(i).click(); await p.waitForTimeout(600);
     const rd = await measure('.reader-scroll');
     await p.goto(BASE + '/write/' + IDS['telemetry-etl-pipeline']); await p.waitForTimeout(5000);

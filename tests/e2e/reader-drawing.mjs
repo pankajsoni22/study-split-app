@@ -1,10 +1,10 @@
 // Reader, Unfold drawings stay steady while stepping: parts already shown never vanish, no visible text waits on a
-// font, and stepping loads no fonts at all (one font set per split). Sample: dev-writer/telemetry-etl-pipeline.
+// font, and stepping loads no fonts at all (one font set per split). Sample: telemetry-etl-pipeline (/read/EtlPipeline1).
 import { BASE, check, openFresh, run } from './lib.mjs';
 
 await run('reader-drawing', async ({ page, shot }) => {
   const r = await page({ width: 1600, height: 1000 });
-  await openFresh(r, BASE + '/dev-writer/telemetry-etl-pipeline#split-2-the-big-picture');
+  await openFresh(r, BASE + '/read/EtlPipeline1#split-2-the-big-picture');
   await r.evaluate(() => {
     Object.assign(window, { __bad: 0, __dips: 0, __fontLoads: 0, __run: true, __forward: true });
     document.fonts.addEventListener('loading', () => window.__fontLoads++);

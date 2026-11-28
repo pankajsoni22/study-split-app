@@ -1,6 +1,6 @@
 // Editor Unfold spotlight: the cursor's paragraph makes its drawing parts glow (the rest fades); a paragraph without
 // parts shows nothing; clicking a drawing part lights up its paragraph; it changes nothing in the article.
-// Sample: dev-writer/consistent-hashing (Unfold on).
+// Sample: consistent-hashing (Unfold on).
 import { BASE, IDS, check, run } from './lib.mjs';
 
 await run('editor-spotlight', async ({ page, signIn, shot }) => {

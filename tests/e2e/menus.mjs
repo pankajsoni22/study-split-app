@@ -5,7 +5,7 @@ import { BASE, IDS, barMenu, check, clickAt, openFresh, pickInMenu, run } from '
 await run('menus', async ({ page, signIn, shot }) => {
   // ---------------- reader ----------------
   const r = await page();
-  await openFresh(r, BASE + '/dev-writer/telemetry-etl-pipeline');
+  await openFresh(r, BASE + '/read/EtlPipeline1');
   check(await barMenu(r, 'Layout').count() === 0 && await r.locator('.reader-bar .bar-layout .layout-picker [role="radio"]').count() === 5,
     'reader: the layout choices sit directly in the bar');
   check((await r.locator('.reader-bar .layout-picker [aria-checked="true"]').getAttribute('title')).includes('40:60'), 'reader: starts on the writer\'s layout (40:60)');
@@ -22,7 +22,7 @@ await run('menus', async ({ page, signIn, shot }) => {
   await r.locator('.menu-panel [aria-label="Theme"] button[title="System"]').click(); await r.keyboard.press('Escape');
   await shot(r, 'reader-bar', { x: 0, y: 0, width: 1440, height: 60 });
   const m = await page({ width: 390, height: 800 });
-  await m.goto(BASE + '/dev-writer/telemetry-etl-pipeline'); await m.waitForTimeout(3000);
+  await m.goto(BASE + '/read/EtlPipeline1'); await m.waitForTimeout(3000);
   check(await m.locator('.reader-bar button[aria-label="Settings"]').isVisible() && await m.evaluate(() => document.documentElement.scrollWidth <= 390),
     'phone: ⋯ Settings reachable, no sideways scroll');
 

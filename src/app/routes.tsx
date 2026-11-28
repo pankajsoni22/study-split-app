@@ -28,7 +28,7 @@ const ReaderPage = lazy(() => import('../features/reader/ReaderPage.tsx'));
 /**
  * One flat route table with layout routes (<Outlet/>). React Router ranks ALL paths together, so
  * static paths (/me/articles, /admin/users, /write/new) always beat the patterns
- * (/:username/:slug, /write/:articleId, /:username).
+ * (/read/:key, /write/:articleId, /:username). Articles are addressed by their short id (2026-11-28).
  */
 export const routeTable = (
   <>
@@ -38,7 +38,7 @@ export const routeTable = (
   <Route element={<UsernameGate />}>
     {/* Full-screen */}
     <Route path="/write/:articleId" element={<RequireAuth need="write"><Lazy><EditorRoute /></Lazy></RequireAuth>} />
-    <Route path="/:username/:slug" element={<Lazy><ReaderPage /></Lazy>} />
+    <Route path="/read/:key" element={<Lazy><ReaderPage /></Lazy>} />
 
     {/* Sidebar layout */}
     <Route element={<Shell />}>

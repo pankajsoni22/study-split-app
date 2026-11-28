@@ -36,10 +36,10 @@ function slideFor(sections: Section[], index: number): Section | null {
   return sections.find(s => s.frameId) ?? null;
 }
 
-/** /:username/:slug — one RPC loads everything (docs §11.3). */
+/** /read/{short id or slug} — one RPC loads everything (docs §11.3). */
 export default function ReaderPage() {
-  const { username = '', slug = '' } = useParams();
-  const q = useQuery(`article:${username.toLowerCase()}/${slug.toLowerCase()}`, s => s.articles.getPublished(username, slug));
+  const { key = '' } = useParams();
+  const q = useQuery(`article:${key}`, s => s.articles.getPublished(key));
   if (q.error) return <ReaderChrome><main className="reader-message"><ErrorState error={q.error} onRetry={q.reload} /></main></ReaderChrome>;
   if (q.data === undefined) return <ReaderChrome><Loading label="Loading article" /></ReaderChrome>;
   if (q.data === null) {
@@ -47,8 +47,8 @@ export default function ReaderPage() {
       <ReaderChrome>
         <main id="main" className="reader-message state">
           <h1>Article not found</h1>
-          <p className="muted">It may be unpublished, private, or the link may be old.</p>
-          <Link className="btn btn-ghost" to={`/${username}`}>See @{username}'s articles</Link>
+          <p className="muted">It may be unpublished or private, or the link may be mistyped.</p>
+          <Link className="btn btn-ghost" to="/">Browse articles</Link>
         </main>
       </ReaderChrome>
     );
@@ -158,7 +158,7 @@ function Reader({ article }: { article: PublishedArticle }) {
           </div>
         )}
         {article.isOwner && !narrow && (
-          <Link className="btn btn-ghost btn-sm" to={`/write/${article.id}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
+          <Link className="btn btn-ghost btn-sm" to={`/write/${article.publicId}`}><PenLine size={15} aria-hidden="true" /> Edit</Link>
         )}
         <MenuButton label="Settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
           {() => (

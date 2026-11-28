@@ -35,17 +35,10 @@ The owner can then restore it themselves from **Trash**. Replace `ARTICLE_ID`.
 ```sql
 begin;
 
--- Put the original address back if it is still free; otherwise keep the renamed one.
-update public.articles a
-   set slug = regexp_replace(a.slug::text, '-deleted-[0-9a-f]{8}$', '')
- where a.id = 'ARTICLE_ID'
-   and not exists (
-     select 1 from public.articles b
-      where b.owner_id = a.owner_id and b.id <> a.id
-        and b.slug = regexp_replace(a.slug::text, '-deleted-[0-9a-f]{8}$', '')::extensions.citext);
-
+-- Back in the owner's Trash. Its link id (public_id) never changed, so /read/{id} works again once it is restored
+-- and published. "Delete forever" cleared its slug; the owner can set one again in Article settings.
 update public.articles set purged_at = null
- where id = 'ARTICLE_ID' and purged_at is not null;   -- back in the owner's Trash
+ where id = 'ARTICLE_ID' and purged_at is not null;
 
 commit;
 ```
@@ -53,6 +46,7 @@ commit;
 ### 3. Permanently erase deleted-forever articles (irreversible)
 
 Removes the article row, and with it (by cascade) its drafts, versions and view count.
+Its link id is recorded in `retired_public_ids`, so it is never given to another article.
 **Take a backup first** (Actions → Backup database → Run workflow). The example erases articles deleted forever more
 than 90 days ago.
 

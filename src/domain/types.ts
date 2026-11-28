@@ -28,7 +28,10 @@ export interface PublicProfile {
 
 export interface ArticleSummary {
   id: string;
-  slug: string;
+  /** Permanent short id used in links: /read/{publicId}, /write/{publicId} (12 characters, never changes). */
+  publicId: string;
+  /** Optional second link /read/{slug}; null until the writer sets one. */
+  slug: string | null;
   title: string;
   summary: string | null;
   tags: string[];
@@ -79,6 +82,7 @@ export interface CanvasScene {
 
 export interface ArticleMeta {
   title: string;
+  /** Optional slug ('' = none), unique across the site: /read/{slug} also opens the article. */
   slug: string;
   summary: string;
   tags: string[];
@@ -87,6 +91,7 @@ export interface ArticleMeta {
 
 export interface ArticleDraft {
   id: string;
+  publicId: string;
   meta: ArticleMeta;
   status: ArticleStatus;
   templateKey: string | null;
@@ -104,7 +109,8 @@ export interface ArticleDraft {
 
 export interface PublishedArticle {
   id: string;
-  slug: string;
+  publicId: string;
+  slug: string | null;
   title: string;
   summary: string | null;
   tags: string[];

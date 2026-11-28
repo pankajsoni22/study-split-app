@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ensureSectionIds, ensureTrailingParagraph, readingMinutes, type Doc } from '../../domain/content.ts';
 import { ensureBlockIds } from '../../domain/unfold.ts';
-import { slugify } from '../../domain/slug.ts';
 import type { ArticleDraft, ArticleMeta, CanvasScene } from '../../domain/types.ts';
 import { AppError, errorMessage } from '../../data/errors.ts';
 import { getServices } from '../../data/services.ts';
@@ -34,7 +33,6 @@ export function useDraftSession(articleId: string) {
   const versionRef = useRef(0);
   const changeCount = useRef(0);
   const savingRef = useRef(false);
-  const slugTouched = useRef(false);
   const autosaveTimer = useRef<number | undefined>(undefined);
   /** Mirrors sessionKey but changes synchronously, so late events from a torn-down editor/canvas can be ignored. */
   const sessionRef = useRef(0);
@@ -56,7 +54,6 @@ export function useDraftSession(articleId: string) {
       metaRef.current = start.meta;
       versionRef.current = useLocal ? local.baseVersion : d.version;
       if (useLocal) { changeCount.current = 1; setSaveState('dirty'); setFromDevice(true); }
-      slugTouched.current = d.publishedVersion !== null || d.meta.slug !== slugify(d.meta.title);
       setMetaState(start.meta);
       setStatus(d.status);
       setSavedVersion(d.version);
@@ -104,12 +101,10 @@ export function useDraftSession(articleId: string) {
     canvasRef.current = scene;
     markChanged();
   }, [markChanged]);
-  const setMeta = useCallback((patch: Partial<ArticleMeta>, opts?: { slugEdited?: boolean }) => {
+  const setMeta = useCallback((patch: Partial<ArticleMeta>) => {
     if (!metaRef.current) return;
-    if (opts?.slugEdited) slugTouched.current = true;
     const next = { ...metaRef.current, ...patch };
-    // Until the article is published (or the slug was edited by hand) the address follows the title.
-    if (patch.title !== undefined && !slugTouched.current) next.slug = slugify(patch.title);
+    // The slug is optional and only ever set by the writer (2026-11-28); it no longer follows the title.
     metaRef.current = next;
     setMetaState(next);
     markChanged();

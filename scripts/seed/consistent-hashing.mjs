@@ -28,7 +28,7 @@ function owners(k, cx, cy, r, arcs, sw = 12) {
 }
 
 export const consistentHashing = {
-  key: 'hash', owner: 1, slug: 'consistent-hashing', title: 'Consistent Hashing', state: 'draft', layout: '40-60', unfold: true,
+  key: 'hash', owner: 1, slug: 'consistent-hashing', publicId: 'CnsHashing01', title: 'Consistent Hashing', state: 'draft', layout: '40-60', unfold: true,
   tags: ['system-design', 'distributed-systems', 'caching'],
   summary: 'How to spread keys over servers so that adding or losing a server moves only a few keys: the hash ring, virtual nodes, replication, hot keys, alternatives and where it is used.',
   sections: [

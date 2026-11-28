@@ -49,7 +49,7 @@ export function buildArticle(def) {
 
 const teal = C.teal, amber = C.amber, sky = C.sky;
 export const articles = [
-  { key: 'url', owner: 1, slug: 'url-shortener', title: 'Designing a URL Shortener', state: 'published', layout: '50-50', tags: ['system-design'],
+  { key: 'url', owner: 1, slug: 'url-shortener', publicId: 'UrlShort3ner', title: 'Designing a URL Shortener', state: 'published', layout: '50-50', tags: ['system-design'],
     summary: 'Requirements, API, storage and scaling for a TinyURL-style service.',
     sections: [
       { title: 'Requirements', boxes: [{ ...teal, label: 'Shorten URL' }, { ...amber, label: 'Redirect fast' }], body: [
@@ -66,9 +66,9 @@ export const articles = [
     ] },
   consistentHashing,
   telemetryEtl,
-  { key: 'old', owner: 1, slug: 'old-notes', title: 'Old notes (in Trash)', state: 'trash', layout: '50-50', tags: [], summary: null,
+  { key: 'old', owner: 1, slug: 'old-notes', publicId: 'OldNotes0001', title: 'Old notes (in Trash)', state: 'trash', layout: '50-50', tags: [], summary: null,
     sections: [{ title: 'Scratch', body: [P('Moved to Trash two days ago — restore it from the Trash page.')] }] },
-  { key: 'welcome', owner: 0, slug: 'welcome', title: 'Welcome to Study Split', state: 'published', layout: '50-50', tags: ['meta'],
+  { key: 'welcome', owner: 0, slug: 'welcome', publicId: 'WelcomeStudy', title: 'Welcome to Study Split', state: 'published', layout: '50-50', tags: ['meta'],
     summary: 'What this site is and how articles work.',
     sections: [{ title: 'How it works', boxes: [{ ...teal, label: 'Text' }, { ...amber, label: 'Slides' }], body: [
       P('Write on the left, draw on the right. Every H2 heading starts a new split: a piece of text with its own drawing.'),

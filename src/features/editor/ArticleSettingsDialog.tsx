@@ -16,9 +16,8 @@ const VISIBILITY: { value: ArticleVisibility; label: string; hint: string; Icon:
 ];
 
 /** Address, summary, tags, visibility + unpublish/delete. Changes are saved with the article. */
-export default function ArticleSettingsDialog({ session, username, articleLayout, onArticleLayout, onClose, onTrashed }: {
+export default function ArticleSettingsDialog({ session, articleLayout, onArticleLayout, onClose, onTrashed }: {
   session: DraftSession;
-  username: string;
   articleLayout: LayoutId;
   onArticleLayout: (id: LayoutId) => void;
   onClose: () => void;
@@ -36,6 +35,14 @@ export default function ArticleSettingsDialog({ session, username, articleLayout
     if (t && !meta.tags.includes(t) && meta.tags.length < 10) session.setMeta({ tags: [...meta.tags, t] });
     setTagInput('');
   }
+  const publicId = session.draft?.publicId ?? '';
+  const readBase = `${window.location.origin}${import.meta.env.BASE_URL}read/`;
+  const [copied, setCopied] = useState(false);
+  const copy = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(true); window.setTimeout(() => setCopied(false), 1600); }
+    catch { window.prompt('Copy this link', text); }
+  };
+
   const onTagKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
     if (e.key === 'Backspace' && !tagInput && meta.tags.length) session.setMeta({ tags: meta.tags.slice(0, -1) });
@@ -59,15 +66,31 @@ export default function ArticleSettingsDialog({ session, username, articleLayout
 
   return (
     <Dialog title="Article settings" onClose={onClose} wide>
+      {/* Links (2026-11-28): the permanent id link, and an optional readable slug link. */}
       <div className="field">
-        <label htmlFor="slug">Address</label>
-        <div className="input-affix slug-input">
-          <span className="affix affix-left">/{username}/</span>
-          <input id="slug" value={meta.slug} spellCheck={false}
-            onChange={e => session.setMeta({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }, { slugEdited: true })}
-            onBlur={() => { if (slugify(meta.slug) !== meta.slug) session.setMeta({ slug: slugify(meta.slug) }, { slugEdited: true }); }} />
+        <span className="field-label">Link</span>
+        <div className="article-link-row">
+          <code className="article-link">{readBase}{publicId}</code>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void copy(`${readBase}${publicId}`)}>
+            <Link2 size={14} aria-hidden="true" /> {copied ? 'Copied' : 'Copy'}
+          </button>
         </div>
-        <span className="field-hint">Changing the address of a published article breaks old links.</span>
+        <span className="field-hint">Permanent: it never changes, whatever you rename.</span>
+      </div>
+
+      <div className="field">
+        <label htmlFor="slug">Slug <span className="muted">(optional)</span></label>
+        <div className="input-affix slug-input">
+          <span className="affix affix-left">/read/</span>
+          <input id="slug" value={meta.slug} spellCheck={false} placeholder="e.g. consistent-hashing"
+            onChange={e => session.setMeta({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+            onBlur={() => { const clean = meta.slug.trim() ? slugify(meta.slug) : ''; if (clean !== meta.slug) session.setMeta({ slug: clean }); }} />
+        </div>
+        <span className="field-hint">
+          A readable second link: readers can also open the article at /read/<b>{meta.slug || 'your-slug'}</b>. Unique across
+          Study Split; lowercase letters, numbers and hyphens; leave empty for none. Changing it breaks the old slug link
+          (the link above always works).
+        </span>
       </div>
 
       <div className="field">

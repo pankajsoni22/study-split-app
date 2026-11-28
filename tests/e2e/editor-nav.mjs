@@ -53,6 +53,20 @@ await run('editor-nav', async ({ page, signIn, shot }) => {
   check(atTop(kTop) && kCrumb.startsWith('Kafka') && peeks === 0,
     `clicking it brings its heading to the top of the editor, preview closes (top ${kTop}px, breadcrumb "${kCrumb}", previews ${peeks})`);
 
+  // Pinned split panel in a narrower window (the list scrolls): it keeps the current split's thumbnail in view.
+  const n = await page({ width: 1000, height: 800 });
+  await signIn(n);
+  await n.goto(BASE + '/write/' + IDS['telemetry-etl-pipeline']); await n.waitForTimeout(5000);
+  await clickAt(n, n.locator('.slide-pane button', { hasText: 'Splits' }).first(), 0.2); await n.waitForTimeout(500);
+  await n.locator('.strip-pin').click(); await n.waitForTimeout(500);
+  const thumbInView = () => n.evaluate(() => { const l = document.querySelector('.slide-strip ol'); const t = l?.querySelector('[aria-current="true"]'); if (!l || !t) return 'no strip'; const a = l.getBoundingClientRect(), b = t.getBoundingClientRect(); return { overflows: l.scrollWidth > l.clientWidth, inView: b.left >= a.left - 1 && b.right <= a.right + 1 }; });
+  for (const target of ['Decisions and trade-offs', 'The problem']) {
+    await n.locator('.editor-crumbs .crumb-split').click(); await n.waitForTimeout(300);
+    await n.locator('.menu-panel .contents-split', { hasText: target }).click(); await n.waitForTimeout(1300);
+    const t = await thumbInView();
+    check(t.overflows && t.inView, `pinned panel, jump to "${target}": its thumbnail scrolls into view (${JSON.stringify(t)})`);
+  }
+
   // sub-sections + flash (Consistent Hashing has H3 sub-sections)
   const c = await page();
   await signIn(c);

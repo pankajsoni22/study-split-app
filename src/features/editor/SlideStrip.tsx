@@ -85,8 +85,16 @@ function FloatingStrip(props: StripProps) {
 
 function Strip({ slides, activeSectionId, scene, onSelect, onAdd, pinned, onPinnedChange, orphans, onAdopt, onDeleteOrphan, docked }: StripProps & { docked: boolean }) {
   const listRef = useRef<HTMLOListElement>(null);
+  // Keep the current split's thumbnail in view by scrolling ONLY this list (scrollIntoView could also scroll other
+  // areas and cancel the editor's smooth jump to that split).
   useEffect(() => {
-    listRef.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!list || !el) return;
+    const lr = list.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const l = er.left - lr.left + list.scrollLeft, r = l + er.width;
+    if (l < list.scrollLeft) list.scrollLeft = l - 8;
+    else if (r > list.scrollLeft + list.clientWidth) list.scrollLeft = r - list.clientWidth + 8;
   }, [activeSectionId]);
   // Hover (or keyboard focus) on a split shows a bigger preview of its drawing above the panel (2026-11-28).
   const [peek, setPeek] = useState<{ index: number; top: number; left: number } | null>(null);

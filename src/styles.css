@@ -1352,3 +1352,7 @@ a.menu-item { text-decoration: none; }
   width: 260px; max-height: calc(100% - var(--pane-bar-h)); justify-self: auto;
 }
 @media (max-width: 1099.98px) { .editor-toc { display: none; } }
+
+/* Article settings: the permanent link (2026-11-28) */
+.article-link-row { display: flex; align-items: center; gap: 8px; }
+.article-link { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 13px; }

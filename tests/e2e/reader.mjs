@@ -1,8 +1,8 @@
 // Reader, Split view with Unfold: the reading pointer, collapsibles, split buttons, going back, resume after refresh,
-// split links and Copy link. Sample: dev-writer/consistent-hashing.
+// split links and Copy link. Sample: consistent-hashing (/read/CnsHashing01).
 import { BASE, check, clickAt, openFresh, run } from './lib.mjs';
 
-const URL = BASE + '/dev-writer/consistent-hashing';
+const URL = BASE + '/read/CnsHashing01';
 
 await run('reader', async ({ page }) => {
   const r = await page({ width: 1600, height: 950 });
@@ -52,7 +52,7 @@ await run('reader', async ({ page }) => {
   await r.locator('.split-top .copy-split-link').scrollIntoViewIfNeeded(); await r.waitForTimeout(400);   // a reader scrolls up to it
   await clickAt(r, r.locator('.split-top .copy-split-link'), 0.3); await r.waitForTimeout(400);
   const clip = await r.evaluate(() => navigator.clipboard.readText());
-  check(clip.endsWith('/dev-writer/consistent-hashing#split-1-why-naive-hashing-breaks'), 'Copy link copies a link to this split');
+  check(clip.endsWith('/read/CnsHashing01#split-1-why-naive-hashing-breaks'), 'Copy link copies a link to this split');
 
   const other = await page({ width: 1600, height: 950 });
   await other.goto(URL + '#split-5-virtual-nodes'); await other.waitForTimeout(3500);

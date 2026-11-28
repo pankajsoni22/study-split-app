@@ -35,6 +35,10 @@ one command to set up and a flag to choose local or production data.
 | Writer | `dev-writer` | writer | URL Shortener (published), **Consistent Hashing** (draft; complete 11-section article with drawings and tables), **Telemetry ETL pipeline** (published; 9-split high-level design with Unfold), Old notes (in Trash) |
 | Reader | `dev-reader` | reader | nothing; can read published articles only |
 
+Sample articles have **fixed ids** (local only), so their links stay the same across resets: Consistent Hashing
+`/read/CnsHashing01`, Telemetry ETL `/read/EtlPipeline1`, URL Shortener `/read/UrlShort3ner`, Welcome
+`/read/WelcomeStudy` (editor: `/write/<id>`). Samples have no slug; `db:refresh-samples` also clears one set while testing.
+
 ---
 
 ## 1. How it fits together
@@ -314,7 +318,7 @@ Data persists in Docker volumes between `db:stop` and `db:start`. `npm run db:re
 
 `npm run test:e2e` drives a real (headless) Chromium through the app, against the **local** database and its sample
 articles. It checks the things unit tests cannot see: the reading pointer and keys, steady Unfold drawings, menus,
-toolbar alignment, the editor matching the reader, navigation, theme. About 4 minutes; 72 checks.
+toolbar alignment, the editor matching the reader, navigation, links, theme. About 5 minutes; 85 checks.
 
 **Needs:** the local database running (`npm run db:start`) and a Chromium. `playwright-core` is a dev dependency but does
 not download a browser; install one once with `npx playwright-core install chromium-headless-shell` (or set
@@ -334,6 +338,7 @@ a summary. `npm run test:e2e -- editor` runs only files whose name contains "edi
 | `editor-nav.mjs` | breadcrumb + Contents, sub-section jump + flash, drawing follows the split in view, full-screen sidebar, split panel preview |
 | `editor-preview.mjs` | editor text = reader text (margins, size, line wrapping) |
 | `editor-spotlight.mjs` | Unfold spotlight both ways |
+| `links.mjs` | `/read/{id}`, `/write/{id}`, optional slug link + uniqueness, old links gone, unknown ids |
 | `theme.mjs` | the chosen theme survives a refresh |
 
 **Writing a test:** copy an existing file. `tests/e2e/lib.mjs` gives `run(name, body)`, `check(ok, message)`, `BASE`,
@@ -358,3 +363,4 @@ and the local stack).
 | 2026-11-25 | First version: Supabase CLI local stack (Postgres 17, API, Auth, Storage, Studio), `npm run setup`, `dev` / `dev:prod`, seed with three test users and four articles, quick sign-in, LOCAL/PROD badge, `db:*` scripts, `db:prod` push with baseline. |
 | 2026-11-27 | New sample `telemetry-etl-pipeline` (scripts/seed/telemetry-etl.mjs): "A Distributed ETL Pipeline for Storage Telemetry", 9 splits told as one file's journey, Unfold on. An existing local database gets it without a reset by inserting it once (see the commit). |
 | 2026-11-28 | Browser tests in the repo: `tests/e2e/*.mjs` + `npm run test:e2e` (`scripts/e2e.mjs`, own dev server on port 5199, resets the samples before and after); `playwright-core` dev dependency; §13. |
+| 2026-11-28 | Article links by short id: migration `20261128000000_article_ids.sql` (`public_id`, optional site-unique slug, retired ids); samples get fixed ids (`publicId` in `scripts/seed/`), found by id instead of slug; `links.mjs` browser test. Apply locally with `npx supabase migration up` (or `npm run db:reset`). |

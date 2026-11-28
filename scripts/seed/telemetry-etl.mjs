@@ -20,7 +20,7 @@ function db(k, x, y, w, h, label, tone = C.sky, size = 28) {
 const muted = { stroke: '#94a3b8', fill: '#f8fafc' };
 
 export const telemetryEtl = {
-  key: 'etl', owner: 1, slug: 'telemetry-etl-pipeline', title: 'A Distributed ETL Pipeline for Storage Telemetry', state: 'published',
+  key: 'etl', owner: 1, slug: 'telemetry-etl-pipeline', publicId: 'EtlPipeline1', title: 'A Distributed ETL Pipeline for Storage Telemetry', state: 'published',
   layout: '40-60', unfold: true, tags: ['system-design', 'data-engineering', 'kafka'],
   summary: 'How 10,000+ storage arrays\' telemetry files flow into PostgreSQL 24×7 without losing, duplicating or reordering a single file: ingestion, Kafka, parser workers, archival, failures, and the trade-offs behind each choice.',
   sections: [

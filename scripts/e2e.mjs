@@ -26,10 +26,13 @@ const resetSamples = () => {
   if (r.status !== 0) fail(`Could not reset the sample articles:\n${r.stderr || r.stdout}`);
 };
 resetSamples();
-const q = spawnSync('docker', ['exec', DB, 'psql', '-U', 'postgres', '-tA', '-F', '|', '-c',
-  `select slug, id from public.articles where slug in (${SAMPLES.map(s => `'${s}'`).join(',')}) and owner_id = '00000000-0000-4000-a000-000000000002'`], { encoding: 'utf8' });
-const ids = Object.fromEntries(q.stdout.trim().split('\n').filter(Boolean).map(l => l.split('|')));
-const missing = SAMPLES.filter(s => !ids[s]);
+// Sample articles by name → their fixed short ids (scripts/seed), checked to exist in the local database.
+const { articles: samples } = await import('./seed/data.mjs');
+const ids = Object.fromEntries(samples.filter(a => SAMPLES.includes(a.slug)).map(a => [a.slug, a.publicId]));
+const q = spawnSync('docker', ['exec', DB, 'psql', '-U', 'postgres', '-tA', '-c',
+  `select public_id from public.articles where public_id in (${Object.values(ids).map(id => `'${id}'`).join(',')})`], { encoding: 'utf8' });
+const present = new Set(q.stdout.trim().split('\n').filter(Boolean));
+const missing = SAMPLES.filter(s => !present.has(ids[s]));
 if (missing.length) fail(`Sample article(s) missing in the local database: ${missing.join(', ')}. Run \`npm run db:reset\` (wipes local data) to load them.`);
 
 // Dev server on its own port, so it never clashes with your `npm run dev`. Started directly (not through npx), so

@@ -17,7 +17,8 @@ interface PublicProfileRow { username: string; display_name: string | null; avat
 
 export interface ArticleSummaryRow {
   id: string;
-  slug: string;
+  public_id: string;
+  slug: string | null;
   title: string;
   summary: string | null;
   tags: string[];
@@ -38,7 +39,7 @@ export interface AdminUserRow {
 
 /** Columns for article cards. Never selects the heavy JSON bodies (docs §12). */
 export const ARTICLE_SUMMARY_COLUMNS =
-  'id, slug, title, summary, tags, status, visibility, reading_minutes, published_at, updated_at, deleted_at,' +
+  'id, public_id, slug, title, summary, tags, status, visibility, reading_minutes, published_at, updated_at, deleted_at,' +
   ' owner:profiles!inner(username, display_name, avatar_url, bio), stats:article_stats(views)';
 
 const one = <T>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
@@ -63,6 +64,7 @@ export function toArticleSummary(r: ArticleSummaryRow): ArticleSummary {
   const owner = one(r.owner);
   return {
     id: r.id,
+    publicId: r.public_id,
     slug: r.slug,
     title: r.title,
     summary: r.summary,

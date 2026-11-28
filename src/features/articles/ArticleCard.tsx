@@ -9,7 +9,7 @@ const STATUS_BADGE: Record<string, string> = { draft: 'badge-pending', published
 /** Card for lists. `showStatus` is for the owner's own list (drafts, private…). */
 export default function ArticleCard({ article, showStatus = false }: { article: ArticleSummary; showStatus?: boolean }) {
   const a = article;
-  const to = showStatus ? `/write/${a.id}` : `/${a.author.username}/${a.slug}`;
+  const to = showStatus ? `/write/${a.publicId}` : `/read/${a.publicId}`;
   return (
     <Link to={to} className="card article-card">
       {showStatus && (

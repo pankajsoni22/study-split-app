@@ -101,13 +101,17 @@ await as(u3.id, async () => {
 });
 
 // Phase 1: editor + publishing RPCs
-let artId;
+let artId, artPublicId, dupPublicId;
 await as(u1.id, async () => {
   [{ create_article: artId }] = await q(`select public.create_article('System Design: Chat App!', 'system-design', '{"type":"doc","content":[]}'::jsonb)`);
-  const [a] = await q(`select slug::text, title, status from public.articles where id = $1`, [artId]);
-  ok(a.slug === 'system-design-chat-app' && a.status === 'draft', 'create_article makes a draft with a slug: ' + a.slug);
+  const [a] = await q(`select slug::text, public_id, title, status from public.articles where id = $1`, [artId]);
+  ok(a.slug === null && a.status === 'draft' && /^[A-Za-z0-9]{12}$/.test(a.public_id) && /[A-Z]/.test(a.public_id),
+    'create_article makes a draft with a short id and no slug: ' + a.public_id);
+  artPublicId = a.public_id;
   const [{ create_article: dupId }] = await q(`select public.create_article('System Design: Chat App', null, null)`);
-  ok((await q(`select slug::text from public.articles where id = $1`, [dupId]))[0].slug === 'system-design-chat-app-2', 'duplicate titles get -2 slugs');
+  dupPublicId = (await q(`select public_id from public.articles where id = $1`, [dupId]))[0].public_id;
+  ok(dupPublicId !== a.public_id, 'same title: a different id (titles are not in links)');
+  await expectFail('owner changes an article\'s id', () => q(`update public.articles set public_id = 'ABCDEFGHIJK1' where id = $1`, [artId]));
 
   const meta = JSON.stringify({ title: 'Chat App', slug: 'chat-app', summary: 'WebSockets', tags: ['System Design', 'backend'], visibility: 'public', readingMinutes: 4 });
   const doc = JSON.stringify({ type: 'doc', content: [{ type: 'heading', attrs: { level: 2, sectionId: 's1' }, content: [{ type: 'text', text: 'HLD' }] }] });
@@ -117,8 +121,10 @@ await as(u1.id, async () => {
   const [m] = await q(`select slug::text, title, tags, reading_minutes from public.articles where id = $1`, [artId]);
   ok(m.slug === 'chat-app' && m.tags.includes('system-design') && m.reading_minutes === 4, 'save_draft updates metadata: ' + JSON.stringify(m));
   await expectFail('stale save (CONFLICT)', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [artId, doc, canvas, meta]));
-  await expectFail('slug already used by my other article', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`,
+  await expectFail('slug already used by another article', () => q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`,
     [dupId, doc, canvas, JSON.stringify({ title: 'x', slug: 'chat-app' })]));
+  const [{ save_draft: vEmpty }] = await q(`select public.save_draft($1, 1, $2::jsonb, $3::jsonb, $4::jsonb)`, [dupId, doc, canvas, JSON.stringify({ title: 'x', slug: '' })]);
+  ok(vEmpty === 2 && (await q(`select slug from public.articles where id = $1`, [dupId]))[0].slug === null, 'an empty slug saves as none');
   const [{ publish_article: pv }] = await q(`select public.publish_article($1)`, [artId]);
   ok(pv === 1, 'publish_article creates version 1');
 });
@@ -131,16 +137,20 @@ await as(u2.id, async () => {
 });
 await db.exec(`reset role; set role anon`);
 {
-  const [{ get_published_article: pub }] = await q(`select public.get_published_article('pankaj-new', 'chat-app')`);
-  ok(pub && pub.title === 'Chat App' && pub.doc.content.length === 1 && pub.canvas.elements.length === 1 && pub.author.username === 'pankaj-new',
-    'anon loads a published article in one call');
-  const [{ get_published_article: none }] = await q(`select public.get_published_article('pankaj-new', 'system-design-chat-app-2')`);
+  const [{ get_published_article: pub }] = await q(`select public.get_published_article($1)`, [artPublicId]);
+  ok(pub && pub.title === 'Chat App' && pub.publicId === artPublicId && pub.doc.content.length === 1 && pub.canvas.elements.length === 1 && pub.author.username === 'pankaj-new',
+    'anon loads a published article by its id in one call');
+  const [{ get_published_article: bySlug }] = await q(`select public.get_published_article('chat-app')`);
+  ok(bySlug && bySlug.publicId === artPublicId, 'the slug opens the same article');
+  const [{ get_published_article: upper }] = await q(`select public.get_published_article('CHAT-APP')`);
+  ok(upper === null, 'a key with capitals is only ever an id');
+  const [{ get_published_article: none }] = await q(`select public.get_published_article($1)`, [dupPublicId]);
   ok(none === null, 'anon gets null for a draft');
 }
 await db.exec(`reset role; set role authenticated`);
 await as(u1.id, async () => { await q(`select public.unpublish_article($1)`, [artId]); });
 await db.exec(`reset role; set role anon`);
-ok((await q(`select public.get_published_article('pankaj-new', 'chat-app') a`))[0].a === null, 'unpublished article disappears for readers');
+ok((await q(`select public.get_published_article('chat-app') a`))[0].a === null, 'unpublished article disappears for readers');
 await db.exec(`reset role; set role authenticated`);
 await as(u1.id, async () => { await q(`select public.publish_article($1)`, [artId]); });
 
@@ -154,9 +164,9 @@ ok(feed.length === 2 && feed.some(f => Number(f.views) === 1), 'anon feed join w
 
 // ---------------------------------------------------------------- Trash (soft delete, no hard delete)
 await db.exec(`reset role; set role authenticated`);
-const anonSees = async (slug) => {
+const anonSees = async (key) => {
   await db.exec(`reset role; set role anon`);
-  const [{ a }] = await q(`select public.get_published_article('pankaj-new', $1) a`, [slug]);
+  const [{ a }] = await q(`select public.get_published_article($1) a`, [key]);
   await db.exec(`reset role; set role authenticated`);
   return a !== null;
 };
@@ -181,12 +191,13 @@ await as(u1.id, async () => {
   await expectFail('restore after delete forever', () => q(`select public.restore_article($1)`, [artId]));
   await expectFail('un-purge directly', () => q(`update public.articles set purged_at = null where id = $1`, [artId]));
   const [{ create_article: again }] = await q(`select public.create_article('Chat App', null, null)`);
-  ok((await q(`select slug::text from public.articles where id = $1`, [again]))[0].slug === 'chat-app', 'delete forever frees the address for reuse');
+  const [{ save_draft: va }] = await q(`select public.save_draft($1, 1, '{"type":"doc","content":[]}'::jsonb, '{"elements":[],"files":{}}'::jsonb, '{"title":"Chat App","slug":"chat-app"}'::jsonb)`, [again]);
+  ok(va === 2, 'delete forever frees the slug for reuse');
 });
-check(!(await anonSees('chat-app-deleted')), 'deleted-forever article is not readable');
+check(!(await anonSees(artPublicId)), 'deleted-forever article is not readable by its id');
 await as(u3.id, async () => {
-  const [row] = await q(`select purged_at, slug::text from public.articles where id = $1`, [artId]);
-  ok(row && row.purged_at !== null && row.slug.startsWith('chat-app-deleted-'), 'admin still sees the deleted-forever row (worst-case recovery): ' + row?.slug);
+  const [row] = await q(`select purged_at, slug::text, public_id from public.articles where id = $1`, [artId]);
+  ok(row && row.purged_at !== null && row.slug === null && row.public_id === artPublicId, 'admin still sees the deleted-forever row, same id (worst-case recovery)');
   ok((await q(`select count(*)::int n from public.article_versions where article_id = $1`, [artId]))[0].n > 0, 'its content (versions) is kept in the database');
 });
 
@@ -213,12 +224,23 @@ await as(u1.id, async () => {
   await db.exec(script);
   await db.exec(`set role authenticated`);
   await as(u1.id, async () => {
-    const [row] = await q(`select deleted_at, purged_at, slug::text from public.articles where id = $1`, [artId]);
+    const [row] = await q(`select deleted_at, purged_at, public_id from public.articles where id = $1`, [artId]);
     ok(row && row.purged_at === null && row.deleted_at !== null, 'admin script: article is back in the owner\'s Trash');
-    ok(row?.slug.startsWith('chat-app-deleted-'), 'admin script: keeps the renamed address when the original is taken: ' + row?.slug);
+    ok(row?.public_id === artPublicId, 'admin script: it keeps its id, so its link works again');
     await q(`select public.restore_article($1)`, [artId]);
     ok((await q(`select deleted_at from public.articles where id = $1`, [artId]))[0].deleted_at === null, 'owner can then restore it from Trash');
   });
+}
+
+// Erasing an article for good (docs/03 §3) retires its id: it is never handed out again.
+{
+  await db.exec(`reset role`);
+  const [{ public_id: gone }] = await q(`select public_id from public.articles where id = $1`, [artId]);
+  await q(`delete from public.articles where id = $1`, [artId]);
+  ok((await q(`select count(*)::int n from public.retired_public_ids where public_id = $1`, [gone]))[0].n === 1, 'erasing an article retires its id');
+  await expectFail('reusing a retired id, even by hand', () => q(`insert into public.articles (owner_id, public_id, title) values ($1, $2, 'Reuse')`, [u1.id, gone]));
+  await expectFail('anyone changes an id, even the database owner', () => q(`update public.articles set public_id = 'ZZZZZZZZZZZ1' where id = (select id from public.articles limit 1)`));
+  await db.exec(`set role authenticated`);
 }
 
 console.log(process.exitCode ? '\nSOME CHECKS FAILED' : '\nALL CHECKS PASSED');

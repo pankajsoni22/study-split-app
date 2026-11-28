@@ -6,16 +6,18 @@ import { PASSWORD, articles, buildArticle, users } from './seed/data.mjs';
 
 export const q = v => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`);
 export const j = v => `${q(JSON.stringify(v))}::jsonb`;
-const where = (owner, slug) => `owner_id = ${q(owner)} and slug = ${q(slug)}`;
+// Samples are found by their fixed short id (2026-11-28). A sample's `slug` is only its name in scripts (npm run
+// db:refresh-samples -- <name>, drawing ids); articles start without a slug, as in the app.
+const where = (owner, publicId) => `owner_id = ${q(owner)} and public_id = ${q(publicId)}`;
 
 /** SQL that sets an existing article's content and metadata (used by the seed and by db:refresh-samples). */
 export function articleContentSql(a, built) {
   const owner = users[a.owner].id;
   return `update public.article_drafts set doc = ${j(built.doc)}, canvas = ${j(built.canvas)}, version = version + 1, updated_at = now()
-where article_id = (select id from public.articles where ${where(owner, a.slug)});
-update public.articles set title = ${q(a.title)}, summary = ${q(a.summary)}, tags = ${q(`{${a.tags.join(',')}}`)},
+where article_id = (select id from public.articles where ${where(owner, a.publicId)});
+update public.articles set title = ${q(a.title)}, slug = null, summary = ${q(a.summary)}, tags = ${q(`{${a.tags.join(',')}}`)},
   reading_minutes = ${built.readingMinutes}
-where ${where(owner, a.slug)};
+where ${where(owner, a.publicId)};
 `;
 }
 
@@ -38,16 +40,16 @@ update public.profiles set username = ${q(u.username)}, username_confirmed = tru
   for (const a of articles) {
     const owner = users[a.owner].id, built = buildArticle(a);
     out.push(`-- ${a.title}
-insert into public.articles (owner_id, slug, title) values (${q(owner)}, ${q(a.slug)}, ${q(a.title)});
+insert into public.articles (owner_id, public_id, title) values (${q(owner)}, ${q(a.publicId)}, ${q(a.title)});
 -- (separate statements: the draft row is created by the on_article_created trigger)
 ${articleContentSql(a, built)}`);
     if (a.state === 'published') out.push(`insert into public.article_versions (article_id, version, doc, canvas)
-select article_id, 1, doc, canvas from public.article_drafts where article_id = (select id from public.articles where ${where(owner, a.slug)});
+select article_id, 1, doc, canvas from public.article_drafts where article_id = (select id from public.articles where ${where(owner, a.publicId)});
 update public.articles set status = 'published', published_version = 1, published_at = now() - interval '1 day',
   published_draft_version = (select version from public.article_drafts where article_id = articles.id)
-where ${where(owner, a.slug)};
+where ${where(owner, a.publicId)};
 `);
-    if (a.state === 'trash') out.push(`update public.articles set deleted_at = now() - interval '2 days' where ${where(owner, a.slug)};
+    if (a.state === 'trash') out.push(`update public.articles set deleted_at = now() - interval '2 days' where ${where(owner, a.publicId)};
 `);
   }
   return out.join('\n');
