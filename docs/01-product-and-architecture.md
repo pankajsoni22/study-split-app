@@ -113,11 +113,15 @@ All modes render from the same article data. The mode switcher sits in the top b
 ### 4.1c Reading views (2026-11-27)
 
 - **Present view removed.** Two views remain: **Split** and **Article** (phones: Article).
-- **Top-bar menus (2026-11-28):** the editor and the reader show the same three menus, each displaying what is set:
-  **Layout ▾** (Auto / Manual + text:drawing picker; editor also has Full screen writing/drawing; reader Auto = the
-  writer's layout, greyed out in Article view), **Mode ▾** (editor: Standard / Unfold for readers; reader: Split /
-  Article + the Unfold switch) and **⋯** = Settings only (editor: Article settings; reader: Theme, now also on
-  phones). Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
+- **Top bars (2026-11-28, revised the same day):** both bars show what is set.
+  - **Reader:** the layout choices (text:drawing) sit **directly in the bar** under a "Layout" label, starting on the
+    writer's layout (greyed out in Article view); **Mode ▾** = Split / Article + the Unfold switch; **⋯** = Theme.
+  - **Editor:** **Layout ▾** (Auto / Manual + picker + Full screen writing/drawing), **Mode ▾** (Standard / Unfold),
+    Save, Publish, and **⋯** = View article, Theme, Article settings.
+  - The text toolbar and the drawing format bar are always the **same height** (`--pane-bar-h`, 44 px) and line up in
+    every layout: the text toolbar is one row (labels shorten in narrow panes; sideways scroll as a last resort; its
+    Style/Insert menus open above the page via `MenuButton fixed`).
+  Shared component `src/ui/BarMenu.tsx` (`BarMenu`, `MenuChoice`).
 - **Steady drawing while stepping (2026-11-27):** `SlideImage` renders the "already seen" and "new" layers first and
   swaps both in together, so the previous step's parts never vanish while the next picture is being drawn (they used
   to blink out for ~100 ms). The glow restarts on the new layer via the `is-glowing` class.

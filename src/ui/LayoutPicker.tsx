@@ -1,11 +1,11 @@
 import { LAYOUTS, type LayoutId } from '../domain/layouts.ts';
 
 /** Five layout buttons; each icon shows the text (lines) : drawing (box) proportion. */
-export default function LayoutPicker({ value, onChange, label = 'Layout' }: { value: LayoutId; onChange: (id: LayoutId) => void; label?: string }) {
+export default function LayoutPicker({ value, onChange, label = 'Layout', disabled = false }: { value: LayoutId; onChange: (id: LayoutId) => void; label?: string; disabled?: boolean }) {
   return (
     <div className="segmented segmented-sm layout-picker" role="radiogroup" aria-label={label}>
       {LAYOUTS.map(l => (
-        <button key={l.id} type="button" role="radio" aria-checked={value === l.id} title={`${l.label} (text : drawing)`}
+        <button key={l.id} type="button" role="radio" aria-checked={value === l.id} title={`${l.label} (text : drawing)`} disabled={disabled}
           onClick={() => { if (l.id !== value) onChange(l.id); }}>
           <LayoutIcon text={l.text} />
           <span className="visually-hidden">{l.label}</span>

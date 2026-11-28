@@ -81,7 +81,7 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Formatting">
-      <MenuButton label={`Text style: ${current.label}`} align="left" buttonClassName="tb-style"
+      <MenuButton label={`Text style: ${current.label}`} align="left" fixed buttonClassName="tb-style"
         trigger={<><current.Icon size={16} aria-hidden="true" /><span className="tb-style-label">{current.label}</span><ChevronDown size={14} aria-hidden="true" /></>}>
         {close => STYLES.map(st => item(st.label, st.Icon, () => { setStyle(st.key); close(); },
           { active: st.key === s.style, hint: st.hint, shortcut: st.shortcut }))}
@@ -101,7 +101,7 @@ export default function Toolbar({ editor, trailing }: { editor: Editor; trailing
         {btn(s.codeBlock, 'Code block', () => chain().toggleCodeBlock().run(), SquareCode, 'Ctrl+Alt+C')}
       </div>
 
-      <MenuButton label="Insert" align="left" buttonClassName="tb-style tb-insert"
+      <MenuButton label="Insert" align="left" fixed buttonClassName="tb-style tb-insert"
         trigger={<><Plus size={16} aria-hidden="true" /><span className="tb-style-label">Insert</span><ChevronDown size={14} aria-hidden="true" /></>}>
         {close => [
           item('Table', Table2, () => { chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); close(); }, { hint: '3 × 3, first row is the header' }),

@@ -4,6 +4,7 @@
    own brand: Verdigris teal accent + Marker amber highlight (docs §14).
    ========================================================================== */
 :root {
+  --pane-bar-h: 44px;   /* text toolbar and drawing format bar: always the same height */
   --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -689,11 +690,11 @@ body.is-resizing { cursor: col-resize; user-select: none; }
    ========================================================================== */
 .canvas-host.is-slide:not(.show-native-props) .App-menu__left { display: none !important; }
 .format-bar {
-  display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; height: 44px; padding: 0 10px; flex: none;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; height: var(--pane-bar-h); padding: 0 10px; flex: none;
   background: var(--surface-2); border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: visible; scrollbar-width: none;
 }
 .format-bar::-webkit-scrollbar { display: none; }
-.format-bar.is-empty { height: 44px; }
+.format-bar.is-empty { height: var(--pane-bar-h); }
 .fb-sep { width: 1px; height: 22px; margin: 0 4px; background: var(--border-strong); flex: none; }
 .fb-pop { position: static; flex: none; }
 .fb-trigger { width: auto; min-width: 34px; padding: 0 5px; gap: 2px; display: inline-flex; align-items: center; }
@@ -1043,8 +1044,23 @@ body.is-resizing { cursor: col-resize; user-select: none; }
 .prose [data-type="detailsContent"] > * + * { margin-top: 0.75em; }
 
 /* ---- Compact formatting toolbar (2026-11-26): Style ▾ · B I <> link · Insert ▾ · block options ---- */
-/* wraps on narrow widths (no overflow: it would clip the Style / Insert menus) */
-.toolbar { flex-wrap: wrap; gap: 6px; padding: 6px 14px; position: relative; z-index: 20; }
+/* One row, exactly as tall as the drawing's format bar (2026-11-28: the two must line up). Labels shorten when the text
+   pane is narrow; as a last resort it scrolls sideways (its Style / Insert menus open above the page, so nothing clips). */
+.toolbar {
+  flex-wrap: nowrap; gap: 6px; height: var(--pane-bar-h); padding: 0 14px; position: relative; z-index: 20;
+  border-block: none; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+.toolbar > * { flex: none; }
+.toolbar .tb-trailing { margin-left: auto; }
+.editor-text { container-type: inline-size; }
+@container (max-width: 640px) { .toolbar .tb-style-label { display: none; } }
+@container (max-width: 520px) {
+  .toolbar { gap: 2px; padding: 0 8px; }
+  .toolbar .tb-group { gap: 0; padding-right: 4px; }
+  .toolbar .tb-btn { width: 29px; }
+  .toolbar .tb-style { padding: 0 6px; gap: 3px; }
+}
 .tb-style {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface); color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
@@ -1306,3 +1322,11 @@ main.reader-article { max-width: none; margin: 0; padding: 0; position: relative
 .menu-choice.is-checked { color: var(--text); }
 .menu-item:disabled { opacity: 0.5; cursor: default; background: transparent; }
 @media (max-width: 1180px) { .bar-menu-label { display: none; } }
+
+/* reader: the layout picker sits directly in the bar (2026-11-28) */
+.bar-layout { display: inline-flex; align-items: center; gap: 8px; }
+.bar-layout.is-disabled { opacity: 0.5; }
+.layout-picker button:disabled { cursor: default; }
+.menu-item.is-static { cursor: default; opacity: 0.6; }
+.menu-item.is-static:hover { background: transparent; color: var(--text-2); }
+a.menu-item { text-decoration: none; }

@@ -1,10 +1,10 @@
-import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Columns2, Ellipsis, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, Ellipsis, Eye, Layers, Link2, ListTree, PenLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { splitSections, textOf, type Section } from '../../domain/content.ts';
 import { slugify } from '../../domain/slug.ts';
 import { stepIds, usesUnfold, visibleAt } from '../../domain/unfold.ts';
-import { layoutById, layoutRatio, type LayoutId } from '../../domain/layouts.ts';
+import { layoutById, type LayoutId } from '../../domain/layouts.ts';
 import type { PublishedArticle } from '../../domain/types.ts';
 import { getServices } from '../../data/services.ts';
 import { useQuery } from '../../data/useQuery.ts';
@@ -147,19 +147,11 @@ function Reader({ article }: { article: PublishedArticle }) {
         {/* Layout, Mode and Settings (2026-11-28): the same three menus as the editor, each showing what is set. */}
         {!narrow && (
           <div className="bar-menus">
-            <BarMenu label="Layout" Icon={Columns2} value={prefs.layout ? layoutRatio(layout) : 'Auto'}
-              disabled={mode === 'article'} disabledHint="Layout applies to Split view">
-              {() => (
-                <>
-                  <MenuChoice checked={!prefs.layout} title="Auto" hint={`The writer's layout (${layoutRatio(authorLayout)})`} onPick={() => setPrefs({ layout: undefined })} />
-                  <MenuChoice checked={!!prefs.layout} title="Manual" hint="Keep the split you pick below" onPick={() => setPrefs({ layout })} />
-                  <div className="menu-section">
-                    <span className="menu-label">Text : drawing</span>
-                    <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" />
-                  </div>
-                </>
-              )}
-            </BarMenu>
+            {/* Readers pick the layout directly (2026-11-28: no Auto/Manual here). It starts on the writer's layout. */}
+            <div className={`bar-layout${mode === 'article' ? ' is-disabled' : ''}`} title={mode === 'article' ? 'Layout applies to Split view' : undefined}>
+              <span className="bar-menu-label">Layout</span>
+              <LayoutPicker value={layout} onChange={l => setPrefs({ layout: l })} label="Layout (text : drawing)" disabled={mode === 'article'} />
+            </div>
             <BarMenu label="Mode" Icon={Eye}
               value={mode === 'article' ? 'Article' : unfold ? 'Split · Unfold' : 'Split'} className={`mode-menu${unfold ? ' is-unfold' : ''}`}>
               {() => (

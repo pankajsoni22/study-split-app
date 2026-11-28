@@ -10,6 +10,7 @@ import Dialog from '../../ui/Dialog.tsx';
 import TimedToast from '../../ui/TimedToast.tsx';
 import LayoutPicker from '../../ui/LayoutPicker.tsx';
 import MenuButton from '../../ui/MenuButton.tsx';
+import ThemeSwitch from '../../ui/ThemeSwitch.tsx';
 import BarMenu, { MenuChoice } from '../../ui/BarMenu.tsx';
 import Logo from '../../ui/Logo.tsx';
 import SplitPane from '../../ui/SplitPane.tsx';
@@ -398,11 +399,6 @@ export default function EditorPage() {
             )}
           </BarMenu>
         </div>
-        {session.status === 'published' && (
-          <a className="btn btn-ghost btn-sm" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer">
-            <ExternalLink size={15} aria-hidden="true" /> View
-          </a>
-        )}
         <button type="button" className="btn btn-ghost btn-sm" disabled={session.saveState === 'saved' || session.saveState === 'saving'}
           onClick={() => void session.save()} title="Save (Ctrl+S)">
           {session.saveState === 'saving' ? <Loader2 size={15} className="spin-icon" aria-hidden="true" /> : <CloudUpload size={15} aria-hidden="true" />}
@@ -415,11 +411,29 @@ export default function EditorPage() {
           <Upload size={15} aria-hidden="true" />
           {session.publishing ? 'Publishing…' : session.status === 'published' ? 'Publish update' : 'Publish'}
         </button>
-        <MenuButton label="Settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
+        {/* ⋯ (2026-11-28): View, Theme and Article settings; keeps the bar short. */}
+        <MenuButton label="More: view, theme, settings" trigger={<Ellipsis size={18} aria-hidden="true" />}>
           {close => (
-            <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
-              <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
-            </button>
+            <>
+              {session.status === 'published' ? (
+                <a role="menuitem" className="menu-item" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}${viewUrl}`} target="_blank" rel="noreferrer" onClick={close}>
+                  <ExternalLink size={16} aria-hidden="true" /><span className="menu-item-text">View article<small>Opens the published version in a new tab</small></span>
+                </a>
+              ) : (
+                <span className="menu-item is-static" role="menuitem" aria-disabled="true">
+                  <ExternalLink size={16} aria-hidden="true" /><span className="menu-item-text">View article<small>Available after you publish</small></span>
+                </span>
+              )}
+              <div className="menu-sep" role="separator" />
+              <div className="menu-section">
+                <span className="menu-label">Theme</span>
+                <ThemeSwitch />
+              </div>
+              <div className="menu-sep" role="separator" />
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setSettingsOpen(true); }}>
+                <Settings2 size={16} aria-hidden="true" /><span className="menu-item-text">Article settings…<small>Title, address, summary, tags, Trash</small></span>
+              </button>
+            </>
           )}
         </MenuButton>
         {session.saveState === 'saving' && <span className="progress-bar" role="progressbar" aria-label="Saving" />}
